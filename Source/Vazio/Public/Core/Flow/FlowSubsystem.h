@@ -18,18 +18,25 @@ class VAZIO_API UFlowSubsystem : public UGameInstanceSubsystem
 	GENERATED_BODY()
 
 public:
-	// Ajuste os nomes dos mapas conforme voc� criar no Content
+	// Nomes dos mapas corrigidos para os mapas que você criou
 	UPROPERTY(Config)
 	FName MainMenuMap = TEXT("MainMenu");
 
 	UPROPERTY(Config)
-	FName CityMap = TEXT("City_P");
+	FName CityMap = TEXT("City_Main");  // Corrigido para o nome do seu mapa
 
-	// Carrega por nome simples (os dois mapas devem estar em /Game/Maps/.. com esses nomes)
+	UPROPERTY(Config)
+	FName BattleMap = TEXT("Battle_Main");  // Adicionado o mapa de batalha também
+
+	// Carrega por nome simples (os mapas devem estar em /Game/Levels/...)
 	UFUNCTION()
 	bool OpenLevelByName(FName MapName);
 
 	// Atalhos
 	UFUNCTION() bool OpenMainMenu();
 	UFUNCTION() bool OpenCity();
+	UFUNCTION() bool OpenBattle();
+
+protected:
+	virtual void Initialize(FSubsystemCollectionBase& Collection) override;
 };

@@ -26,5 +26,5 @@ private:
 	UOverlay* RootOverlay = nullptr;
 	UVerticalBox* MenuBox = nullptr;
 
-	UButton* CreateButton(const FString& Label, TFunction<void()> OnClickedLambda);
+	UButton* CreatePlayButton();
 };

@@ -1,6 +1,6 @@
-#include "MainMenuGameMode.h"
+#include "World/Common/GameModes/MainMenuGameMode.h"
 
-#include "MainMenuWidget.h"
+#include "UI/Widgets/MainMenuWidget.h"
 #include "Blueprint/UserWidget.h"
 #include "Engine/Engine.h"
 #include "Engine/GameViewportClient.h"
@@ -12,7 +12,7 @@
 
 AMainMenuGameMode::AMainMenuGameMode()
 {
-	// Evita erro de SpawnActor e mant�m um Pawn simples
+	// Evita erro de SpawnActor e mantém um Pawn simples
 	DefaultPawnClass = ADefaultPawn::StaticClass();
 	bStartPlayersAsSpectators = true;
 
@@ -30,7 +30,7 @@ void AMainMenuGameMode::BeginPlay()
 	}
 	UE_LOG(LogTemp, Warning, TEXT("[GM] BeginPlay"));
 
-	// Chama SpawnMenu no pr�ximo tick para garantir viewport pronto
+	// Chama SpawnMenu no próximo tick para garantir viewport pronto
 	if (UWorld* World = GetWorld())
 	{
 		FTimerHandle Th;
@@ -66,20 +66,38 @@ void AMainMenuGameMode::SpawnMenu()
 		return;
 	}
 
+	// Configurar visibilidade ANTES de adicionar à viewport
 	Menu->SetVisibility(ESlateVisibility::Visible);
 
-	// Add to player screen (suficiente)
-	const bool bAdded = Menu->AddToPlayerScreen(1000);
-	UE_LOG(LogTemp, Warning, TEXT("[GM] AddToPlayerScreen: %s"), bAdded ? TEXT("true") : TEXT("false"));
-	UKismetSystemLibrary::PrintString(World, FString::Printf(TEXT("[GM] AddToPlayerScreen: %s"), bAdded ? TEXT("true") : TEXT("false")), true, true, FLinearColor::Green, 6.f);
+	// USAR Z-ORDER MÁXIMO POSSÍVEL
+	Menu->AddToViewport(32767);  // Z-order máximo (int16 max)
+	
+	UE_LOG(LogTemp, Warning, TEXT("[GM] AddToViewport com Z-order 32767"));
+	UKismetSystemLibrary::PrintString(World, TEXT("[GM] Widget adicionado com Z-order MÁXIMO"), true, true, FLinearColor::Green, 6.f);
 
-	// Foco e cursor
+	// FORÇAR O WIDGET PARA O TOPO DE TODAS AS CAMADAS
+	if (UGameViewportClient* ViewportClient = World->GetGameViewport())
+	{
+		// Remove e re-adiciona para garantir que fique no topo
+		Menu->RemoveFromParent();  // API atualizada
+		Menu->AddToViewport(32767);
+		
+		UE_LOG(LogTemp, Warning, TEXT("[GM] Widget removido e re-adicionado para forçar topo"));
+	}
+
+	// Configurar Input Mode para UI
 	FInputModeUIOnly InputMode;
-	InputMode.SetWidgetToFocus(Menu->TakeWidget());
 	InputMode.SetLockMouseToViewportBehavior(EMouseLockMode::DoNotLock);
 	PC->SetInputMode(InputMode);
 	PC->bShowMouseCursor = true;
 
-	UE_LOG(LogTemp, Warning, TEXT("[GM] InputMode UIOnly + cursor"));
-	UKismetSystemLibrary::PrintString(World, TEXT("[GM] InputMode UIOnly + cursor"), true, true, FLinearColor::Green, 6.f);
+	// ADICIONAR MENSAGEM DE DEBUG GIGANTE NA TELA
+	if (GEngine)
+	{
+		GEngine->AddOnScreenDebugMessage(-1, 20.0f, FColor::Red, TEXT("*** WIDGET DEVERIA ESTAR VISÍVEL AGORA ***"));
+		GEngine->AddOnScreenDebugMessage(-1, 20.0f, FColor::Yellow, TEXT("Se você vê esta mensagem, o sistema está funcionando"));
+		GEngine->AddOnScreenDebugMessage(-1, 20.0f, FColor::Green, TEXT("O widget vermelho deveria cobrir toda a tela"));
+	}
+
+	UE_LOG(LogTemp, Warning, TEXT("[GM] Menu configurado completamente com debug messages"));
 }

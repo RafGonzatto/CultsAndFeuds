@@ -19,16 +19,35 @@ public:
 protected:
 	virtual void BeginPlay() override;
 	virtual void SetupInputComponent() override;
+	virtual void Tick(float DeltaTime) override;
 
 private:
-	// Criados em runtime (sem uassets)
+	// Enhanced Input Context e Actions (WASD)
 	UPROPERTY() UInputMappingContext* Mapping = nullptr;
 	UPROPERTY() UInputAction* MoveForwardAction = nullptr;
 	UPROPERTY() UInputAction* MoveRightAction = nullptr;
-	UPROPERTY() UInputAction* LookYawAction = nullptr;
 
-	// Handlers
+	// Input Handlers WASD
 	void OnMoveForward(const FInputActionValue& Value);
 	void OnMoveRight(const FInputActionValue& Value);
-	void OnLookYaw(const FInputActionValue& Value);
+	
+	// Click-to-Move System
+	UFUNCTION()
+	void OnLeftMouseClick();
+	
+	UFUNCTION()
+	void OnLeftMouseRelease();
+	
+	void MovePlayerToLocation(FVector TargetLocation);
+	
+	// Função de teste para verificar input
+	UFUNCTION()
+	void TestInputSystem();
+
+	// Variáveis para click-to-move
+	UPROPERTY()
+	FVector CurrentMoveTarget;
+	
+	UPROPERTY()
+	bool bIsMovingToTarget = false;
 };
