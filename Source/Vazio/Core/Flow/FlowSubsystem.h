@@ -12,13 +12,13 @@ enum class EVazioMode : uint8
 	Battle
 };
 
-UCLASS()
+UCLASS(Config=Game)
 class VAZIO_API UFlowSubsystem : public UGameInstanceSubsystem
 {
 	GENERATED_BODY()
 
 public:
-	// Ajuste os nomes dos mapas conforme você criar no Content
+	// Ajuste os nomes dos mapas conforme vocï¿½ criar no Content
 	UPROPERTY(Config)
 	FName MainMenuMap = TEXT("MainMenu");
 
