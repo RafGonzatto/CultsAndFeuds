@@ -22,32 +22,74 @@ protected:
 	virtual void Tick(float DeltaTime) override;
 
 private:
-	// Enhanced Input Context e Actions (WASD)
+	// Enhanced Input Context e Actions
 	UPROPERTY() UInputMappingContext* Mapping = nullptr;
 	UPROPERTY() UInputAction* MoveForwardAction = nullptr;
 	UPROPERTY() UInputAction* MoveRightAction = nullptr;
+	UPROPERTY() UInputAction* ClickAction = nullptr;
+	UPROPERTY() UInputAction* Anim1Action = nullptr;
+	UPROPERTY() UInputAction* Anim2Action = nullptr;
+	UPROPERTY() UInputAction* SprintAction = nullptr;
 
-	// Input Handlers WASD
+	// Input Handlers WASD - SISTEMA SIMPLIFICADO
 	void OnMoveForward(const FInputActionValue& Value);
 	void OnMoveRight(const FInputActionValue& Value);
-	
-	// Click-to-Move System
-	UFUNCTION()
-	void OnLeftMouseClick();
-	
-	UFUNCTION()
-	void OnLeftMouseRelease();
-	
-	void MovePlayerToLocation(FVector TargetLocation);
-	
-	// Função de teste para verificar input
-	UFUNCTION()
-	void TestInputSystem();
+	void OnMoveForwardCompleted(const FInputActionValue& Value);
+	void OnMoveRightCompleted(const FInputActionValue& Value);
 
-	// Variáveis para click-to-move
-	UPROPERTY()
-	FVector CurrentMoveTarget;
+	// Sprint - SISTEMA DIRETO
+	void OnSprintStart(const FInputActionValue& Value);
+	void OnSprintEnd(const FInputActionValue& Value);
+	float BaseWalkSpeed = 400.f;
+	float SprintMultiplier = 2.0f; // Sprint mais visível
+	bool bIsSprinting = false;
+
+	// Click-to-Move - SISTEMA UNIFICADO
+	void OnLeftMouseClick();
+	void OnLeftMouseRelease();
+	UFUNCTION() void OnEnhancedClick(const FInputActionValue& Value);
+	void MovePlayerToLocation(FVector TargetLocation);
+
+	// Variáveis de movimento - UMA FONTE DE VERDADE
+	UPROPERTY() FVector CurrentMoveTarget;
+	UPROPERTY() bool bIsMovingToTarget = false;
+
+	// Atalhos Ctrl+1/Ctrl+2 - SISTEMA DIRETO
+	UFUNCTION() void OnAnim1Action(const FInputActionValue& Value);
+	UFUNCTION() void OnAnim2Action(const FInputActionValue& Value);
+
+	// Debug
+	UFUNCTION() void IncreaseWalkSpeed();
+	UFUNCTION() void DecreaseWalkSpeed();
+
+	// SISTEMA DE MOVIMENTO ÚNICO E DEFINITIVO + DEBUG
+	float ForwardInput = 0.f;
+	float RightInput = 0.f;
+	void ProcessMovement(float DeltaTime);
+
+	// SISTEMA DE DEBUG AVANÇADO
+	FVector LastKnownPosition;
+	FVector LastFramePosition;
+	float DebugTimer = 0.f;
+	int32 TeleportDetectionCount = 0;
 	
-	UPROPERTY()
-	bool bIsMovingToTarget = false;
+	UFUNCTION(Exec)
+	void DebugMovement();
+	
+	UFUNCTION(Exec)
+	void DebugAnimations();
+	
+	UFUNCTION(Exec)
+	void DebugPositions();
+	
+	UFUNCTION(Exec)
+	void ToggleMovementDebug();
+	
+	bool bDebugMovementEnabled = false;
+	void LogMovementState();
+	void DetectTeleports();
+
+	// Click-to-Move guard to ignore initial viewport click
+	float IgnoreClickUntilTime = 0.f;
+	bool bClickGuardActive = false;
 };

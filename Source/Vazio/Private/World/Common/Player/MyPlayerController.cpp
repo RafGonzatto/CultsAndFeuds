@@ -1,4 +1,6 @@
 #include "World/Common/Player/MyPlayerController.h"
+#include "World/Common/Player/MyCharacter.h"
+#include "World/Common/Effects/ClickArrowIndicator.h"
 
 #include "EnhancedInputSubsystems.h"
 #include "EnhancedInputComponent.h"
@@ -6,278 +8,271 @@
 #include "InputAction.h"
 #include "GameFramework/Character.h"
 #include "GameFramework/CharacterMovementComponent.h"
+#include "Components/CapsuleComponent.h"
+#include "Components/SkeletalMeshComponent.h"
+#include "Animation/AnimInstance.h"
+#include "Animation/AnimMontage.h"
 #include "Camera/CameraComponent.h"
 
 #include "Engine/LocalPlayer.h"
 #include "GameFramework/PlayerInput.h"
 #include "InputCoreTypes.h"
 #include "InputModifiers.h"
-#include "DrawDebugHelpers.h"
-#include "World/Common/Effects/ClickArrowIndicator.h"
 
 AMyPlayerController::AMyPlayerController()
 {
-	PrimaryActorTick.bCanEverTick = true; // garantir Tick
-
-	bShowMouseCursor = true; // ATIVAR cursor para click-to-move
-	bEnableClickEvents = true; // ATIVAR click events
+	PrimaryActorTick.bCanEverTick = true;
+	bShowMouseCursor = true;
+	bEnableClickEvents = true;
 	bEnableTouchEvents = false;
-	
-	UE_LOG(LogTemp, Warning, TEXT("[MyPlayerController] Construtor - Cursor HABILITADO para click-to-move"));
 }
 
 void AMyPlayerController::BeginPlay()
 {
 	Super::BeginPlay();
 
-	UE_LOG(LogTemp, Warning, TEXT("[MyPlayerController] BeginPlay iniciado - configurando Enhanced Input"));
+	// Guard: ignore initial click-to-move for first 0.25s (avoids auto-move from initial click)
+	IgnoreClickUntilTime = GetWorld() ? GetWorld()->GetTimeSeconds() + 0.25f : 0.f;
+	bClickGuardActive = true;
 
-	// Garantir foco de input no jogo (não UI)
+	// Configura??o de input b?sica
 	FInputModeGameOnly GameOnly;
 	SetInputMode(GameOnly);
-	bShowMouseCursor = true; // manter visível para click-to-move
+	bShowMouseCursor = true;
 	bEnableClickEvents = true;
 
+	// Enhanced Input Setup
 	ULocalPlayer* LP = GetLocalPlayer();
-	if (!LP) 
-	{
-		UE_LOG(LogTemp, Error, TEXT("[MyPlayerController] LocalPlayer é NULL"));
-		return;
-	}
-
+	if (!LP) return;
+	
 	UEnhancedInputLocalPlayerSubsystem* Subsys = LP->GetSubsystem<UEnhancedInputLocalPlayerSubsystem>();
-	if (!Subsys) 
-	{
-		UE_LOG(LogTemp, Error, TEXT("[MyPlayerController] Enhanced Input Subsystem é NULL"));
-		return;
-	}
+	if (!Subsys) return;
 
-	// Criar Mapping Context e Ações em runtime (APENAS MOVIMENTO)
-	Mapping = NewObject<UInputMappingContext>(this, TEXT("IMC_CityMovement"));
+	// Criar actions
+	Mapping = NewObject<UInputMappingContext>(this, TEXT("IMC_Player"));
 	MoveForwardAction = NewObject<UInputAction>(this, TEXT("IA_MoveForward"));
-	MoveRightAction = NewObject<UInputAction>(this, TEXT("IA_MoveRight"));
-
 	MoveForwardAction->ValueType = EInputActionValueType::Axis1D;
+	MoveRightAction = NewObject<UInputAction>(this, TEXT("IA_MoveRight"));
 	MoveRightAction->ValueType = EInputActionValueType::Axis1D;
+	ClickAction = NewObject<UInputAction>(this, TEXT("IA_Click"));
+	ClickAction->ValueType = EInputActionValueType::Boolean;
+	Anim1Action = NewObject<UInputAction>(this, TEXT("IA_Anim1"));
+	Anim1Action->ValueType = EInputActionValueType::Boolean;
+	Anim2Action = NewObject<UInputAction>(this, TEXT("IA_Anim2"));
+	Anim2Action->ValueType = EInputActionValueType::Boolean;
+	SprintAction = NewObject<UInputAction>(this, TEXT("IA_Sprint"));
+	SprintAction->ValueType = EInputActionValueType::Boolean;
 
+	// Mapear teclas
+	Mapping->MapKey(MoveForwardAction, EKeys::W);
 	{
-		Mapping->MapKey(MoveForwardAction, EKeys::W);
 		FEnhancedActionKeyMapping& S = Mapping->MapKey(MoveForwardAction, EKeys::S);
-		UInputModifierNegate* NegateS = NewObject<UInputModifierNegate>(this);
-		S.Modifiers.Add(NegateS);
+		S.Modifiers.Add(NewObject<UInputModifierNegate>(this));
 	}
+	Mapping->MapKey(MoveRightAction, EKeys::D);
 	{
-		Mapping->MapKey(MoveRightAction, EKeys::D);
 		FEnhancedActionKeyMapping& A = Mapping->MapKey(MoveRightAction, EKeys::A);
-		UInputModifierNegate* NegateA = NewObject<UInputModifierNegate>(this);
-		A.Modifiers.Add(NegateA);
+		A.Modifiers.Add(NewObject<UInputModifierNegate>(this));
 	}
+	Mapping->MapKey(ClickAction, EKeys::LeftMouseButton);
+	Mapping->MapKey(Anim1Action, EKeys::One);
+	Mapping->MapKey(Anim2Action, EKeys::Two);
+	Mapping->MapKey(SprintAction, EKeys::LeftShift);
 
-	// Aplicar contexto com prioridade alta
+	// Registrar context
 	Subsys->ClearAllMappings();
 	Subsys->AddMappingContext(Mapping, 100);
-	UE_LOG(LogTemp, Warning, TEXT("[MyPlayerController] MappingContext aplicado (prio=100)"));
 
-	// IMPORTANTE: Fazer os binds DEPOIS de criar as Actions (SetupInputComponent roda antes)
+	// Bind actions
 	if (UEnhancedInputComponent* EIC = Cast<UEnhancedInputComponent>(InputComponent))
 	{
 		EIC->ClearActionBindings();
 		EIC->BindAction(MoveForwardAction, ETriggerEvent::Triggered, this, &AMyPlayerController::OnMoveForward);
+		EIC->BindAction(MoveForwardAction, ETriggerEvent::Completed, this, &AMyPlayerController::OnMoveForwardCompleted);
 		EIC->BindAction(MoveRightAction, ETriggerEvent::Triggered, this, &AMyPlayerController::OnMoveRight);
-		UE_LOG(LogTemp, Warning, TEXT("[MyPlayerController] BindAction refeito em BeginPlay"));
-	}
-	else
-	{
-		UE_LOG(LogTemp, Error, TEXT("[MyPlayerController] InputComponent não é EnhancedInputComponent"));
-	}
-
-	EnableInput(this);
-
-	// Timer de teste
-	FTimerHandle TestInputTimer;
-	GetWorld()->GetTimerManager().SetTimer(TestInputTimer, this, &AMyPlayerController::TestInputSystem, 1.0f, false);
-}
-
-void AMyPlayerController::TestInputSystem()
-{
-	UE_LOG(LogTemp, Error, TEXT("========================================"));
-	UE_LOG(LogTemp, Error, TEXT("[MyPlayerController] *** TESTE DE SISTEMAS DE INPUT ***"));
-	UE_LOG(LogTemp, Error, TEXT("1. Pressione WASD para testar Enhanced Input"));
-	UE_LOG(LogTemp, Error, TEXT("2. Clique na tela para testar Click-to-Move"));
-	UE_LOG(LogTemp, Error, TEXT("========================================"));
-	
-	// Verificar se o pawn está correto
-	if (APawn* MyPawn = GetPawn())
-	{
-		UE_LOG(LogTemp, Warning, TEXT("[MyPlayerController] Pawn controlado: %s na posição: %s"), 
-			*MyPawn->GetName(), 
-			*MyPawn->GetActorLocation().ToString());
-	}
-	else
-	{
-		UE_LOG(LogTemp, Error, TEXT("[MyPlayerController] NENHUM PAWN está sendo controlado!"));
+		EIC->BindAction(MoveRightAction, ETriggerEvent::Completed, this, &AMyPlayerController::OnMoveRightCompleted);
+		EIC->BindAction(ClickAction, ETriggerEvent::Started, this, &AMyPlayerController::OnEnhancedClick);
+		EIC->BindAction(Anim1Action, ETriggerEvent::Started, this, &AMyPlayerController::OnAnim1Action);
+		EIC->BindAction(Anim2Action, ETriggerEvent::Started, this, &AMyPlayerController::OnAnim2Action);
+		EIC->BindAction(SprintAction, ETriggerEvent::Started, this, &AMyPlayerController::OnSprintStart);
+		EIC->BindAction(SprintAction, ETriggerEvent::Completed, this, &AMyPlayerController::OnSprintEnd);
 	}
 
-	// Verificar se o input component existe
+	// Debug binds
 	if (InputComponent)
 	{
-		UE_LOG(LogTemp, Warning, TEXT("[MyPlayerController] InputComponent existe: %s"), *InputComponent->GetName());
+		InputComponent->BindKey(EKeys::Equals, IE_Pressed, this, &AMyPlayerController::IncreaseWalkSpeed);
+		InputComponent->BindKey(EKeys::Hyphen, IE_Pressed, this, &AMyPlayerController::DecreaseWalkSpeed);
 	}
-	else
-	{
-		UE_LOG(LogTemp, Error, TEXT("[MyPlayerController] InputComponent é NULL!"));
-	}
-	
-	// Verificar Enhanced Input
-	if (Mapping && MoveForwardAction && MoveRightAction)
-	{
-		UE_LOG(LogTemp, Warning, TEXT("[MyPlayerController] Enhanced Input Actions criadas corretamente"));
-	}
-	else
-	{
-		UE_LOG(LogTemp, Error, TEXT("[MyPlayerController] Problema com Enhanced Input Actions!"));
-	}
+
+	UE_LOG(LogTemp, Warning, TEXT("[PC] PlayerController inicializado - sistema unificado ativo"));
 }
 
 void AMyPlayerController::SetupInputComponent()
 {
 	Super::SetupInputComponent();
-
-	if (UEnhancedInputComponent* EIC = Cast<UEnhancedInputComponent>(InputComponent))
-	{
-		EIC->BindAction(MoveForwardAction, ETriggerEvent::Triggered, this, &AMyPlayerController::OnMoveForward);
-		EIC->BindAction(MoveRightAction, ETriggerEvent::Triggered, this, &AMyPlayerController::OnMoveRight);
-		UE_LOG(LogTemp, Warning, TEXT("[MyPlayerController] Enhanced Input bindings criados - MOVIMENTO WASD"));
-	}
-	else
-	{
-		UE_LOG(LogTemp, Error, TEXT("[MyPlayerController] Enhanced Input Component não encontrado"));
-	}
-
-	// Bind direto de tecla (sem precisar de Action Mapping no Project Settings)
-	InputComponent->BindKey(EKeys::LeftMouseButton, IE_Pressed, this, &AMyPlayerController::OnLeftMouseClick);
-	InputComponent->BindKey(EKeys::LeftMouseButton, IE_Released, this, &AMyPlayerController::OnLeftMouseRelease);
-	UE_LOG(LogTemp, Warning, TEXT("[MyPlayerController] Click-to-Move binding direto (BindKey) adicionado"));
 }
+
+// ============================================================================
+// SISTEMA DE MOVIMENTO ÚNICO E DEFINITIVO
+// ============================================================================
 
 void AMyPlayerController::OnMoveForward(const FInputActionValue& Value)
 {
-	const float Axis = Value.Get<float>();
-	UE_LOG(LogTemp, Error, TEXT("[MyPlayerController] *** INPUT W/S DETECTADO: %f ***"), Axis);
-
-	if (APawn* ControlledPawn = GetPawn())
+	ForwardInput = Value.Get<float>();
+	
+	// Cancelar click-to-move imediatamente
+	if (FMath::Abs(ForwardInput) > 0.01f)
 	{
-		// Direções alinhadas à câmera (top-down), projetadas no plano XY
-		const FRotator CamRot = PlayerCameraManager ? PlayerCameraManager->GetCameraRotation() : FRotator::ZeroRotator;
-		FVector ForwardDir = FRotationMatrix(CamRot).GetUnitAxis(EAxis::X);
-		ForwardDir.Z = 0.f;
-		ForwardDir.Normalize();
-		
-		ControlledPawn->AddMovementInput(ForwardDir, Axis);
-		if (FMath::Abs(Axis) > 0.01f)
+		if (bIsMovingToTarget)
 		{
-			UE_LOG(LogTemp, Error, TEXT("[MyPlayerController] Player MOVEU FRENTE/TRÁS - Pos: %s"), *ControlledPawn->GetActorLocation().ToString());
+			bIsMovingToTarget = false;
+			UE_LOG(LogTemp, Log, TEXT("[PC] Click-to-move cancelado - input forward"));
 		}
-	}
-	else
-	{
-		UE_LOG(LogTemp, Error, TEXT("[MyPlayerController] INPUT RECEBIDO mas NENHUM PAWN para controlar!"));
 	}
 }
 
 void AMyPlayerController::OnMoveRight(const FInputActionValue& Value)
 {
-	const float Axis = Value.Get<float>();
-	UE_LOG(LogTemp, Error, TEXT("[MyPlayerController] *** INPUT A/D DETECTADO: %f ***"), Axis);
-
-	if (APawn* ControlledPawn = GetPawn())
+	RightInput = Value.Get<float>();
+	
+	// Cancelar click-to-move imediatamente
+	if (FMath::Abs(RightInput) > 0.01f)
 	{
-		// Direções alinhadas à câmera (top-down), projetadas no plano XY
-		const FRotator CamRot = PlayerCameraManager ? PlayerCameraManager->GetCameraRotation() : FRotator::ZeroRotator;
-		FVector RightDir = FRotationMatrix(CamRot).GetUnitAxis(EAxis::Y);
-		RightDir.Z = 0.f;
-		RightDir.Normalize();
-		
-		ControlledPawn->AddMovementInput(RightDir, Axis);
-		if (FMath::Abs(Axis) > 0.01f)
+		if (bIsMovingToTarget)
 		{
-			UE_LOG(LogTemp, Error, TEXT("[MyPlayerController] Player MOVEU ESQ/DIR - Pos: %s"), *ControlledPawn->GetActorLocation().ToString());
+			bIsMovingToTarget = false;
+			UE_LOG(LogTemp, Log, TEXT("[PC] Click-to-move cancelado - input right"));
 		}
 	}
-	else
-	{
-		UE_LOG(LogTemp, Error, TEXT("[MyPlayerController] INPUT RECEBIDO mas NENHUM PAWN para controlar!"));
-	}
 }
 
-void AMyPlayerController::OnLeftMouseClick()
+void AMyPlayerController::OnMoveForwardCompleted(const FInputActionValue& Value)
 {
-	UE_LOG(LogTemp, Error, TEXT("[MyPlayerController] *** MOUSE CLICK DETECTADO! ***"));
-	FHitResult HitResult;
-	bool bHit = GetHitResultUnderCursor(ECollisionChannel::ECC_Visibility, false, HitResult);
-	if (bHit && HitResult.bBlockingHit)
-	{
-		FVector TargetLocation = HitResult.Location;
-		UE_LOG(LogTemp, Error, TEXT("[MyPlayerController] Click no mundo em: %s"), *TargetLocation.ToString());
-		
-		// Seta/indicador no ponto clicado, virado para a direção do movimento
-		APawn* MyPawn = GetPawn();
-		FVector From = MyPawn ? MyPawn->GetActorLocation() : TargetLocation;
-		FVector Dir = (TargetLocation - From);
-		Dir.Z = 0.f;
-		FRotator ArrowYaw(0.f, Dir.Rotation().Yaw, 0.f);
-		AClickArrowIndicator* Arrow = GetWorld()->SpawnActor<AClickArrowIndicator>(AClickArrowIndicator::StaticClass(), TargetLocation + FVector(0,0,2), ArrowYaw);
-		if (Arrow)
-		{
-			Arrow->SetLifeSpan(1.5f);
-		}
-		
-		// Move imediatamente
-		MovePlayerToLocation(TargetLocation);
-	}
-	else
-	{
-		UE_LOG(LogTemp, Warning, TEXT("[MyPlayerController] Click não atingiu nada no mundo"));
-	}
+	ForwardInput = 0.f;
 }
 
-void AMyPlayerController::OnLeftMouseRelease()
+void AMyPlayerController::OnMoveRightCompleted(const FInputActionValue& Value)
 {
-	// Opcional: pode ser usado para parar movimento ou outros efeitos
-	UE_LOG(LogTemp, Warning, TEXT("[MyPlayerController] Mouse liberado"));
+	RightInput = 0.f;
 }
 
-void AMyPlayerController::MovePlayerToLocation(FVector TargetLocation)
+void AMyPlayerController::OnSprintStart(const FInputActionValue& Value)
+{
+	if (Value.Get<bool>())
+	{
+		bIsSprinting = true;
+		UE_LOG(LogTemp, Log, TEXT("[PC] ? Sprint ATIVO"));
+	}
+}
+
+void AMyPlayerController::OnSprintEnd(const FInputActionValue& Value)
+{
+	bIsSprinting = false;
+	UE_LOG(LogTemp, Log, TEXT("[PC] ? Sprint DESATIVO"));
+}
+
+void AMyPlayerController::ProcessMovement(float DeltaTime)
 {
 	APawn* MyPawn = GetPawn();
-	if (!MyPawn) 
+	if (!MyPawn) return;
+
+	// CAPTURAR POSIÇÃO PARA DEBUG
+	FVector CurrentPosition = MyPawn->GetActorLocation();
+	
+	// DETECÇÃO SIMPLES DE TELEPORTE
+	if (!LastKnownPosition.IsZero())
 	{
-		UE_LOG(LogTemp, Error, TEXT("[MyPlayerController] Nenhum Pawn para mover!"));
-		return;
+		float Distance = FVector::Dist(CurrentPosition, LastKnownPosition);
+		if (Distance > 500.0f && Distance < 10000.0f)
+		{
+			TeleportDetectionCount++;
+			UE_LOG(LogTemp, Error, TEXT("?? TELEPORT DETECTADO #%d - Distancia: %.1f"), TeleportDetectionCount, Distance);
+			UE_LOG(LogTemp, Error, TEXT("?? De: %s Para: %s"), *LastKnownPosition.ToString(), *CurrentPosition.ToString());
+		}
+	}
+	LastKnownPosition = CurrentPosition;
+
+	FVector MovementDirection = FVector::ZeroVector;
+	bool bHasInput = false;
+
+	// PRIORIDADE 1: Input manual (WASD)
+	if (FMath::Abs(ForwardInput) > 0.01f || FMath::Abs(RightInput) > 0.01f)
+	{
+		// Calcular direção baseada na câmera (top-down)
+		const FRotator CameraRotation = PlayerCameraManager ? PlayerCameraManager->GetCameraRotation() : FRotator::ZeroRotator;
+		
+		// Extrair direções da câmera e projetar no plano XY
+		const FVector CameraForward = FRotationMatrix(CameraRotation).GetUnitAxis(EAxis::X);
+		const FVector CameraRight   = FRotationMatrix(CameraRotation).GetUnitAxis(EAxis::Y);
+		
+		FVector ForwardDirection = FVector(CameraForward.X, CameraForward.Y, 0.0f).GetSafeNormal();
+		FVector RightDirection   = FVector(CameraRight.X,  CameraRight.Y,  0.0f).GetSafeNormal();
+
+		// Patch 1 — respeitar intensidade do input (sem turbo na diagonal)
+		const FVector2D Axes(ForwardInput, RightInput);
+		const float Strength = FMath::Clamp(Axes.Size(), 0.f, 1.f);
+		MovementDirection = (ForwardDirection * Axes.X + RightDirection * Axes.Y).GetSafeNormal();
+		
+		bHasInput = true;
+		
+		if (bDebugMovementEnabled)
+		{
+			UE_LOG(LogTemp, Warning, TEXT("[DEBUG] WASD Input - F:%.2f R:%.2f | Dir:%s | Strength:%.2f"), 
+				ForwardInput, RightInput, *MovementDirection.ToString(), Strength);
+		}
+	}
+	// PRIORIDADE 2: Click-to-move (só se não há input manual)
+	else if (bIsMovingToTarget)
+	{
+		const FVector PlayerLocation = MyPawn->GetActorLocation();
+		FVector TargetDirection = CurrentMoveTarget - PlayerLocation;
+		TargetDirection.Z = 0.0f; // Manter no plano horizontal
+		
+		const float DistanceToTarget = TargetDirection.Size();
+		if (DistanceToTarget < 50.0f) // Chegou ao destino
+		{
+			bIsMovingToTarget = false;
+			MovementDirection = FVector::ZeroVector;
+		}
+		else
+		{
+			MovementDirection = TargetDirection.GetSafeNormal();
+			bHasInput = true;
+		}
 	}
 
-	// Calcular direção do movimento
-	FVector PlayerLocation = MyPawn->GetActorLocation();
-	FVector Direction = (TargetLocation - PlayerLocation).GetSafeNormal();
-	
-	// Manter a altura do player (não mover em Z)
-	Direction.Z = 0.0f;
-	
-	UE_LOG(LogTemp, Error, TEXT("[MyPlayerController] Movendo player de %s para %s"), 
-		*PlayerLocation.ToString(), 
-		*TargetLocation.ToString());
-
-	// Aplicar movimento diretamente
-	if (ACharacter* MyCharacter = Cast<ACharacter>(MyPawn))
+	// Aplicar movimento se há direção válida
+	if (bHasInput && !MovementDirection.IsNearlyZero())
 	{
-		// Usar AddMovementInput para movimento suave
-		MyCharacter->AddMovementInput(Direction, 1.0f);
-		
-		// Salvar o target para movimento contínuo
-		CurrentMoveTarget = TargetLocation;
-		bIsMovingToTarget = true;
-		
-		UE_LOG(LogTemp, Error, TEXT("[MyPlayerController] *** INICIANDO MOVIMENTO PARA TARGET ***"));
+		// *** CRÍTICO: FORÇAR IGNORE ROOT MOTION ***
+		if (USkeletalMeshComponent* MeshComp = MyPawn->GetComponentByClass<USkeletalMeshComponent>())
+		{
+			if (UAnimInstance* AnimInstance = MeshComp->GetAnimInstance())
+			{
+				AnimInstance->SetRootMotionMode(ERootMotionMode::IgnoreRootMotion);
+			}
+		}
+
+		// Configurar velocidade baseada no sprint
+		if (UCharacterMovementComponent* MovementComp = Cast<UCharacterMovementComponent>(MyPawn->GetMovementComponent()))
+		{
+			const float TargetSpeed = BaseWalkSpeed * (bIsSprinting ? SprintMultiplier : 1.0f);
+			MovementComp->MaxWalkSpeed = TargetSpeed; // Aplicação direta
+		}
+
+		// APLICAR MOVIMENTO — usando Strength do input (sem turbo nas diagonais)
+		const FVector2D Axes(ForwardInput, RightInput);
+		const float Strength = FMath::Clamp(Axes.Size(), 0.f, 1.f);
+		MyPawn->AddMovementInput(MovementDirection, Strength);
+	}
+	else if (!bIsMovingToTarget)
+	{
+		// Opcional de depuração — frenagem “seca” quando sem input e sem click-to-move
+		if (UCharacterMovementComponent* CMC = Cast<UCharacterMovementComponent>(MyPawn->GetMovementComponent()))
+		{
+			CMC->StopMovementImmediately();
+		}
 	}
 }
 
@@ -285,49 +280,180 @@ void AMyPlayerController::Tick(float DeltaTime)
 {
 	Super::Tick(DeltaTime);
 	
-	// Fallback WASD manual alinhado com a câmera
-	float AxisY = 0.f;
-	float AxisX = 0.f;
-	if (IsInputKeyDown(EKeys::W)) AxisY += 1.f;
-	if (IsInputKeyDown(EKeys::S)) AxisY -= 1.f;
-	if (IsInputKeyDown(EKeys::D)) AxisX += 1.f;
-	if (IsInputKeyDown(EKeys::A)) AxisX -= 1.f;
+	// SISTEMA ÚNICO DE MOVIMENTO
+	ProcessMovement(DeltaTime);
+}
+
+// ============================================================================
+// CLICK-TO-MOVE
+// ============================================================================
+
+void AMyPlayerController::OnEnhancedClick(const FInputActionValue& Value)
+{
+	if (Value.Get<bool>())
+	{
+		// Guard against auto-move triggered by initial click
+		if (bClickGuardActive)
+		{
+			if (UWorld* World = GetWorld())
+			{
+				if (World->GetTimeSeconds() < IgnoreClickUntilTime)
+				{
+					UE_LOG(LogTemp, Verbose, TEXT("[PC] Ignorando click inicial (guard)"));
+					return;
+				}
+			}
+			bClickGuardActive = false;
+		}
+		OnLeftMouseClick();
+	}
+}
+
+void AMyPlayerController::OnLeftMouseClick()
+{
+	// Guard: não registrar clique até que o tempo atual ultrapasse o tempo de ignore
+	if (bClickGuardActive && GetWorld())
+	{
+		if (GetWorld()->GetTimeSeconds() < IgnoreClickUntilTime)
+		{
+			UE_LOG(LogTemp, Warning, TEXT("[PC] Clique ignorado pelo guardião de clique"));
+			return;
+		}
+		else
+		{
+			bClickGuardActive = false; // Desativar guardião após o primeiro clique válido
+		}
+	}
+
+	FHitResult Hit;
+	if (GetHitResultUnderCursor(ECC_Visibility, false, Hit) && Hit.bBlockingHit)
+	{
+		const FVector Target = Hit.Location;
+		UE_LOG(LogTemp, Log, TEXT("[PC] Click-to-move para: %s"), *Target.ToString());
+		
+		// Spawn visual indicator
+		if (APawn* MyPawn = GetPawn(); MyPawn && GetWorld())
+		{
+			const FVector Direction = (Target - MyPawn->GetActorLocation()).GetSafeNormal();
+			const FRotator ArrowRotation = FRotator(0.0f, Direction.Rotation().Yaw, 0.0f);
+			
+			if (AClickArrowIndicator* Arrow = GetWorld()->SpawnActor<AClickArrowIndicator>(
+				AClickArrowIndicator::StaticClass(),
+				Target + FVector(0, 0, 5),
+				ArrowRotation))
+			{
+				Arrow->SetLifeSpan(2.0f);
+			}
+		}
+		
+		MovePlayerToLocation(Target);
+	}
+}
+
+void AMyPlayerController::OnLeftMouseRelease()
+{
+	// Reservado para futuras funcionalidades
+}
+
+void AMyPlayerController::MovePlayerToLocation(FVector TargetLocation)
+{
+	CurrentMoveTarget = TargetLocation;
+	bIsMovingToTarget = true;
+}
+
+// ============================================================================
+// TAUNTS - SISTEMA DIRETO SEM FALLBACKS
+// ============================================================================
+
+void AMyPlayerController::OnAnim1Action(const FInputActionValue& Value)
+{
+	if (!Value.Get<bool>()) return;
+	if (!(IsInputKeyDown(EKeys::LeftControl) || IsInputKeyDown(EKeys::RightControl))) return;
+	
+	if (AMyCharacter* MyChar = Cast<AMyCharacter>(GetPawn()))
+	{
+		UE_LOG(LogTemp, Warning, TEXT("[PC] Executando Ctrl+1 - PlayAnim1"));
+		MyChar->PlayAnim1();
+	}
+}
+
+void AMyPlayerController::OnAnim2Action(const FInputActionValue& Value)
+{
+	if (!Value.Get<bool>()) return;
+	if (!(IsInputKeyDown(EKeys::LeftControl) || IsInputKeyDown(EKeys::RightControl))) return;
+	
+	if (AMyCharacter* MyChar = Cast<AMyCharacter>(GetPawn()))
+	{
+		UE_LOG(LogTemp, Warning, TEXT("[PC] Executando Ctrl+2 - PlayAnim2"));
+		MyChar->PlayAnim2();
+	}
+}
+
+// ============================================================================
+// COMANDOS DE DEBUG SIMPLIFICADOS
+// ============================================================================
+
+void AMyPlayerController::DebugMovement()
+{
+	UE_LOG(LogTemp, Warning, TEXT("=== MOVIMENTO DEBUG ==="));
+	UE_LOG(LogTemp, Warning, TEXT("ForwardInput: %.3f"), ForwardInput);
+	UE_LOG(LogTemp, Warning, TEXT("RightInput: %.3f"), RightInput);
+	UE_LOG(LogTemp, Warning, TEXT("bIsSprinting: %s"), bIsSprinting ? TEXT("true") : TEXT("false"));
+	UE_LOG(LogTemp, Warning, TEXT("bIsMovingToTarget: %s"), bIsMovingToTarget ? TEXT("true") : TEXT("false"));
+	UE_LOG(LogTemp, Warning, TEXT("TeleportDetections: %d"), TeleportDetectionCount);
+}
+
+void AMyPlayerController::DebugAnimations()
+{
+	UE_LOG(LogTemp, Warning, TEXT("=== ANIMAÇÕES DEBUG ==="));
 	
 	if (APawn* MyPawn = GetPawn())
 	{
-		const FRotator CamRot = PlayerCameraManager ? PlayerCameraManager->GetCameraRotation() : FRotator::ZeroRotator;
-		FVector ForwardDir = FRotationMatrix(CamRot).GetUnitAxis(EAxis::X); ForwardDir.Z = 0.f; ForwardDir.Normalize();
-		FVector RightDir = FRotationMatrix(CamRot).GetUnitAxis(EAxis::Y); RightDir.Z = 0.f; RightDir.Normalize();
-		
-		if (FMath::Abs(AxisY) > 0.01f)
+		if (USkeletalMeshComponent* MeshComp = MyPawn->GetComponentByClass<USkeletalMeshComponent>())
 		{
-			MyPawn->AddMovementInput(ForwardDir, AxisY);
-		}
-		if (FMath::Abs(AxisX) > 0.01f)
-		{
-			MyPawn->AddMovementInput(RightDir, AxisX);
+			UE_LOG(LogTemp, Warning, TEXT("SkeletalMesh: %s"), 
+				MeshComp->GetSkeletalMeshAsset() ? *MeshComp->GetSkeletalMeshAsset()->GetName() : TEXT("NULL"));
+			UE_LOG(LogTemp, Warning, TEXT("AnimClass: %s"), 
+				MeshComp->GetAnimClass() ? *MeshComp->GetAnimClass()->GetName() : TEXT("NULL"));
 		}
 	}
+}
+
+void AMyPlayerController::DebugPositions()
+{
+	UE_LOG(LogTemp, Warning, TEXT("=== POSIÇÕES DEBUG ==="));
 	
-	// Movimento contínuo do click-to-move
-	if (bIsMovingToTarget)
+	if (APawn* MyPawn = GetPawn())
 	{
-		APawn* MyPawn2 = GetPawn();
-		if (MyPawn2)
+		FVector ActorLocation = MyPawn->GetActorLocation();
+		UE_LOG(LogTemp, Warning, TEXT("Actor Position: %s"), *ActorLocation.ToString());
+		
+		if (USkeletalMeshComponent* MeshComp = MyPawn->GetComponentByClass<USkeletalMeshComponent>())
 		{
-			FVector PlayerLocation = MyPawn2->GetActorLocation();
-			FVector TargetDirection = (CurrentMoveTarget - PlayerLocation);
-			TargetDirection.Z = 0.0f;
-			float DistanceToTarget = TargetDirection.Size();
-			if (DistanceToTarget < 50.0f)
-			{
-				bIsMovingToTarget = false;
-			}
-			else
-			{
-				FVector Direction = TargetDirection.GetSafeNormal();
-				MyPawn2->AddMovementInput(Direction, 1.0f);
-			}
+			UE_LOG(LogTemp, Warning, TEXT("Mesh Relative: %s"), *MeshComp->GetRelativeLocation().ToString());
+			UE_LOG(LogTemp, Warning, TEXT("Mesh World: %s"), *MeshComp->GetComponentLocation().ToString());
 		}
 	}
+}
+
+void AMyPlayerController::ToggleMovementDebug()
+{
+	bDebugMovementEnabled = !bDebugMovementEnabled;
+	UE_LOG(LogTemp, Warning, TEXT("Debug Movement: %s"), bDebugMovementEnabled ? TEXT("ENABLED") : TEXT("DISABLED"));
+}
+
+// ============================================================================
+// DEBUG
+// ============================================================================
+
+void AMyPlayerController::IncreaseWalkSpeed()
+{
+	BaseWalkSpeed += 50.f;
+	UE_LOG(LogTemp, Warning, TEXT("[PC] BaseWalkSpeed=%.1f"), BaseWalkSpeed);
+}
+
+void AMyPlayerController::DecreaseWalkSpeed()
+{
+	BaseWalkSpeed = FMath::Max(100.f, BaseWalkSpeed - 50.f);
+	UE_LOG(LogTemp, Warning, TEXT("[PC] BaseWalkSpeed=%.1f"), BaseWalkSpeed);
 }

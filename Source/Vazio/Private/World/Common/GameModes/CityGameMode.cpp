@@ -16,8 +16,21 @@
 
 ACityGameMode::ACityGameMode()
 {
+	// Default C++ classes
 	DefaultPawnClass = AMyCharacter::StaticClass();
 	PlayerControllerClass = AMyPlayerController::StaticClass();
+
+	// Tentar carregar o BP do personagem e usá-lo como DefaultPawnClass
+	static ConstructorHelpers::FClassFinder<APawn> BPCharClass(TEXT("/Game/Characters/PlayerChar/BP_MyCharacter"));
+	if (BPCharClass.Succeeded())
+	{
+		DefaultPawnClass = BPCharClass.Class;
+		UE_LOG(LogTemp, Warning, TEXT("[CityGameMode] DefaultPawnClass setado para BP_MyCharacter"));
+	}
+	else
+	{
+		UE_LOG(LogTemp, Warning, TEXT("[CityGameMode] Nao encontrei /Game/Characters/PlayerChar/BP_MyCharacter - usando AMyCharacter"));
+	}
 
 	// Carregar assets no constructor (onde FObjectFinder é permitido)
 	static ConstructorHelpers::FObjectFinder<UStaticMesh> CubeMeshAsset(TEXT("/Engine/BasicShapes/Cube"));
@@ -50,7 +63,8 @@ ACityGameMode::ACityGameMode()
 void ACityGameMode::BeginPlay()
 {
 	Super::BeginPlay();
-	
+
+	UE_LOG(LogTemp, Warning, TEXT("[CityGameMode] BeginPlay - DefaultPawnClass em uso: %s"), *GetDefaultPawnClassForController(nullptr)->GetName());
 	UE_LOG(LogTemp, Warning, TEXT("[CityGameMode] BeginPlay - Criando ambiente da cidade"));
 	
 	// Criar PlayerStart PRIMEIRO, antes de tudo
@@ -60,7 +74,7 @@ void ACityGameMode::BeginPlay()
 	GetWorld()->GetTimerManager().SetTimer(
 		SpawnDelayTimer,
 		FTimerDelegate::CreateUObject(this, &ACityGameMode::CreateEnvironmentDelayed),
-		0.1f, // 100ms de delay
+		0.1f,
 		false
 	);
 }
