@@ -29,7 +29,7 @@ public:
 	UPROPERTY(EditAnywhere, BlueprintReadOnly, Category="Interaction|Prompt")
 	bool bAutoPromptOnOverlap = false;
 
-	// Classe do widget para o prompt de intera��o
+	// Classe do widget para o prompt de interação
 	UPROPERTY(EditAnywhere, BlueprintReadOnly, Category="Interaction|Prompt")
 	TSubclassOf<UUserWidget> PromptWidgetClass;
 
@@ -49,7 +49,7 @@ public:
 	UPROPERTY(EditAnywhere, BlueprintReadOnly, Category="Interaction|Modal")
 	TSubclassOf<UBaseModalWidget> ModalWidgetClass;
 
-	// Inst�ncia ativa do modal, se existir
+	// Instância ativa do modal, se existir
 	UPROPERTY(Transient)
 	TObjectPtr<UBaseModalWidget> ActiveModal = nullptr;
 
@@ -96,4 +96,29 @@ protected:
 	// Cache do estado de input anterior
 	bool bPrevIgnoreLook = false;
 	bool bPrevIgnoreMove = false;
+
+public:
+	// Ativar câmera especial ao interagir
+	UPROPERTY(EditAnywhere, BlueprintReadOnly, Category="Interaction|Camera")
+	bool bUseCameraFocus = true;
+
+	// Distância da câmera (cm)
+	UPROPERTY(EditAnywhere, BlueprintReadOnly, Category="Interaction|Camera", meta=(ClampMin="0"))
+	float CameraDistance = 400.f;
+
+	// Ângulo lateral (yaw) relativo à frente do ator (graus)
+	UPROPERTY(EditAnywhere, BlueprintReadOnly, Category="Interaction|Camera")
+	float CameraYawOffset = 0.f;
+
+	// Ângulo vertical (pitch) em graus (negativo para olhar de cima)
+	UPROPERTY(EditAnywhere, BlueprintReadOnly, Category="Interaction|Camera")
+	float CameraPitch = -10.f;
+
+	// Tempo da transição (0 = corte seco)
+	UPROPERTY(EditAnywhere, BlueprintReadOnly, Category="Interaction|Camera", meta=(ClampMin="0"))
+	float CameraBlendTime = 0.35f;
+
+	// Offset adicional no alvo (cm) para enquadrar melhor
+	UPROPERTY(EditAnywhere, BlueprintReadOnly, Category="Interaction|Camera")
+	FVector CameraTargetOffset = FVector(0.f, 0.f, 0.f);
 };

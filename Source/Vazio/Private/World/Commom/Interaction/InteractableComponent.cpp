@@ -1,4 +1,4 @@
-﻿#include "World/Commom/Interaction/InteractableComponent.h"
+#include "World/Commom/Interaction/InteractableComponent.h"
 #include "Components/WidgetComponent.h"
 #include "Components/PrimitiveComponent.h"
 #include "Blueprint/UserWidget.h"
@@ -7,6 +7,7 @@
 #include "GameFramework/PlayerController.h"
 #include "Engine/LocalPlayer.h"
 #include "GameFramework/Character.h"
+#include "Camera/CameraActor.h"
 
 TSet<TWeakObjectPtr<UInteractableComponent>> UInteractableComponent::GRegistry;
 
@@ -170,6 +171,11 @@ void UInteractableComponent::OnModalClosed()
 	if (APlayerController* PC = GetWorld() ? GetWorld()->GetFirstPlayerController() : nullptr)
 	{
 		UE_LOG(LogTemp, Warning, TEXT("[Interactable] Modal closed for %s"), *GetOwner()->GetName());
+        // Retornar câmera para o pawn
+        if (APawn* Pawn = PC->GetPawn())
+        {
+            PC->SetViewTargetWithBlend(Pawn, CameraBlendTime);
+        }
 		RestorePlayerInput(PC);
 		ShowPrompt(true);
 	}
@@ -184,6 +190,28 @@ void UInteractableComponent::Interact_Implementation(APlayerController* Interact
 	}
 
 	UE_LOG(LogTemp, Warning, TEXT("[Interactable] Interact pressed on %s by %s"), *GetOwner()->GetName(), *InteractingPC->GetName());
+    // 1) Ativar câmera especial se habilitado
+    if (bUseCameraFocus)
+    {
+        FVector FocusPoint = GetOwner() ? GetOwner()->GetActorLocation() + CameraTargetOffset : GetComponentLocation();
+        const FRotator OwnerRot = GetOwner() ? GetOwner()->GetActorRotation() : FRotator::ZeroRotator;
+        const float FinalYaw = OwnerRot.Yaw + CameraYawOffset;
+        const float FinalPitch = CameraPitch;
+
+        const FRotator DirRot(FinalPitch, FinalYaw, 0.f);
+        const FVector Dir = DirRot.Vector();
+        const FVector CamLoc = FocusPoint - Dir * CameraDistance;
+        const FRotator CamRot = (FocusPoint - CamLoc).Rotation();
+
+        if (UWorld* W = GetWorld())
+        {
+            if (ACameraActor* Cam = W->SpawnActor<ACameraActor>(CamLoc, CamRot))
+            {
+                InteractingPC->SetViewTargetWithBlend(Cam, CameraBlendTime);
+                Cam->SetLifeSpan(FMath::Max(5.f, CameraBlendTime + 0.1f));
+            }
+        }
+    }
 	TSubclassOf<UUserWidget> ClassToUse = ModalWidgetClass ? TSubclassOf<UUserWidget>(*ModalWidgetClass) : TSubclassOf<UUserWidget>(UBaseModalWidget::StaticClass());
     if (UBaseModalWidget* Modal = CreateWidget<UBaseModalWidget>(InteractingPC, ClassToUse))
     {
