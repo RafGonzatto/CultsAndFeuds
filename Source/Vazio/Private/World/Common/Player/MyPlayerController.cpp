@@ -1,6 +1,8 @@
 #include "World/Common/Player/MyPlayerController.h"
 #include "World/Common/Player/MyCharacter.h"
 #include "World/Common/Effects/ClickArrowIndicator.h"
+#include "World/Commom/Interaction/InteractableComponent.h"
+#include "World/Common/Interaction/Interactable.h"
 
 #include "EnhancedInputSubsystems.h"
 #include "EnhancedInputComponent.h"
@@ -31,24 +33,20 @@ void AMyPlayerController::BeginPlay()
 {
 	Super::BeginPlay();
 
-	// Guard: ignore initial click-to-move for first 0.25s (avoids auto-move from initial click)
 	IgnoreClickUntilTime = GetWorld() ? GetWorld()->GetTimeSeconds() + 0.25f : 0.f;
 	bClickGuardActive = true;
 
-	// Configura??o de input b?sica
 	FInputModeGameOnly GameOnly;
 	SetInputMode(GameOnly);
 	bShowMouseCursor = true;
 	bEnableClickEvents = true;
 
-	// Enhanced Input Setup
 	ULocalPlayer* LP = GetLocalPlayer();
 	if (!LP) return;
 	
 	UEnhancedInputLocalPlayerSubsystem* Subsys = LP->GetSubsystem<UEnhancedInputLocalPlayerSubsystem>();
 	if (!Subsys) return;
 
-	// Criar actions
 	Mapping = NewObject<UInputMappingContext>(this, TEXT("IMC_Player"));
 	MoveForwardAction = NewObject<UInputAction>(this, TEXT("IA_MoveForward"));
 	MoveForwardAction->ValueType = EInputActionValueType::Axis1D;
@@ -62,8 +60,10 @@ void AMyPlayerController::BeginPlay()
 	Anim2Action->ValueType = EInputActionValueType::Boolean;
 	SprintAction = NewObject<UInputAction>(this, TEXT("IA_Sprint"));
 	SprintAction->ValueType = EInputActionValueType::Boolean;
+	// Novo: Interact
+	InteractAction = NewObject<UInputAction>(this, TEXT("IA_Interact"));
+	InteractAction->ValueType = EInputActionValueType::Boolean;
 
-	// Mapear teclas
 	Mapping->MapKey(MoveForwardAction, EKeys::W);
 	{
 		FEnhancedActionKeyMapping& S = Mapping->MapKey(MoveForwardAction, EKeys::S);
@@ -78,12 +78,12 @@ void AMyPlayerController::BeginPlay()
 	Mapping->MapKey(Anim1Action, EKeys::One);
 	Mapping->MapKey(Anim2Action, EKeys::Two);
 	Mapping->MapKey(SprintAction, EKeys::LeftShift);
+	// Novo: mapear Interact no Enhanced Input
+	Mapping->MapKey(InteractAction, EKeys::E);
 
-	// Registrar context
 	Subsys->ClearAllMappings();
 	Subsys->AddMappingContext(Mapping, 100);
 
-	// Bind actions
 	if (UEnhancedInputComponent* EIC = Cast<UEnhancedInputComponent>(InputComponent))
 	{
 		EIC->ClearActionBindings();
@@ -96,13 +96,17 @@ void AMyPlayerController::BeginPlay()
 		EIC->BindAction(Anim2Action, ETriggerEvent::Started, this, &AMyPlayerController::OnAnim2Action);
 		EIC->BindAction(SprintAction, ETriggerEvent::Started, this, &AMyPlayerController::OnSprintStart);
 		EIC->BindAction(SprintAction, ETriggerEvent::Completed, this, &AMyPlayerController::OnSprintEnd);
+		// Novo: binding Enhanced para Interact
+		EIC->BindAction(InteractAction, ETriggerEvent::Started, this, &AMyPlayerController::OnInteract);
 	}
 
-	// Debug binds
 	if (InputComponent)
 	{
 		InputComponent->BindKey(EKeys::Equals, IE_Pressed, this, &AMyPlayerController::IncreaseWalkSpeed);
 		InputComponent->BindKey(EKeys::Hyphen, IE_Pressed, this, &AMyPlayerController::DecreaseWalkSpeed);
+
+		// Fallback legacy Action Mapping (se existir)
+		InputComponent->BindAction("Interact", IE_Pressed, this, &AMyPlayerController::HandleInteract);
 	}
 
 	UE_LOG(LogTemp, Warning, TEXT("[PC] PlayerController inicializado - sistema unificado ativo"));
@@ -111,6 +115,46 @@ void AMyPlayerController::BeginPlay()
 void AMyPlayerController::SetupInputComponent()
 {
 	Super::SetupInputComponent();
+}
+
+void AMyPlayerController::OnInteract(const FInputActionValue& Value)
+{
+	if (!Value.Get<bool>()) return;
+	HandleInteract();
+}
+
+void AMyPlayerController::HandleInteract()
+{
+	APawn* P = GetPawn();
+	if (!P) return;
+
+	const FVector Origin = P->GetActorLocation();
+	const float MaxDistSq = FMath::Square(300.f);
+
+	UInteractableComponent* Best = nullptr;
+	float BestDistSq = MaxDistSq;
+
+	for (const TWeakObjectPtr<UInteractableComponent>& WeakComp : UInteractableComponent::GRegistry)
+	{
+		if (UInteractableComponent* Comp = WeakComp.Get())
+		{
+			const FVector CompLoc = Comp->GetComponentLocation();
+			const float DistSq = FVector::DistSquared(Origin, CompLoc);
+			if (DistSq <= BestDistSq)
+			{
+				Best = Comp;
+				BestDistSq = DistSq;
+			}
+
+			const bool bInRange = DistSq <= FMath::Square(Comp->EffectiveRadius + 50.f);
+			Comp->ShowPrompt(bInRange);
+		}
+	}
+
+	if (Best)
+	{
+		IInteractable::Execute_Interact(Best, this);
+	}
 }
 
 // ============================================================================

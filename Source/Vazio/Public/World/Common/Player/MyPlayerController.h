@@ -30,6 +30,7 @@ private:
 	UPROPERTY() UInputAction* Anim1Action = nullptr;
 	UPROPERTY() UInputAction* Anim2Action = nullptr;
 	UPROPERTY() UInputAction* SprintAction = nullptr;
+	UPROPERTY() UInputAction* InteractAction = nullptr; // Enhanced Input: Interact
 
 	// Input Handlers WASD - SISTEMA SIMPLIFICADO
 	void OnMoveForward(const FInputActionValue& Value);
@@ -92,4 +93,8 @@ private:
 	// Click-to-Move guard to ignore initial viewport click
 	float IgnoreClickUntilTime = 0.f;
 	bool bClickGuardActive = false;
+
+	// Interact handlers
+	UFUNCTION() void OnInteract(const FInputActionValue& Value); // Enhanced Input
+	void HandleInteract(); // Legacy/funcional
 };

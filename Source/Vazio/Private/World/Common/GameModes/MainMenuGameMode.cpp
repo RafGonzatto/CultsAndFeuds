@@ -23,11 +23,7 @@ void AMainMenuGameMode::BeginPlay()
 {
 	Super::BeginPlay();
 
-	if (UWorld* World = GetWorld())
-	{
-		// Prova visual imediata na tela
-		UKismetSystemLibrary::PrintString(World, TEXT("[GM] BeginPlay"), true, true, FLinearColor::Green, 6.f);
-	}
+    // Removido PrintString na tela; manter apenas UE_LOG
 	UE_LOG(LogTemp, Warning, TEXT("[GM] BeginPlay"));
 
 	// Chama SpawnMenu no próximo tick para garantir viewport pronto
@@ -47,24 +43,21 @@ void AMainMenuGameMode::SpawnMenu()
 		return;
 	}
 
-	// Mensagem na tela confirmando que chegamos aqui
-	UKismetSystemLibrary::PrintString(World, TEXT("[GM] SpawnMenu()"), true, true, FLinearColor::Yellow, 6.f);
+    // Removido PrintString na tela; manter apenas UE_LOG
 
 	APlayerController* PC = UGameplayStatics::GetPlayerController(World, 0);
-	if (!PC)
-	{
-		UE_LOG(LogTemp, Error, TEXT("[GM] SpawnMenu: PlayerController nulo"));
-		UKismetSystemLibrary::PrintString(World, TEXT("[GM] PC nulo"), true, true, FLinearColor::Red, 6.f);
-		return;
-	}
+    if (!PC)
+    {
+        UE_LOG(LogTemp, Error, TEXT("[GM] SpawnMenu: PlayerController nulo"));
+        return;
+    }
 
 	Menu = CreateWidget<UMainMenuWidget>(PC, UMainMenuWidget::StaticClass());
-	if (!Menu)
-	{
-		UE_LOG(LogTemp, Error, TEXT("[GM] SpawnMenu: falha ao criar Menu"));
-		UKismetSystemLibrary::PrintString(World, TEXT("[GM] Falha ao criar Menu"), true, true, FLinearColor::Red, 6.f);
-		return;
-	}
+    if (!Menu)
+    {
+        UE_LOG(LogTemp, Error, TEXT("[GM] SpawnMenu: falha ao criar Menu"));
+        return;
+    }
 
 	// Configurar visibilidade ANTES de adicionar à viewport
 	Menu->SetVisibility(ESlateVisibility::Visible);
@@ -72,8 +65,7 @@ void AMainMenuGameMode::SpawnMenu()
 	// USAR Z-ORDER MÁXIMO POSSÍVEL
 	Menu->AddToViewport(32767);  // Z-order máximo (int16 max)
 	
-	UE_LOG(LogTemp, Warning, TEXT("[GM] AddToViewport com Z-order 32767"));
-	UKismetSystemLibrary::PrintString(World, TEXT("[GM] Widget adicionado com Z-order MÁXIMO"), true, true, FLinearColor::Green, 6.f);
+    UE_LOG(LogTemp, Warning, TEXT("[GM] AddToViewport com Z-order 32767"));
 
 	// FORÇAR O WIDGET PARA O TOPO DE TODAS AS CAMADAS
 	if (UGameViewportClient* ViewportClient = World->GetGameViewport())
@@ -82,7 +74,7 @@ void AMainMenuGameMode::SpawnMenu()
 		Menu->RemoveFromParent();  // API atualizada
 		Menu->AddToViewport(32767);
 		
-		UE_LOG(LogTemp, Warning, TEXT("[GM] Widget removido e re-adicionado para forçar topo"));
+        UE_LOG(LogTemp, Warning, TEXT("[GM] Widget removido e re-adicionado para forcar topo"));
 	}
 
 	// Configurar Input Mode para UI
@@ -91,13 +83,7 @@ void AMainMenuGameMode::SpawnMenu()
 	PC->SetInputMode(InputMode);
 	PC->bShowMouseCursor = true;
 
-	// ADICIONAR MENSAGEM DE DEBUG GIGANTE NA TELA
-	if (GEngine)
-	{
-		GEngine->AddOnScreenDebugMessage(-1, 20.0f, FColor::Red, TEXT("*** WIDGET DEVERIA ESTAR VISÍVEL AGORA ***"));
-		GEngine->AddOnScreenDebugMessage(-1, 20.0f, FColor::Yellow, TEXT("Se você vê esta mensagem, o sistema está funcionando"));
-		GEngine->AddOnScreenDebugMessage(-1, 20.0f, FColor::Green, TEXT("O widget vermelho deveria cobrir toda a tela"));
-	}
+    // Removidos AddOnScreenDebugMessage para manter logs somente no Output
 
 	UE_LOG(LogTemp, Warning, TEXT("[GM] Menu configurado completamente com debug messages"));
 }
