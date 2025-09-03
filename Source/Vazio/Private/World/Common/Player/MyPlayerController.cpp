@@ -125,32 +125,17 @@ void AMyPlayerController::OnInteract(const FInputActionValue& Value)
 
 void AMyPlayerController::HandleInteract()
 {
-	APawn* P = GetPawn();
-	if (!P) return;
-
-	const FVector Origin = P->GetActorLocation();
-	const float MaxDistSq = FMath::Square(300.f);
-
-	UInteractableComponent* Best = nullptr;
-	float BestDistSq = MaxDistSq;
-
-	for (const TWeakObjectPtr<UInteractableComponent>& WeakComp : UInteractableComponent::GRegistry)
+	// Usar o alvo focado pelo InteractionController
+	if (UInteractableComponent* Focus = FocusedInteractable.Get())
 	{
-		if (UInteractableComponent* Comp = WeakComp.Get())
-		{
-			const FVector CompLoc = Comp->GetComponentLocation();
-			const float DistSq = FVector::DistSquared(Origin, CompLoc);
-			if (DistSq <= BestDistSq)
-			{
-				Best = Comp;
-				BestDistSq = DistSq;
-			}
-
-			const bool bInRange = DistSq <= FMath::Square(Comp->EffectiveRadius + 50.f);
-			Comp->ShowPrompt(bInRange);
-		}
+		IInteractable::Execute_Interact(Focus, this);
+		return;
 	}
 
+	// Fallback: selecionar o mais pr√≥ximo no momento (mesma l√≥gica da busca)
+	APawn* P = GetPawn();
+	if (!P) return;
+	UInteractableComponent* Best = FindBestInteractable(P->GetActorLocation(), InteractionRadius);
 	if (Best)
 	{
 		IInteractable::Execute_Interact(Best, this);
@@ -158,7 +143,7 @@ void AMyPlayerController::HandleInteract()
 }
 
 // ============================================================================
-// SISTEMA DE MOVIMENTO ⁄NICO E DEFINITIVO
+// SISTEMA DE MOVIMENTO √öNICO E DEFINITIVO
 // ============================================================================
 
 void AMyPlayerController::OnMoveForward(const FInputActionValue& Value)
@@ -221,10 +206,10 @@ void AMyPlayerController::ProcessMovement(float DeltaTime)
 	APawn* MyPawn = GetPawn();
 	if (!MyPawn) return;
 
-	// CAPTURAR POSI«√O PARA DEBUG
+	// CAPTURAR POSI√á√ÉO PARA DEBUG
 	FVector CurrentPosition = MyPawn->GetActorLocation();
 	
-	// DETEC«√O SIMPLES DE TELEPORTE
+	// DETEC√á√ÉO SIMPLES DE TELEPORTE
 	if (!LastKnownPosition.IsZero())
 	{
 		float Distance = FVector::Dist(CurrentPosition, LastKnownPosition);
@@ -243,17 +228,17 @@ void AMyPlayerController::ProcessMovement(float DeltaTime)
 	// PRIORIDADE 1: Input manual (WASD)
 	if (FMath::Abs(ForwardInput) > 0.01f || FMath::Abs(RightInput) > 0.01f)
 	{
-		// Calcular direÁ„o baseada na c‚mera (top-down)
+		// Calcular dire√ß√£o baseada na c√¢mera (top-down)
 		const FRotator CameraRotation = PlayerCameraManager ? PlayerCameraManager->GetCameraRotation() : FRotator::ZeroRotator;
 		
-		// Extrair direÁıes da c‚mera e projetar no plano XY
+		// Extrair dire√ß√µes da c√¢mera e projetar no plano XY
 		const FVector CameraForward = FRotationMatrix(CameraRotation).GetUnitAxis(EAxis::X);
 		const FVector CameraRight   = FRotationMatrix(CameraRotation).GetUnitAxis(EAxis::Y);
 		
 		FVector ForwardDirection = FVector(CameraForward.X, CameraForward.Y, 0.0f).GetSafeNormal();
 		FVector RightDirection   = FVector(CameraRight.X,  CameraRight.Y,  0.0f).GetSafeNormal();
 
-		// Patch 1 ó respeitar intensidade do input (sem turbo na diagonal)
+		// Patch 1 ‚Äì respeitar intensidade do input (sem turbo na diagonal)
 		const FVector2D Axes(ForwardInput, RightInput);
 		const float Strength = FMath::Clamp(Axes.Size(), 0.f, 1.f);
 		MovementDirection = (ForwardDirection * Axes.X + RightDirection * Axes.Y).GetSafeNormal();
@@ -266,7 +251,7 @@ void AMyPlayerController::ProcessMovement(float DeltaTime)
 				ForwardInput, RightInput, *MovementDirection.ToString(), Strength);
 		}
 	}
-	// PRIORIDADE 2: Click-to-move (sÛ se n„o h· input manual)
+	// PRIORIDADE 2: Click-to-move (s√≥ se n√£o h√° input manual)
 	else if (bIsMovingToTarget)
 	{
 		const FVector PlayerLocation = MyPawn->GetActorLocation();
@@ -286,10 +271,10 @@ void AMyPlayerController::ProcessMovement(float DeltaTime)
 		}
 	}
 
-	// Aplicar movimento se h· direÁ„o v·lida
+	// Aplicar movimento se h√° dire√ß√£o v√°lida
 	if (bHasInput && !MovementDirection.IsNearlyZero())
 	{
-		// *** CRÕTICO: FOR«AR IGNORE ROOT MOTION ***
+		// *** CR√çTICO: FOR√áAR IGNORE ROOT MOTION ***
 		if (USkeletalMeshComponent* MeshComp = MyPawn->GetComponentByClass<USkeletalMeshComponent>())
 		{
 			if (UAnimInstance* AnimInstance = MeshComp->GetAnimInstance())
@@ -302,17 +287,17 @@ void AMyPlayerController::ProcessMovement(float DeltaTime)
 		if (UCharacterMovementComponent* MovementComp = Cast<UCharacterMovementComponent>(MyPawn->GetMovementComponent()))
 		{
 			const float TargetSpeed = BaseWalkSpeed * (bIsSprinting ? SprintMultiplier : 1.0f);
-			MovementComp->MaxWalkSpeed = TargetSpeed; // AplicaÁ„o direta
+			MovementComp->MaxWalkSpeed = TargetSpeed; // Aplica√ß√£o direta
 		}
 
-		// APLICAR MOVIMENTO ó usando Strength do input (sem turbo nas diagonais)
+		// APLICAR MOVIMENTO ‚Äì usando Strength do input (sem turbo nas diagonais)
 		const FVector2D Axes(ForwardInput, RightInput);
 		const float Strength = FMath::Clamp(Axes.Size(), 0.f, 1.f);
 		MyPawn->AddMovementInput(MovementDirection, Strength);
 	}
 	else if (!bIsMovingToTarget)
 	{
-		// Opcional de depuraÁ„o ó frenagem ìsecaî quando sem input e sem click-to-move
+		// Opcional de depura√ß√£o ‚Äì frenagem ‚Äúseca‚Äù quando sem input e sem click-to-move
 		if (UCharacterMovementComponent* CMC = Cast<UCharacterMovementComponent>(MyPawn->GetMovementComponent()))
 		{
 			CMC->StopMovementImmediately();
@@ -324,8 +309,11 @@ void AMyPlayerController::Tick(float DeltaTime)
 {
 	Super::Tick(DeltaTime);
 	
-	// SISTEMA ⁄NICO DE MOVIMENTO
+	// SISTEMA √öNICO DE MOVIMENTO
 	ProcessMovement(DeltaTime);
+
+	// Atualizar intera√ß√£o centralizada (debounce por movimento/tempo)
+	UpdateInteraction(DeltaTime);
 }
 
 // ============================================================================
@@ -355,17 +343,17 @@ void AMyPlayerController::OnEnhancedClick(const FInputActionValue& Value)
 
 void AMyPlayerController::OnLeftMouseClick()
 {
-	// Guard: n„o registrar clique atÈ que o tempo atual ultrapasse o tempo de ignore
+	// Guard: n√£o registrar clique at√© que o tempo atual ultrapasse o tempo de ignore
 	if (bClickGuardActive && GetWorld())
 	{
 		if (GetWorld()->GetTimeSeconds() < IgnoreClickUntilTime)
 		{
-			UE_LOG(LogTemp, Warning, TEXT("[PC] Clique ignorado pelo guardi„o de clique"));
+			UE_LOG(LogTemp, Warning, TEXT("[PC] Clique ignorado pelo guardi√£o de clique"));
 			return;
 		}
 		else
 		{
-			bClickGuardActive = false; // Desativar guardi„o apÛs o primeiro clique v·lido
+			bClickGuardActive = false; // Desativar guardi√£o ap√≥s o primeiro clique v√°lido
 		}
 	}
 
@@ -449,7 +437,7 @@ void AMyPlayerController::DebugMovement()
 
 void AMyPlayerController::DebugAnimations()
 {
-	UE_LOG(LogTemp, Warning, TEXT("=== ANIMA«’ES DEBUG ==="));
+	UE_LOG(LogTemp, Warning, TEXT("=== ANIMA√á√ïES DEBUG ==="));
 	
 	if (APawn* MyPawn = GetPawn())
 	{
@@ -465,7 +453,7 @@ void AMyPlayerController::DebugAnimations()
 
 void AMyPlayerController::DebugPositions()
 {
-	UE_LOG(LogTemp, Warning, TEXT("=== POSI«’ES DEBUG ==="));
+	UE_LOG(LogTemp, Warning, TEXT("=== POSI√á√ïES DEBUG ==="));
 	
 	if (APawn* MyPawn = GetPawn())
 	{
@@ -500,4 +488,75 @@ void AMyPlayerController::DecreaseWalkSpeed()
 {
 	BaseWalkSpeed = FMath::Max(100.f, BaseWalkSpeed - 50.f);
 	UE_LOG(LogTemp, Warning, TEXT("[PC] BaseWalkSpeed=%.1f"), BaseWalkSpeed);
+}
+
+void AMyPlayerController::UpdateInteraction(float DeltaTime)
+{
+	UWorld* World = GetWorld();
+	APawn* P = GetPawn();
+	if (!World || !P) return;
+
+	const FVector Origin = P->GetActorLocation();
+	const double Now = World->GetTimeSeconds();
+	const bool bMovedEnough = FVector::DistSquared(Origin, LastInteractionQueryOrigin) > FMath::Square(MovementEpsilon);
+	const bool bDebounced = (Now - LastInteractionQueryTime) >= InteractionDebounce;
+	if (!bMovedEnough && !bDebounced) return;
+
+	LastInteractionQueryTime = Now;
+	LastInteractionQueryOrigin = Origin;
+
+	UInteractableComponent* Best = FindBestInteractable(Origin, InteractionRadius);
+	SetFocusedInteractable(Best);
+}
+
+UInteractableComponent* AMyPlayerController::FindBestInteractable(const FVector& Origin, float Radius) const
+{
+	UInteractableComponent* Best = nullptr;
+	float BestDistSq = FMath::Square(Radius);
+
+	for (const TWeakObjectPtr<UInteractableComponent>& Weak : UInteractableComponent::GRegistry)
+	{
+		if (UInteractableComponent* Comp = Weak.Get())
+		{
+			if (!Comp->IsAvailable()) continue;
+			const float DistSq = FVector::DistSquared(Origin, Comp->GetInteractLocation());
+			if (DistSq <= BestDistSq)
+			{
+				Best = Comp;
+				BestDistSq = DistSq;
+			}
+		}
+	}
+	return Best;
+}
+
+void AMyPlayerController::SetFocusedInteractable(UInteractableComponent* NewTarget)
+{
+	UInteractableComponent* Old = FocusedInteractable.Get();
+	if (Old == NewTarget) return;
+
+	// Ocultar prompt do antigo
+	if (Old)
+	{
+		Old->ShowPrompt(false);
+	}
+
+	UE_LOG(LogTemp, Warning, TEXT("[PC][Interact] Focus change: %s -> %s"), Old ? *Old->GetOwner()->GetName() : TEXT("None"), NewTarget ? *NewTarget->GetOwner()->GetName() : TEXT("None"));
+	FocusedInteractable = NewTarget;
+
+	// Mostrar prompt do novo e ocultar os demais para evitar ru√≠do visual
+	if (NewTarget)
+	{
+		NewTarget->ShowPrompt(true);
+		for (const TWeakObjectPtr<UInteractableComponent>& Weak : UInteractableComponent::GRegistry)
+		{
+			if (UInteractableComponent* Comp = Weak.Get())
+			{
+				if (Comp != NewTarget)
+				{
+					Comp->ShowPrompt(false);
+				}
+			}
+		}
+	}
 }

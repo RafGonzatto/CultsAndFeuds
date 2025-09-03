@@ -1,5 +1,6 @@
-#include "World/Commom/Interaction/InteractableComponent.h"
+﻿#include "World/Commom/Interaction/InteractableComponent.h"
 #include "Components/WidgetComponent.h"
+#include "Components/PrimitiveComponent.h"
 #include "Blueprint/UserWidget.h"
 #include "UI/Widgets/BaseModalWidget.h"
 #include "UI/Widgets/InteractPromptWidget.h"
@@ -18,7 +19,7 @@ UInteractableComponent::UInteractableComponent()
     SetCollisionResponseToAllChannels(ECR_Ignore);
     SetCollisionResponseToChannel(ECC_Pawn, ECR_Overlap);
     SetGenerateOverlapEvents(true); // garantir overlaps para prompt
-    bHiddenInGame = false; // nÃ£o esconda o componente pai para nÃ£o afetar o widget filho
+    bHiddenInGame = false; // não esconda o componente pai para não afetar o widget filho
 }
 
 void UInteractableComponent::OnRegister()
@@ -46,9 +47,9 @@ void UInteractableComponent::OnRegister()
             PromptWidgetComponent->SetupAttachment(this);
             PromptWidgetComponent->SetWidgetClass(PromptClass);
             PromptWidgetComponent->SetDrawSize(FVector2D(64.f, 64.f));
-            // Screen Space: projeÃ§Ã£o para o viewport do jogador (sempre visÃ­vel)
+            // Screen Space: projeção para o viewport do jogador (sempre visível)
             PromptWidgetComponent->SetWidgetSpace(EWidgetSpace::Screen);
-            PromptWidgetComponent->SetDrawAtDesiredSize(true);
+            PromptWidgetComponent->SetDrawAtDesiredSize(false);
             if (UWorld* World = GetWorld())
             {
                 if (APlayerController* PC = World->GetFirstPlayerController())
@@ -66,7 +67,7 @@ void UInteractableComponent::OnRegister()
             PromptWidgetComponent->SetPivot(FVector2D(0.5f, 1.0f));
             PromptWidgetComponent->SetDrawSize(PromptScreenSize);
             UpdatePromptTransform();
-            // escala nÃ£o se aplica em Screen Space
+            // escala não se aplica em Screen Space
             UE_LOG(LogTemp, Warning, TEXT("[Interactable] Prompt widget created for %s (class=%s)"), *GetOwner()->GetName(), *PromptClass->GetName());
         }
     }
@@ -76,7 +77,7 @@ void UInteractableComponent::BeginPlay()
 {
 	Super::BeginPlay();
 
-	// Garanta OwnerPlayer para o WidgetComponent quando o PC existir (em BeginPlay geralmente jÃƒÂ¡ existe)
+	// Garanta OwnerPlayer para o WidgetComponent quando o PC existir (em BeginPlay geralmente já existe)
 	if (PromptWidgetComponent)
 	{
 		if (UWorld* World = GetWorld())
@@ -233,3 +234,15 @@ void UInteractableComponent::UpdatePromptTransform()
 	const FVector RelToThis = ThisXform.InverseTransformPosition(WorldTop);
 	PromptWidgetComponent->SetRelativeLocation(RelToThis);
 }
+
+bool UInteractableComponent::IsAvailable() const
+{
+	// Disponível quando não há modal ativo; extensível para outras checagens
+	return ActiveModal == nullptr;
+}
+
+FVector UInteractableComponent::GetInteractLocation() const
+{
+	return GetComponentLocation();
+}
+

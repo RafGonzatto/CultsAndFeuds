@@ -7,6 +7,7 @@
 
 class UInputMappingContext;
 class UInputAction;
+class UInteractableComponent;
 
 UCLASS()
 class VAZIO_API AMyPlayerController : public APlayerController
@@ -42,7 +43,7 @@ private:
 	void OnSprintStart(const FInputActionValue& Value);
 	void OnSprintEnd(const FInputActionValue& Value);
 	float BaseWalkSpeed = 400.f;
-	float SprintMultiplier = 2.0f; // Sprint mais visível
+	float SprintMultiplier = 2.0f; // Sprint mais visÃ­vel
 	bool bIsSprinting = false;
 
 	// Click-to-Move - SISTEMA UNIFICADO
@@ -51,7 +52,7 @@ private:
 	UFUNCTION() void OnEnhancedClick(const FInputActionValue& Value);
 	void MovePlayerToLocation(FVector TargetLocation);
 
-	// Variáveis de movimento - UMA FONTE DE VERDADE
+	// VariÃ¡veis de movimento - UMA FONTE DE VERDADE
 	UPROPERTY() FVector CurrentMoveTarget;
 	UPROPERTY() bool bIsMovingToTarget = false;
 
@@ -63,12 +64,12 @@ private:
 	UFUNCTION() void IncreaseWalkSpeed();
 	UFUNCTION() void DecreaseWalkSpeed();
 
-	// SISTEMA DE MOVIMENTO ÚNICO E DEFINITIVO + DEBUG
+	// SISTEMA DE MOVIMENTO ÃšNICO E DEFINITIVO + DEBUG
 	float ForwardInput = 0.f;
 	float RightInput = 0.f;
 	void ProcessMovement(float DeltaTime);
 
-	// SISTEMA DE DEBUG AVANÇADO
+	// SISTEMA DE DEBUG AVANÃ‡ADO
 	FVector LastKnownPosition;
 	FVector LastFramePosition;
 	float DebugTimer = 0.f;
@@ -95,6 +96,18 @@ private:
 	bool bClickGuardActive = false;
 
 	// Interact handlers
+	// Interaction Controller (centralizado)
+	float InteractionRadius = 300.f;      // R
+	float InteractionDebounce = 0.12f;    // Î”t (s)
+	float MovementEpsilon = 1.f;          // Îµ (cm)
+	double LastInteractionQueryTime = 0.0;
+	FVector LastInteractionQueryOrigin = FVector::ZeroVector;
+	TWeakObjectPtr<class UInteractableComponent> FocusedInteractable;
+
+	void UpdateInteraction(float DeltaTime);
+	class UInteractableComponent* FindBestInteractable(const FVector& Origin, float Radius) const;
+	void SetFocusedInteractable(class UInteractableComponent* NewTarget);
+
 	UFUNCTION() void OnInteract(const FInputActionValue& Value); // Enhanced Input
 	void HandleInteract(); // Legacy/funcional
 };

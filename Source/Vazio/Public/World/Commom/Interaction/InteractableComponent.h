@@ -27,7 +27,7 @@ public:
 
 	// Mostrar/ocultar prompt automaticamente em overlaps
 	UPROPERTY(EditAnywhere, BlueprintReadOnly, Category="Interaction|Prompt")
-	bool bAutoPromptOnOverlap = true;
+	bool bAutoPromptOnOverlap = false;
 
 	// Classe do widget para o prompt de intera��o
 	UPROPERTY(EditAnywhere, BlueprintReadOnly, Category="Interaction|Prompt")
@@ -60,6 +60,12 @@ public:
 	// Exibir/ocultar prompt
 	UFUNCTION(BlueprintCallable, Category="Interaction|Prompt")
 	void ShowPrompt(bool bShow);
+
+	// Disponibilidade para interação (pode considerar cooldown, estado etc.)
+	bool IsAvailable() const;
+
+	// Posição para cálculo de distância/ordenar foco
+	FVector GetInteractLocation() const;
 
 	// IInteractable
 	virtual void Interact_Implementation(APlayerController* InteractingPC) override;
