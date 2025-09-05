@@ -93,6 +93,9 @@ protected:
 	UFUNCTION()
 	void OnModalClosed();
 
+	// Resolve modal class by Actor tag when ModalWidgetClass is unset
+	TSubclassOf<UBaseModalWidget> GetModalClassByTag() const;
+
 	// Cache do estado de input anterior
 	bool bPrevIgnoreLook = false;
 	bool bPrevIgnoreMove = false;

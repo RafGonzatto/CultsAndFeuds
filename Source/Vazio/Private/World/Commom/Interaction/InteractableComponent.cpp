@@ -3,6 +3,7 @@
 #include "Components/PrimitiveComponent.h"
 #include "Blueprint/UserWidget.h"
 #include "UI/Widgets/BaseModalWidget.h"
+#include "UI/Widgets/SwarmArenaModalWidget.h"
 #include "UI/Widgets/InteractPromptWidget.h"
 #include "GameFramework/PlayerController.h"
 #include "Engine/LocalPlayer.h"
@@ -25,20 +26,20 @@ UInteractableComponent::UInteractableComponent()
 
 void UInteractableComponent::OnRegister()
 {
-	Super::OnRegister();
-	GRegistry.Add(this);
+    Super::OnRegister();
+    GRegistry.Add(this);
 
-	// Ajustar raio conforme EffectiveRadius
-	SetSphereRadius(EffectiveRadius);
+    // Ajustar raio conforme EffectiveRadius
+    SetSphereRadius(EffectiveRadius);
 
-	// Bind overlaps para auto-prompt
-	if (bAutoPromptOnOverlap)
-	{
-		OnComponentBeginOverlap.AddDynamic(this, &UInteractableComponent::OnPawnBeginOverlap);
-		OnComponentEndOverlap.AddDynamic(this, &UInteractableComponent::OnPawnEndOverlap);
-	}
+    // Bind overlaps para auto-prompt
+    if (bAutoPromptOnOverlap)
+    {
+        OnComponentBeginOverlap.AddDynamic(this, &UInteractableComponent::OnPawnBeginOverlap);
+        OnComponentEndOverlap.AddDynamic(this, &UInteractableComponent::OnPawnEndOverlap);
+    }
 
-	// Criar prompt (WidgetComponent) se classe fornecida (ou default)
+    // Criar prompt (WidgetComponent) se classe fornecida (ou default)
     if (!PromptWidgetComponent)
     {
         TSubclassOf<UUserWidget> PromptClass = PromptWidgetClass ? PromptWidgetClass : TSubclassOf<UUserWidget>(UInteractPromptWidget::StaticClass());
@@ -76,28 +77,28 @@ void UInteractableComponent::OnRegister()
 
 void UInteractableComponent::BeginPlay()
 {
-	Super::BeginPlay();
+    Super::BeginPlay();
 
-	// Garanta OwnerPlayer para o WidgetComponent quando o PC existir (em BeginPlay geralmente já existe)
-	if (PromptWidgetComponent)
-	{
-		if (UWorld* World = GetWorld())
-		{
-			if (APlayerController* PC = World->GetFirstPlayerController())
-			{
-				if (ULocalPlayer* LP = PC->GetLocalPlayer())
-				{
-					PromptWidgetComponent->SetOwnerPlayer(LP);
-				}
-			}
-		}
-	}
+    // Garanta OwnerPlayer para o WidgetComponent quando o PC existir (em BeginPlay geralmente já existe)
+    if (PromptWidgetComponent)
+    {
+        if (UWorld* World = GetWorld())
+        {
+            if (APlayerController* PC = World->GetFirstPlayerController())
+            {
+                if (ULocalPlayer* LP = PC->GetLocalPlayer())
+                {
+                    PromptWidgetComponent->SetOwnerPlayer(LP);
+                }
+            }
+        }
+    }
 }
 
 void UInteractableComponent::EndPlay(const EEndPlayReason::Type EndPlayReason)
 {
-	GRegistry.Remove(this);
-	Super::EndPlay(EndPlayReason);
+    GRegistry.Remove(this);
+    Super::EndPlay(EndPlayReason);
 }
 
 void UInteractableComponent::ShowPrompt(bool bShow)
@@ -112,90 +113,121 @@ void UInteractableComponent::ShowPrompt(bool bShow)
             UE_LOG(LogTemp, Warning, TEXT("[Interactable] Prompt %s for %s"), bShow ? TEXT("VISIBLE") : TEXT("HIDDEN"), *GetOwner()->GetName());
         }
     }
-	else
-	{
-		UE_LOG(LogTemp, Warning, TEXT("[Interactable] ShowPrompt(%s) called but PromptWidgetComponent is NULL on %s"), bShow ? TEXT("true") : TEXT("false"), *GetOwner()->GetName());
-	}
+    else
+    {
+        UE_LOG(LogTemp, Warning, TEXT("[Interactable] ShowPrompt(%s) called but PromptWidgetComponent is NULL on %s"), bShow ? TEXT("true") : TEXT("false"), *GetOwner()->GetName());
+    }
 }
 
 void UInteractableComponent::OnPawnBeginOverlap(UPrimitiveComponent* OverlappedComp, AActor* OtherActor, UPrimitiveComponent* OtherComp, int32 OtherBodyIndex, bool bFromSweep, const FHitResult& SweepResult)
 {
-	if (OtherActor && OtherActor->IsA<APawn>())
-	{
-		UE_LOG(LogTemp, Warning, TEXT("[Interactable] Pawn entered radius of %s"), *GetOwner()->GetName());
-		ShowPrompt(true);
-	}
+    if (OtherActor && OtherActor->IsA<APawn>())
+    {
+        UE_LOG(LogTemp, Warning, TEXT("[Interactable] Pawn entered radius of %s"), *GetOwner()->GetName());
+        ShowPrompt(true);
+    }
 }
 
 void UInteractableComponent::OnPawnEndOverlap(UPrimitiveComponent* OverlappedComp, AActor* OtherActor, UPrimitiveComponent* OtherComp, int32 OtherBodyIndex)
 {
-	if (OtherActor && OtherActor->IsA<APawn>())
-	{
-		UE_LOG(LogTemp, Warning, TEXT("[Interactable] Pawn left radius of %s"), *GetOwner()->GetName());
-		ShowPrompt(false);
-	}
+    if (OtherActor && OtherActor->IsA<APawn>())
+    {
+        UE_LOG(LogTemp, Warning, TEXT("[Interactable] Pawn left radius of %s"), *GetOwner()->GetName());
+        ShowPrompt(false);
+    }
 }
 
 void UInteractableComponent::DisablePlayerInputForModal(APlayerController* PC)
 {
-	if (!PC) return;
-	bPrevIgnoreLook = PC->IsLookInputIgnored();
-	bPrevIgnoreMove = PC->IsMoveInputIgnored();
+    if (!PC) return;
+    bPrevIgnoreLook = PC->IsLookInputIgnored();
+    bPrevIgnoreMove = PC->IsMoveInputIgnored();
 
-	PC->SetIgnoreLookInput(true);
-	PC->SetIgnoreMoveInput(true);
+    PC->SetIgnoreLookInput(true);
+    PC->SetIgnoreMoveInput(true);
 
-	FInputModeUIOnly Mode;
-	Mode.SetLockMouseToViewportBehavior(EMouseLockMode::DoNotLock);
-	PC->SetInputMode(Mode);
-	PC->bShowMouseCursor = true;
-	UE_LOG(LogTemp, Warning, TEXT("[Interactable] Input disabled for modal (PC=%s)"), *PC->GetName());
+    FInputModeUIOnly Mode;
+    Mode.SetLockMouseToViewportBehavior(EMouseLockMode::DoNotLock);
+    PC->SetInputMode(Mode);
+    PC->bShowMouseCursor = true;
+    UE_LOG(LogTemp, Warning, TEXT("[Interactable] Input disabled for modal (PC=%s)"), *PC->GetName());
 }
 
 void UInteractableComponent::RestorePlayerInput(APlayerController* PC)
 {
-	if (!PC) return;
+    if (!PC) return;
 
-	PC->SetIgnoreLookInput(bPrevIgnoreLook);
-	PC->SetIgnoreMoveInput(bPrevIgnoreMove);
+    PC->SetIgnoreLookInput(bPrevIgnoreLook);
+    PC->SetIgnoreMoveInput(bPrevIgnoreMove);
 
-	FInputModeGameOnly Mode;
-	PC->SetInputMode(Mode);
-	PC->bShowMouseCursor = false;
-	UE_LOG(LogTemp, Warning, TEXT("[Interactable] Input restored after modal (PC=%s)"), *PC->GetName());
+    FInputModeGameOnly Mode;
+    PC->SetInputMode(Mode);
+    PC->bShowMouseCursor = false;
+    UE_LOG(LogTemp, Warning, TEXT("[Interactable] Input restored after modal (PC=%s)"), *PC->GetName());
 }
 
 void UInteractableComponent::OnModalClosed()
 {
-	ActiveModal = nullptr;
-	if (APlayerController* PC = GetWorld() ? GetWorld()->GetFirstPlayerController() : nullptr)
-	{
-		UE_LOG(LogTemp, Warning, TEXT("[Interactable] Modal closed for %s"), *GetOwner()->GetName());
+    ActiveModal = nullptr;
+    if (APlayerController* PC = GetWorld() ? GetWorld()->GetFirstPlayerController() : nullptr)
+    {
+        UE_LOG(LogTemp, Warning, TEXT("[Interactable] Modal closed for %s"), *GetOwner()->GetName());
         // Retornar câmera para o pawn
         if (APawn* Pawn = PC->GetPawn())
         {
             PC->SetViewTargetWithBlend(Pawn, CameraBlendTime);
         }
-		RestorePlayerInput(PC);
-		ShowPrompt(true);
-	}
+        RestorePlayerInput(PC);
+        ShowPrompt(true);
+    }
+}
+
+TSubclassOf<UBaseModalWidget> UInteractableComponent::GetModalClassByTag() const
+{
+    // 1) Preferir tags do próprio componente
+    if (ComponentHasTag(TEXT("House"))) return TSubclassOf<UBaseModalWidget>(UHouseModalWidget::StaticClass());
+    if (ComponentHasTag(TEXT("Arena"))) return TSubclassOf<UBaseModalWidget>(USwarmArenaModalWidget::StaticClass());
+    if (ComponentHasTag(TEXT("Shop")))  return TSubclassOf<UBaseModalWidget>(UShopModalWidget::StaticClass());
+
+    // 2) Checar tags do componente pai (mesh) se existir
+    if (const UActorComponent* Parent = GetAttachParent())
+    {
+        if (Parent->ComponentHasTag(TEXT("House"))) return TSubclassOf<UBaseModalWidget>(UHouseModalWidget::StaticClass());
+        if (Parent->ComponentHasTag(TEXT("Arena"))) return TSubclassOf<UBaseModalWidget>(USwarmArenaModalWidget::StaticClass());
+        if (Parent->ComponentHasTag(TEXT("Shop")))  return TSubclassOf<UBaseModalWidget>(UShopModalWidget::StaticClass());
+    }
+
+    // 3) Fallback para as tags do ator (compatibilidade)
+    if (AActor* Owner = GetOwner())
+    {
+        if (Owner->ActorHasTag(TEXT("House"))) return TSubclassOf<UBaseModalWidget>(UHouseModalWidget::StaticClass());
+        if (Owner->ActorHasTag(TEXT("Arena"))) return TSubclassOf<UBaseModalWidget>(USwarmArenaModalWidget::StaticClass());
+        if (Owner->ActorHasTag(TEXT("Shop")))  return TSubclassOf<UBaseModalWidget>(UShopModalWidget::StaticClass());
+    }
+
+    return TSubclassOf<UBaseModalWidget>(UBaseModalWidget::StaticClass());
 }
 
 void UInteractableComponent::Interact_Implementation(APlayerController* InteractingPC)
 {
-	if (!InteractingPC)
-	{
-		UE_LOG(LogTemp, Warning, TEXT("[Interactable] Interact called but PC is NULL for %s"), *GetOwner()->GetName());
-		return;
-	}
+    if (!InteractingPC)
+    {
+        UE_LOG(LogTemp, Warning, TEXT("[Interactable] Interact called but PC is NULL for %s"), *GetOwner()->GetName());
+        return;
+    }
 
-	UE_LOG(LogTemp, Warning, TEXT("[Interactable] Interact pressed on %s by %s"), *GetOwner()->GetName(), *InteractingPC->GetName());
-    // 1) Ativar câmera especial se habilitado
+    UE_LOG(LogTemp, Warning, TEXT("[Interactable] Interact pressed on %s by %s"), *GetOwner()->GetName(), *InteractingPC->GetName());
+
+    // 1) Ativar câmera especial se habilitado e focar no componente correto (este)
     if (bUseCameraFocus)
     {
-        FVector FocusPoint = GetOwner() ? GetOwner()->GetActorLocation() + CameraTargetOffset : GetComponentLocation();
-        const FRotator OwnerRot = GetOwner() ? GetOwner()->GetActorRotation() : FRotator::ZeroRotator;
-        const float FinalYaw = OwnerRot.Yaw + CameraYawOffset;
+        const FVector FocusPoint = GetComponentLocation() + CameraTargetOffset;
+
+        // Usar rotação do componente pai (mesh) se existir, senão a do próprio componente
+        const USceneComponent* BasisComp = GetAttachParent() ? GetAttachParent() : this;
+        const FRotator BasisRot = BasisComp->GetComponentRotation();
+
+        const float FinalYaw = BasisRot.Yaw + CameraYawOffset;
         const float FinalPitch = CameraPitch;
 
         const FRotator DirRot(FinalPitch, FinalYaw, 0.f);
@@ -212,13 +244,16 @@ void UInteractableComponent::Interact_Implementation(APlayerController* Interact
             }
         }
     }
-	TSubclassOf<UUserWidget> ClassToUse = ModalWidgetClass ? TSubclassOf<UUserWidget>(*ModalWidgetClass) : TSubclassOf<UUserWidget>(UBaseModalWidget::StaticClass());
+
+    // 2) Resolver classe do modal por Tag se não foi setada explicitamente
+    TSubclassOf<UUserWidget> ClassToUse = ModalWidgetClass ? TSubclassOf<UUserWidget>(*ModalWidgetClass) : TSubclassOf<UUserWidget>(GetModalClassByTag());
     if (UBaseModalWidget* Modal = CreateWidget<UBaseModalWidget>(InteractingPC, ClassToUse))
     {
         UE_LOG(LogTemp, Warning, TEXT("[Interactable] Modal created (%s) for %s"), *ClassToUse->GetName(), *GetOwner()->GetName());
         DisablePlayerInputForModal(InteractingPC);
         Modal->OnModalClosed.AddDynamic(this, &UInteractableComponent::OnModalClosed);
         Modal->AddToViewport(1000);
+        ActiveModal = Modal;
         // Garantir foco do input de UI no modal aberto
         {
             FInputModeUIOnly FocusMode;
@@ -231,46 +266,46 @@ void UInteractableComponent::Interact_Implementation(APlayerController* Interact
         Modal->FocusFirstWidget();
         UE_LOG(LogTemp, Warning, TEXT("[Interactable] Modal added to viewport and focused for %s"), *GetOwner()->GetName());
     }
-	else
-	{
-		UE_LOG(LogTemp, Error, TEXT("[Interactable] CreateWidget failed for %s (class=%s)"), *GetOwner()->GetName(), *ClassToUse->GetName());
-	}
+    else
+    {
+        UE_LOG(LogTemp, Error, TEXT("[Interactable] CreateWidget failed for %s (class=%s)"), *GetOwner()->GetName(), *ClassToUse->GetName());
+    }
 }
 
 void UInteractableComponent::UpdatePromptTransform()
 {
-	if (!PromptWidgetComponent) return;
+    if (!PromptWidgetComponent) return;
 
-	// Garantir tamanho/pivô desejados
-	PromptWidgetComponent->SetDrawSize(PromptScreenSize);
-	PromptWidgetComponent->SetPivot(FVector2D(0.5f, 1.0f)); // centro em X, base em Y
+    // Garantir tamanho/pivô desejados
+    PromptWidgetComponent->SetDrawSize(PromptScreenSize);
+    PromptWidgetComponent->SetPivot(FVector2D(0.5f, 1.0f)); // centro em X, base em Y
 
-	// Calcular posição desejada: topo do mesh pai + margem vertical
-	UPrimitiveComponent* ParentPrim = Cast<UPrimitiveComponent>(GetAttachParent());
-	if (!ParentPrim)
-	{
-		// fallback para o offset simples relativo ao próprio componente
-		PromptWidgetComponent->SetRelativeLocation(PromptOffset);
-		return;
-	}
+    // Calcular posição desejada: topo do mesh pai + margem vertical
+    UPrimitiveComponent* ParentPrim = Cast<UPrimitiveComponent>(GetAttachParent());
+    if (!ParentPrim)
+    {
+        // fallback para o offset simples relativo ao próprio componente
+        PromptWidgetComponent->SetRelativeLocation(PromptOffset);
+        return;
+    }
 
-	const FBoxSphereBounds ParentBounds = ParentPrim->Bounds; // world space
-	const FVector WorldTop = ParentBounds.Origin + FVector(0, 0, ParentBounds.BoxExtent.Z + PromptWorldMargin);
+    const FBoxSphereBounds ParentBounds = ParentPrim->Bounds; // world space
+    const FVector WorldTop = ParentBounds.Origin + FVector(0, 0, ParentBounds.BoxExtent.Z + PromptWorldMargin);
 
-	// Converter para o espaço relativo deste componente (pois o widget é filho deste componente)
-	const FTransform ThisXform = GetComponentTransform();
-	const FVector RelToThis = ThisXform.InverseTransformPosition(WorldTop);
-	PromptWidgetComponent->SetRelativeLocation(RelToThis);
+    // Converter para o espaço relativo deste componente (pois o widget é filho deste componente)
+    const FTransform ThisXform = GetComponentTransform();
+    const FVector RelToThis = ThisXform.InverseTransformPosition(WorldTop);
+    PromptWidgetComponent->SetRelativeLocation(RelToThis);
 }
 
 bool UInteractableComponent::IsAvailable() const
 {
-	// Disponível quando não há modal ativo; extensível para outras checagens
-	return ActiveModal == nullptr;
+    // Disponível quando não há modal ativo; extensível para outras checagens
+    return ActiveModal == nullptr;
 }
 
 FVector UInteractableComponent::GetInteractLocation() const
 {
-	return GetComponentLocation();
+    return GetComponentLocation();
 }
 

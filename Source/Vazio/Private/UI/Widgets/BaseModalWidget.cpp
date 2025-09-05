@@ -25,9 +25,13 @@ TSharedRef<SWidget> UBaseModalWidget::RebuildWidget()
 			+ SVerticalBox::Slot().AutoHeight().Padding(0, 0, 0, 16)
 			[
 				SAssignNew(TitleText, STextBlock)
-				.Text(FText::FromString(TEXT("Interacao")))
+				.Text(GetTitle())
 				.Justification(ETextJustify::Center)
 			]
+            + SVerticalBox::Slot().AutoHeight().Padding(0,0,0,12)
+            [
+                BuildBody()
+            ]
 			+ SVerticalBox::Slot().AutoHeight()
 			[
                 SAssignNew(CloseButton, SButton)
@@ -96,4 +100,30 @@ void UBaseModalWidget::FocusFirstWidget()
         UE_LOG(LogTemp, Warning, TEXT("[Modal] FocusFirstWidget -> focusing CloseButton"));
         FSlateApplication::Get().SetKeyboardFocus(CloseButton);
     }
+}
+
+FText UBaseModalWidget::GetTitle() const
+{
+    return FText::FromString(TEXT("Interacao"));
+}
+
+TSharedRef<SWidget> UBaseModalWidget::BuildBody()
+{
+    return SNew(STextBlock).Text(FText::FromString(TEXT("Conteudo base")));
+}
+
+// ---- Derived Modals ----
+TSharedRef<SWidget> UHouseModalWidget::BuildBody()
+{
+    return SNew(STextBlock).Text(FText::FromString(TEXT("Bem-vindo à House")));
+}
+
+TSharedRef<SWidget> UArenaModalWidget::BuildBody()
+{
+    return SNew(STextBlock).Text(FText::FromString(TEXT("Bem-vindo à Arena")));
+}
+
+TSharedRef<SWidget> UShopModalWidget::BuildBody()
+{
+    return SNew(STextBlock).Text(FText::FromString(TEXT("Bem-vindo à Shop")));
 }

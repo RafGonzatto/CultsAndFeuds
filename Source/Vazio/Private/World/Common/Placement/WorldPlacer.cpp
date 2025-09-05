@@ -121,6 +121,12 @@ UStaticMeshComponent* AWorldPlacer::CreateSingleMeshComponent(const FWorldPlaceE
 	// Apply relative transform from entry
 	Comp->SetRelativeTransform(Entry.Transform);
 
+	// Propagar tag do config para o COMPONENTE do mesh (não para o ator inteiro)
+	if (!Entry.Tag.IsNone())
+	{
+		Comp->ComponentTags.Add(Entry.Tag);
+	}
+
 	SingleMeshComponents.Add(Comp);
 	return Comp;
 }
@@ -134,6 +140,13 @@ void AWorldPlacer::AddInteractableToComponent(USceneComponent* AttachTo, const F
 
 	UInteractableComponent* Interactable = NewObject<UInteractableComponent>(this);
 	Interactable->SetupAttachment(AttachTo);
+
+	// Propagar a mesma tag para o componente de interação (compatível com GetModalClassByTag)
+	if (!Entry.Tag.IsNone())
+	{
+		Interactable->ComponentTags.Add(Entry.Tag);
+	}
+
 	Interactable->RegisterComponent();
 
 	InteractableComponents.Add(Interactable);

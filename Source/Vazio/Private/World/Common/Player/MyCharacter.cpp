@@ -433,13 +433,13 @@ void AMyCharacter::ValidateComponentAlignment()
 	
 	if (MeshDiscrepancy > 50.0f || CapsuleDiscrepancy > 50.0f)
 	{
-		UE_LOG(LogTemp, Error, TEXT("?? [ALIGNMENT] Actor: %s"), *ActorLoc.ToString());
-		UE_LOG(LogTemp, Error, TEXT("?? [ALIGNMENT] Mesh: %s (Disc: %.1f)"), *MeshLoc.ToString(), MeshDiscrepancy);
-		UE_LOG(LogTemp, Error, TEXT("?? [ALIGNMENT] Capsule: %s (Disc: %.1f)"), *CapsuleLoc.ToString(), CapsuleDiscrepancy);
+	//	UE_LOG(LogTemp, Error, TEXT("?? [ALIGNMENT] Actor: %s"), *ActorLoc.ToString());
+	//	UE_LOG(LogTemp, Error, TEXT("?? [ALIGNMENT] Mesh: %s (Disc: %.1f)"), *MeshLoc.ToString(), MeshDiscrepancy);
+	//	UE_LOG(LogTemp, Error, TEXT("?? [ALIGNMENT] Capsule: %s (Disc: %.1f)"), *CapsuleLoc.ToString(), CapsuleDiscrepancy);
 		if (UAnimInstance* AnimInstance = GetMesh()->GetAnimInstance())
 		{
 			const FString MontageName = AnimInstance->GetCurrentActiveMontage() ? AnimInstance->GetCurrentActiveMontage()->GetName() : TEXT("None");
-			UE_LOG(LogTemp, Error, TEXT("?? [ALIGNMENT] Montage: %s"), *MontageName);
+			//UE_LOG(LogTemp, Error, TEXT("?? [ALIGNMENT] Montage: %s"), *MontageName);
 		}
 	}
 }

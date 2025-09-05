@@ -1,0 +1,186 @@
+#include "World/Battle/BattleGameMode.h"
+#include "World/Common/Player/MyCharacter.h"
+#include "World/Common/Player/MyPlayerController.h"
+
+#include "Engine/World.h"
+#include "GameFramework/PlayerStart.h"
+#include "EngineUtils.h"
+
+#include "Engine/StaticMeshActor.h"
+#include "Components/StaticMeshComponent.h"
+#include "Materials/Material.h"
+#include "UObject/ConstructorHelpers.h"
+#include "Engine/DirectionalLight.h"
+#include "Components/DirectionalLightComponent.h"
+#include "Engine/SkyLight.h"
+#include "Components/SkyLightComponent.h"
+#include "NavigationSystem.h"
+
+ABattleGameMode::ABattleGameMode()
+{
+    DefaultPawnClass = AMyCharacter::StaticClass();
+    PlayerControllerClass = AMyPlayerController::StaticClass();
+
+    // Prefer BP_MyCharacter if it exists so visuals/camera match City
+    static ConstructorHelpers::FClassFinder<APawn> BPCharClass(TEXT("/Game/Characters/PlayerChar/BP_MyCharacter"));
+    if (BPCharClass.Succeeded())
+    {
+        DefaultPawnClass = BPCharClass.Class;
+    }
+
+    // LEGAL: resolve Engine assets only here (constructor)
+    static ConstructorHelpers::FObjectFinder<UStaticMesh> CubeMeshAsset(TEXT("/Engine/BasicShapes/Cube"));
+    if (CubeMeshAsset.Succeeded())
+    {
+        CachedCubeMesh = CubeMeshAsset.Object;
+    }
+    static ConstructorHelpers::FObjectFinder<UMaterial> BasicMaterialAsset(TEXT("/Engine/BasicShapes/BasicShapeMaterial"));
+    if (BasicMaterialAsset.Succeeded())
+    {
+        CachedBasicMaterial = BasicMaterialAsset.Object;
+    }
+}
+
+void ABattleGameMode::BeginPlay()
+{
+    Super::BeginPlay();
+    CreatePlayerStartIfNeeded();
+
+    // Create minimal visible environment so the level isn't black
+    CreateBattleGround();
+    CreateBasicLighting();
+
+    // Trigger NavMesh rebuild so spawned ground contributes immediately
+    if (UNavigationSystemV1* Nav = FNavigationSystem::GetCurrent<UNavigationSystemV1>(GetWorld()))
+    {
+        Nav->Build();
+        UE_LOG(LogTemp, Display, TEXT("[BattleGM] Requested NavMesh rebuild"));
+    }
+}
+
+void ABattleGameMode::CreatePlayerStartIfNeeded()
+{
+    UWorld* World = GetWorld();
+    if (!World) return;
+
+    for (TActorIterator<APlayerStart> It(World); It; ++It)
+    {
+        UE_LOG(LogTemp, Verbose, TEXT("[BattleGM] PlayerStart already present: %s"), *It->GetName());
+        return; // already present
+    }
+
+    // Spawn a basic PlayerStart near the origin
+    if (APlayerStart* PS = World->SpawnActor<APlayerStart>(FVector(0, 0, 150), FRotator::ZeroRotator))
+    {
+        PS->SetActorLabel(TEXT("BattlePlayerStart"));
+        UE_LOG(LogTemp, Display, TEXT("[BattleGM] PlayerStart created at (0,0,150)"));
+    }
+}
+
+AActor* ABattleGameMode::ChoosePlayerStart_Implementation(AController* Player)
+{
+    UWorld* World = GetWorld();
+    if (World)
+    {
+        for (TActorIterator<APlayerStart> It(World); It; ++It)
+        {
+            UE_LOG(LogTemp, Verbose, TEXT("[BattleGM] ChoosePlayerStart -> %s"), *It->GetName());
+            return *It;
+        }
+    }
+
+    // If none exists yet, create one and try again so the player always spawns
+    CreatePlayerStartIfNeeded();
+    if (World)
+    {
+        for (TActorIterator<APlayerStart> It(World); It; ++It)
+        {
+            UE_LOG(LogTemp, Verbose, TEXT("[BattleGM] ChoosePlayerStart (after create) -> %s"), *It->GetName());
+            return *It;
+        }
+    }
+    return Super::ChoosePlayerStart_Implementation(Player);
+}
+
+void ABattleGameMode::CreateBattleGround()
+{
+    UWorld* World = GetWorld();
+    if (!World) return;
+    // Reuse authored ground if present
+    for (TActorIterator<AStaticMeshActor> It(World); It; ++It)
+    {
+        if (It->GetName().Contains(TEXT("BattleGround")) || It->ActorHasTag(TEXT("BattleGround")))
+        {
+            UE_LOG(LogTemp, Verbose, TEXT("[BattleGM] Existing BattleGround detected: %s"), *It->GetName());
+            return;
+        }
+    }
+    // Use assets cached in constructor; do NOT use FObjectFinder here
+    if (!CachedCubeMesh)
+    {
+        UE_LOG(LogTemp, Warning, TEXT("[BattleGM] CachedCubeMesh is null; skipping ground creation"));
+        return;
+    }
+
+    AStaticMeshActor* Ground = World->SpawnActor<AStaticMeshActor>(FVector::ZeroVector, FRotator::ZeroRotator);
+    if (!Ground) return;
+
+    UStaticMeshComponent* Mesh = Ground->GetStaticMeshComponent();
+    Mesh->SetMobility(EComponentMobility::Movable);
+    Mesh->SetStaticMesh(CachedCubeMesh);
+    // Enable collision so ground traces for spawn/grounding succeed
+    Mesh->SetCollisionEnabled(ECollisionEnabled::QueryAndPhysics);
+    Mesh->SetCollisionResponseToAllChannels(ECR_Block);
+    Mesh->SetCanEverAffectNavigation(true);
+    Ground->SetActorScale3D(FVector(100.f, 100.f, 1.0f)); // 100x100m, 1m thick
+    Ground->Tags.Add(TEXT("BattleGround"));
+    if (CachedBasicMaterial)
+    {
+        UMaterialInstanceDynamic* Dyn = UMaterialInstanceDynamic::Create(CachedBasicMaterial, Ground);
+        if (Dyn)
+        {
+            Dyn->SetVectorParameterValue(TEXT("Color"), FLinearColor(0.15f, 0.15f, 0.15f, 1.f));
+            Mesh->SetMaterial(0, Dyn);
+        }
+    }
+    Ground->SetActorLabel(TEXT("BattleGround"));
+    UE_LOG(LogTemp, Display, TEXT("[BattleGM] Battle ground created"));
+}
+
+void ABattleGameMode::CreateBasicLighting()
+{
+    UWorld* World = GetWorld();
+    if (!World) return;
+
+    // Directional light (sun)
+    // If any directional light already exists in the map, keep it
+    for (TActorIterator<ADirectionalLight> It(World); It; ++It)
+    {
+        UE_LOG(LogTemp, Verbose, TEXT("[BattleGM] Using existing DirectionalLight: %s"), *It->GetName());
+        goto AfterDirectional;
+    }
+    if (ADirectionalLight* Dir = World->SpawnActor<ADirectionalLight>(FVector(0, 0, 1000), FRotator(-45, 45, 0)))
+    {
+        if (UDirectionalLightComponent* C = Dir->GetComponent())
+        {
+            C->SetIntensity(6.f);
+            C->SetLightColor(FLinearColor(1.0f, 0.95f, 0.85f));
+        }
+    }
+AfterDirectional:
+
+    // Ambient skylight
+    for (TActorIterator<ASkyLight> It(World); It; ++It)
+    {
+        UE_LOG(LogTemp, Verbose, TEXT("[BattleGM] Using existing SkyLight: %s"), *It->GetName());
+        return;
+    }
+    if (ASkyLight* Sky = World->SpawnActor<ASkyLight>(FVector(0, 0, 800), FRotator::ZeroRotator))
+    {
+        if (USkyLightComponent* C = Sky->GetLightComponent())
+        {
+            C->SetIntensity(2.5f);
+            C->SetLightColor(FLinearColor(0.6f, 0.7f, 1.0f));
+        }
+    }
+}
