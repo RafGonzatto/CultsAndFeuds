@@ -2,6 +2,8 @@
 
 #include "CoreMinimal.h"
 #include "GameFramework/Character.h"
+#include "World/Common/Player/PlayerHealthComponent.h"
+#include "World/Common/Player/XPComponent.h"
 #include "MyCharacter.generated.h"
 
 class USpringArmComponent;
@@ -9,6 +11,7 @@ class UCameraComponent;
 class UAnimMontage;
 class USkeletalMesh;
 class UAnimInstance;
+class USphereComponent;
 
 UCLASS()
 class VAZIO_API AMyCharacter : public ACharacter
@@ -50,6 +53,37 @@ protected:
 	
 	void DebugPositionTracking();
 	void ValidateComponentAlignment();
+
+	// Handler de morte do jogador
+	UFUNCTION()
+	void OnPlayerDeath();
+
+public:
+	/** --------------------  NEW: Health & XP  -------------------- */
+	UPROPERTY(VisibleAnywhere, BlueprintReadOnly, Category = "RPG")
+	UPlayerHealthComponent* Health = nullptr;
+
+	UPROPERTY(VisibleAnywhere, BlueprintReadOnly, Category = "RPG")
+	UXPComponent* XP = nullptr;
+
+	/** Ataque em área (chamado pelo PlayerController) */
+	UFUNCTION(BlueprintCallable, Category = "Combat")
+	void PerformAreaAttack(float Radius, float Damage);
+
+private:
+	/** Dano por segundo causado por inimigos em contato */
+	UPROPERTY(EditAnywhere, Category = "Combat") float ContactDPS = 5.f;
+
+	/** Sensor simples para detectar inimigos próximos (apenas overlap) */
+	UPROPERTY(VisibleAnywhere, Category = "Combat") USphereComponent* DamageSense = nullptr;
+
+	/** Conjunto de inimigos atualmente em contato */
+	TSet<TWeakObjectPtr<AActor>> ContactingEnemies;
+
+	UFUNCTION()
+	void OnSenseBegin(UPrimitiveComponent* OverlappedComp, AActor* OtherActor, UPrimitiveComponent* OtherComp, int32 OtherBodyIndex, bool bFromSweep, const FHitResult& SweepResult);
+	UFUNCTION()
+	void OnSenseEnd(UPrimitiveComponent* OverlappedComp, AActor* OtherActor, UPrimitiveComponent* OtherComp, int32 OtherBodyIndex);
 
 public:
 	// Assets de configuração

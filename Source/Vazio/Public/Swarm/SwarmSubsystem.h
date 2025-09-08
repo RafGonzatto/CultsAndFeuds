@@ -23,6 +23,9 @@ public:
 	virtual bool ShouldCreateSubsystem(UObject* Outer) const override;
 	void InitWithConfig(USwarmConfig* InCfg, ASwarmManager* InMgr);
 	SwarmCore::World* GetCore() const { return Core; }
+
+	// Aplica dano radial aos agentes do enxame. Retorna quantidade atingida.
+	int32 ApplyRadialDamage(const FVector& Origin, float Radius, float DamagePerEnemy);
 private:
 	TWeakObjectPtr<ASwarmManager> Manager; UPROPERTY() USwarmConfig* Cfg = nullptr; SwarmCore::World* Core = nullptr;
 	void StepVisuals(); void BuildVisuals();

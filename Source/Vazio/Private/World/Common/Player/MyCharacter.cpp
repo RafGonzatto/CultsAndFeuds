@@ -13,6 +13,18 @@
 #include "Animation/Skeleton.h"
 #include "TimerManager.h"
 #include "Engine/World.h"
+#include "World/Common/Player/PlayerHealthComponent.h"
+#include "World/Common/Player/XPComponent.h"
+#include "World/Common/Enemy/EnemyHealthComponent.h"
+#include "Components/SphereComponent.h"
+#include "Kismet/KismetSystemLibrary.h"
+#include "Kismet/GameplayStatics.h"
+#include "Swarm/SwarmSubsystem.h"
+
+// Categorias de log especï¿½ficas para cada sistema
+DEFINE_LOG_CATEGORY_STATIC(LogPlayerHealth, Log, All);
+DEFINE_LOG_CATEGORY_STATIC(LogXP, Log, All);
+DEFINE_LOG_CATEGORY_STATIC(LogAttack, Log, All);
 
 AMyCharacter::AMyCharacter()
 {
@@ -22,11 +34,9 @@ AMyCharacter::AMyCharacter()
 	GetCapsuleComponent()->SetCapsuleHalfHeight(88.0f);
 	GetCapsuleComponent()->SetCapsuleRadius(34.0f);
 
-	// NÃO modificar altura/rotação do Mesh via C++. Deixe o BP controlar.
 	USkeletalMeshComponent* MeshComp = GetMesh();
 	MeshComp->SetVisibility(true);
 	MeshComp->SetHiddenInGame(false);
-	// Evitar congelar pose por otimização de tick
 	MeshComp->VisibilityBasedAnimTickOption = EVisibilityBasedAnimTickOption::AlwaysTickPoseAndRefreshBones;
 	MeshComp->bEnableUpdateRateOptimizations = false;
 
@@ -52,22 +62,116 @@ AMyCharacter::AMyCharacter()
 	Movement->bOrientRotationToMovement = true;
 	Movement->RotationRate = FRotator(0.f, 540.f, 0.f);
 	Movement->MaxWalkSpeed = 400.0f;
-	// Patch 2 — frenagem “seca” (parar no lugar)
 	Movement->MaxAcceleration             = 2048.f;
 	Movement->BrakingDecelerationWalking  = 4096.f;
 	Movement->GroundFriction              = 8.f;
 	Movement->bUseSeparateBrakingFriction = true;
 	Movement->BrakingFriction             = 8.f;
-	Movement->BrakingDecelerationFalling = 1500.0f;
+	Movement->BrakingDecelerationFalling  = 1500.0f;
 
 	bUseControllerRotationYaw = false;
+
+	// Stats - Componentes RPG - IMPORTANTE: CreateDefaultSubobject e SetupAttachment
+	Health = CreateDefaultSubobject<UPlayerHealthComponent>(TEXT("Health"));
+	XP = CreateDefaultSubobject<UXPComponent>(TEXT("XP"));
+	
+	DamageSense = CreateDefaultSubobject<USphereComponent>(TEXT("DamageSense"));
+	DamageSense->SetupAttachment(RootComponent);
+	DamageSense->InitSphereRadius(120.f);
+	DamageSense->SetCollisionProfileName(TEXT("OverlapAllDynamic"));
+	DamageSense->SetGenerateOverlapEvents(true);
+	DamageSense->OnComponentBeginOverlap.AddDynamic(this, &AMyCharacter::OnSenseBegin);
+	DamageSense->OnComponentEndOverlap.AddDynamic(this, &AMyCharacter::OnSenseEnd);
+}
+
+void AMyCharacter::OnSenseBegin(UPrimitiveComponent*, AActor* Other, UPrimitiveComponent*, int32, bool, const FHitResult&)
+{
+	if (!Other || Other == this) return;
+	if (Other->FindComponentByClass<UEnemyHealthComponent>())
+	{
+		ContactingEnemies.Add(Other);
+		UE_LOG(LogPlayerHealth, Display, TEXT("Enemy %s entered damage sense"), *Other->GetName());
+	}
+}
+
+void AMyCharacter::OnSenseEnd(UPrimitiveComponent*, AActor* Other, UPrimitiveComponent*, int32)
+{
+	if (Other) {
+		ContactingEnemies.Remove(Other);
+		UE_LOG(LogPlayerHealth, Display, TEXT("Enemy %s left damage sense"), *Other->GetName());
+	}
+}
+
+void AMyCharacter::PerformAreaAttack(float Radius, float Damage)
+{
+	UWorld* W = GetWorld(); if (!W) return;
+	TArray<AActor*> Ignored; Ignored.Add(this);
+	TArray<AActor*> Hits;
+
+#if !(UE_BUILD_SHIPPING)
+	DrawDebugSphere(W, GetActorLocation(), Radius, 24, FColor::Cyan, false, 0.3f, 0, 2.f);
+#endif
+
+	// Inimigos tradicionais
+	TArray<TEnumAsByte<EObjectTypeQuery>> ObjTypes;
+	ObjTypes.Add(UEngineTypes::ConvertToObjectType(ECC_Pawn));
+	ObjTypes.Add(UEngineTypes::ConvertToObjectType(ECC_WorldDynamic));
+	const bool bAnyTraditional = UKismetSystemLibrary::SphereOverlapActors(
+		this,
+		GetActorLocation(),
+		Radius,
+		ObjTypes,
+		nullptr,
+		Ignored,
+		Hits
+	);
+	int32 TraditionalHits = 0;
+	if (bAnyTraditional)
+	{
+		for (AActor* A : Hits)
+		{
+			if (UEnemyHealthComponent* E = A->FindComponentByClass<UEnemyHealthComponent>())
+			{
+				E->ReceiveDamage(Damage);
+				TraditionalHits++;
+#if !(UE_BUILD_SHIPPING)
+				DrawDebugLine(W, GetActorLocation(), A->GetActorLocation(), FColor::Red, false, 0.5f, 0, 3.0f);
+#endif
+			}
+		}
+	}
+
+	// Enxame
+	int32 SwarmHits = 0;
+	if (USwarmSubsystem* SS = W->GetSubsystem<USwarmSubsystem>())
+	{
+		SwarmHits = SS->ApplyRadialDamage(GetActorLocation(), Radius, Damage);
+	}
+	else
+	{
+		UE_LOG(LogAttack, Verbose, TEXT("PerformAreaAttack: SwarmSubsystem nao encontrado"));
+	}
+
+	UE_LOG(LogAttack, Display, TEXT("AreaAttack Result -> Tradicionais=%d | Swarm=%d | R=%.0f Dmg=%.0f"), TraditionalHits, SwarmHits, Radius, Damage);
 }
 
 void AMyCharacter::PostInitializeComponents()
 {
 	Super::PostInitializeComponents();
-	
 	UE_LOG(LogTemp, Warning, TEXT("[Char] PostInitializeComponents - Personagem configurado"));
+	
+	// Verificar se os componentes foram criados corretamente
+	if (!Health || !XP)
+	{
+		UE_LOG(LogTemp, Error, TEXT("[Char] PostInitializeComponents - Health ou XP nï¿½o estï¿½o inicializados!"));
+	}
+	else
+	{
+		UE_LOG(LogPlayerHealth, Display, TEXT("Health component inicializado: Max=%.1f, Current=%.1f"), 
+			Health->MaxHealth, Health->CurrentHealth);
+		UE_LOG(LogXP, Display, TEXT("XP component inicializado: Level=%d, XP=%.1f/%.1f"), 
+			XP->CurrentLevel, XP->CurrentXP, XP->XPToNextLevel);
+	}
 }
 
 void AMyCharacter::BeginPlay()
@@ -76,31 +180,25 @@ void AMyCharacter::BeginPlay()
 
 	USkeletalMeshComponent* MeshComp = GetMesh();
 
-	// Aplicar mesh custom se fornecido
 	if (CustomSkeletalMesh)
 	{
 		MeshComp->SetSkeletalMesh(CustomSkeletalMesh);
-		UE_LOG(LogTemp, Warning, TEXT("[Char] ? CustomSkeletalMesh aplicado: %s"), *CustomSkeletalMesh->GetName());
+		UE_LOG(LogTemp, Warning, TEXT("[Char] CustomSkeletalMesh aplicado: %s"), *CustomSkeletalMesh->GetName());
 	}
 
-	// Respeitar o AnimBP configurado no BP (ou aplicar o fornecido em AnimBPClass)
 	if (AnimBPClass)
 	{
 		MeshComp->SetAnimationMode(EAnimationMode::AnimationBlueprint);
 		MeshComp->SetAnimInstanceClass(AnimBPClass);
-		UE_LOG(LogTemp, Warning, TEXT("[Char] ? AnimBPClass aplicado: %s"), *AnimBPClass->GetName());
+		UE_LOG(LogTemp, Warning, TEXT("[Char] AnimBPClass aplicado: %s"), *AnimBPClass->GetName());
 	}
 
-	// Nunca forçar offsets do mesh em runtime
-	// MeshComp->SetRelativeLocation/Rotation removidos
-
-	// Posicionamento no chão (sem mexer no mesh offset)
 	if (UCapsuleComponent* Capsule = GetCapsuleComponent())
 	{
 		const float HalfHeight = Capsule->GetScaledCapsuleHalfHeight();
 		FHitResult Hit;
-		FVector Start = GetActorLocation() + FVector(0,0,50);
-		FVector End = Start - FVector(0,0,500);
+		FVector Start = GetActorLocation() + FVector(0, 0, 50);
+		FVector End = Start - FVector(0, 0, 500);
 		if (GetWorld()->LineTraceSingleByChannel(Hit, Start, End, ECC_Visibility))
 		{
 			SetActorLocation(Hit.ImpactPoint + FVector(0, 0, HalfHeight + 5.f));
@@ -111,11 +209,35 @@ void AMyCharacter::BeginPlay()
 	{
 		MovementComp->SetMovementMode(MOVE_Walking);
 	}
+
+	// Inicializaï¿½ï¿½o dos componentes de Health e XP
+	if (Health)
+	{
+		// Garantir inicializaï¿½ï¿½o adequada
+		Health->OnDeath.AddDynamic(this, &AMyCharacter::OnPlayerDeath);
+		UE_LOG(LogPlayerHealth, Display, TEXT("Health inicializado com HP=%.1f/%.1f"), 
+			Health->CurrentHealth, Health->MaxHealth);
+	}
+	else
+	{
+		UE_LOG(LogPlayerHealth, Error, TEXT("Health component nï¿½o foi inicializado!"));
+	}
+	
+	if (XP)
+	{
+		UE_LOG(LogXP, Display, TEXT("XP inicializado com Level=%d, XP=%.1f/%.1f"), 
+			XP->CurrentLevel, XP->CurrentXP, XP->XPToNextLevel);
+	}
+	else
+	{
+		UE_LOG(LogXP, Error, TEXT("XP component nï¿½o foi inicializado!"));
+	}
 }
 
-// ============================================================================
-// SISTEMA DE TAUNTS ÚNICO E DEFINITIVO - SEM FALLBACKS
-// ============================================================================
+void AMyCharacter::OnPlayerDeath()
+{
+	UE_LOG(LogPlayerHealth, Warning, TEXT("Player morreu (OnPlayerDeath handler)"));
+}
 
 bool AMyCharacter::HasActiveTaunt() const
 {
@@ -126,11 +248,7 @@ void AMyCharacter::OnTauntMontageEnded(UAnimMontage* Montage, bool bInterrupted)
 {
 	if (Montage == CurrentTauntMontage)
 	{
-		UE_LOG(LogTemp, Warning, TEXT("[Char] ? Taunt '%s' finalizado (interrupted=%s)"), 
-			*Montage->GetName(), 
-			bInterrupted ? TEXT("true") : TEXT("false"));
-		
-		// Limpar estado
+		UE_LOG(LogTemp, Warning, TEXT("[Char] Taunt '%s' finalizado (interrupted=%s)"), *Montage->GetName(), bInterrupted ? TEXT("true") : TEXT("false"));
 		CurrentTauntMontage = nullptr;
 		bTauntWasSuccessfullyStarted = false;
 		TauntInterruptGraceEndTime = 0.f;
@@ -139,229 +257,67 @@ void AMyCharacter::OnTauntMontageEnded(UAnimMontage* Montage, bool bInterrupted)
 
 void AMyCharacter::InterruptTaunt(float BlendOutTime)
 {
-	// Só interromper se há taunt realmente ativo
 	if (!HasActiveTaunt()) return;
-
 	UAnimInstance* Anim = GetMesh()->GetAnimInstance();
 	if (!Anim) return;
-
-	// Verificar grace period
 	const float CurrentTime = GetWorld()->GetTimeSeconds();
-	if (CurrentTime < TauntInterruptGraceEndTime)
-	{
-		UE_LOG(LogTemp, VeryVerbose, TEXT("[Char] Taunt em grace period, não interrompendo"));
-		return;
-	}
-
-	// Interromper montage
+	if (CurrentTime < TauntInterruptGraceEndTime) return;
 	if (Anim->Montage_IsPlaying(CurrentTauntMontage))
 	{
 		Anim->Montage_Stop(BlendOutTime, CurrentTauntMontage);
-		UE_LOG(LogTemp, Warning, TEXT("[Char] ? Taunt '%s' interrompido"), *CurrentTauntMontage->GetName());
+		UE_LOG(LogTemp, Warning, TEXT("[Char] Taunt '%s' interrompido"), *CurrentTauntMontage->GetName());
 	}
 }
 
 void AMyCharacter::PlayAnim1()
 {
-	UE_LOG(LogTemp, Warning, TEXT("[Char] ?? TENTANDO TOCAR ANIM1..."));
-
-	// EXECUÇÃO COM DIAGNÓSTICO COMPLETO
-	if (!AnimMontage1)
-	{
-		UE_LOG(LogTemp, Error, TEXT("[Char] ? AnimMontage1 NÃO CONFIGURADO"));
-		return;
-	}
-
-	USkeletalMeshComponent* MeshComp = GetMesh();
-	if (!MeshComp)
-	{
-		UE_LOG(LogTemp, Error, TEXT("[Char] ? MeshComp é NULL"));
-		return;
-	}
-
-	if (!MeshComp->GetSkeletalMeshAsset())
-	{
-		UE_LOG(LogTemp, Error, TEXT("[Char] ? SkeletalMeshAsset é NULL"));
-		return;
-	}
-
+	if (!AnimMontage1) { UE_LOG(LogTemp, Error, TEXT("[Char] AnimMontage1 n?o configurado")); return; }
+	USkeletalMeshComponent* MeshComp = GetMesh(); if (!MeshComp || !MeshComp->GetSkeletalMeshAsset()) return;
 	UAnimInstance* AnimInstance = MeshComp->GetAnimInstance();
 	if (!AnimInstance)
 	{
-		UE_LOG(LogTemp, Error, TEXT("[Char] ? AnimInstance é NULL - TENTANDO RECRIAR"));
-		
-		// *** TENTATIVA DE RECUPERAÇÃO ***
 		MeshComp->SetAnimationMode(EAnimationMode::AnimationBlueprint);
 		MeshComp->SetAnimInstanceClass(UMyAnimInstance::StaticClass());
-		
-		// Usar sintaxe correta para timer com delegate
-		FTimerHandle TimerHandle;
-		FTimerDelegate TimerDelegate;
-		TimerDelegate.BindUFunction(this, FName("PlayAnim1"));
-		
-		GetWorld()->GetTimerManager().SetTimer(TimerHandle, TimerDelegate, 0.1f, false);
+		FTimerHandle Th; FTimerDelegate D; D.BindUFunction(this, FName("PlayAnim1"));
+		GetWorld()->GetTimerManager().SetTimer(Th, D, 0.1f, false);
 		return;
 	}
-
-	// VERIFICAR TIPO DO ANIMINSTANCE
-	UE_LOG(LogTemp, Warning, TEXT("[Char] AnimInstance tipo: %s"), *AnimInstance->GetClass()->GetName());
-
-	// Interromper taunt anterior
 	InterruptTaunt(0.1f);
-
-	// TOCAR MONTAGE
 	const float PlayLength = AnimInstance->Montage_Play(AnimMontage1, 1.0f);
-	
-	UE_LOG(LogTemp, Warning, TEXT("[Char] Montage_Play Anim1 resultado: %.2f"), PlayLength);
-
 	if (PlayLength > 0.f)
 	{
-		// *** CRÍTICO: CONFIGURAR ROOT MOTION APÓS TOCAR O MONTAGE ***
 		AnimInstance->SetRootMotionMode(ERootMotionMode::IgnoreRootMotion);
-		
-		// SUCESSO
 		CurrentTauntMontage = AnimMontage1;
 		bTauntWasSuccessfullyStarted = true;
 		TauntInterruptGraceEndTime = GetWorld()->GetTimeSeconds() + 0.4f;
-		
-		// Configurar callback
 		AnimInstance->OnMontageEnded.RemoveAll(this);
 		AnimInstance->OnMontageEnded.AddDynamic(this, &AMyCharacter::OnTauntMontageEnded);
-		
-		UE_LOG(LogTemp, Warning, TEXT("[Char] ?????? ANIM1 TOCANDO COM SUCESSO! ??????"));
-		UE_LOG(LogTemp, Warning, TEXT("[Char] ? Root Motion configurado para IGNORE após montage"));
-	}
-	else
-	{
-		// DIAGNÓSTICO DE FALHA
-		UE_LOG(LogTemp, Error, TEXT("[Char] ??? FALHA AO TOCAR ANIM1 ???"));
-		UE_LOG(LogTemp, Error, TEXT("[Char] Montage: %s"), AnimMontage1 ? *AnimMontage1->GetName() : TEXT("NULL"));
-		UE_LOG(LogTemp, Error, TEXT("[Char] AnimInstance: %s"), *AnimInstance->GetClass()->GetName());
-		UE_LOG(LogTemp, Error, TEXT("[Char] SkeletalMesh: %s"), *MeshComp->GetSkeletalMeshAsset()->GetName());
-		
-		// VERIFICAR COMPATIBILIDADE DE SKELETON
-		if (AnimMontage1->GetSkeleton() && MeshComp->GetSkeletalMeshAsset()->GetSkeleton())
-		{
-			bool bCompatible = (AnimMontage1->GetSkeleton() == MeshComp->GetSkeletalMeshAsset()->GetSkeleton());
-			UE_LOG(LogTemp, Error, TEXT("[Char] Skeleton compatível: %s"), bCompatible ? TEXT("SIM") : TEXT("NÃO"));
-			
-			if (!bCompatible)
-			{
-				UE_LOG(LogTemp, Error, TEXT("[Char] Montage Skeleton: %s"), *AnimMontage1->GetSkeleton()->GetName());
-				UE_LOG(LogTemp, Error, TEXT("[Char] Mesh Skeleton: %s"), *MeshComp->GetSkeletalMeshAsset()->GetSkeleton()->GetName());
-			}
-		}
-		else
-		{
-			UE_LOG(LogTemp, Error, TEXT("[Char] Um dos skeletons é NULL!"));
-		}
-		
-		// VERIFICAR SE ANIMINSTANCE ESTÁ INICIALIZADO
-		if (AnimInstance->GetWorld())
-		{
-			UE_LOG(LogTemp, Warning, TEXT("[Char] AnimInstance tem World válido"));
-		}
-		else
-		{
-			UE_LOG(LogTemp, Error, TEXT("[Char] AnimInstance SEM World!"));
-		}
 	}
 }
 
 void AMyCharacter::PlayAnim2()
 {
-	UE_LOG(LogTemp, Warning, TEXT("[Char] ?? TENTANDO TOCAR ANIM2..."));
-
-	// EXECUÇÃO COM DIAGNÓSTICO COMPLETO
-	if (!AnimMontage2)
-	{
-		UE_LOG(LogTemp, Error, TEXT("[Char] ? AnimMontage2 NÃO CONFIGURADO"));
-		return;
-	}
-
-	USkeletalMeshComponent* MeshComp = GetMesh();
-	if (!MeshComp)
-	{
-		UE_LOG(LogTemp, Error, TEXT("[Char] ? MeshComp é NULL"));
-		return;
-	}
-
-	if (!MeshComp->GetSkeletalMeshAsset())
-	{
-		UE_LOG(LogTemp, Error, TEXT("[Char] ? SkeletalMeshAsset é NULL"));
-		return;
-	}
-
+	if (!AnimMontage2) { UE_LOG(LogTemp, Error, TEXT("[Char] AnimMontage2 n?o configurado")); return; }
+	USkeletalMeshComponent* MeshComp = GetMesh(); if (!MeshComp || !MeshComp->GetSkeletalMeshAsset()) return;
 	UAnimInstance* AnimInstance = MeshComp->GetAnimInstance();
 	if (!AnimInstance)
 	{
-		UE_LOG(LogTemp, Error, TEXT("[Char] ? AnimInstance é NULL - TENTANDO RECRIAR"));
-		
-		// *** TENTATIVA DE RECUPERAÇÃO ***
 		MeshComp->SetAnimationMode(EAnimationMode::AnimationBlueprint);
 		MeshComp->SetAnimInstanceClass(UMyAnimInstance::StaticClass());
-		
-		// Usar sintaxe correta para timer com delegate
-		FTimerHandle TimerHandle;
-		FTimerDelegate TimerDelegate;
-		TimerDelegate.BindUFunction(this, FName("PlayAnim2"));
-		
-		GetWorld()->GetTimerManager().SetTimer(TimerHandle, TimerDelegate, 0.1f, false);
+		FTimerHandle Th; FTimerDelegate D; D.BindUFunction(this, FName("PlayAnim2"));
+		GetWorld()->GetTimerManager().SetTimer(Th, D, 0.1f, false);
 		return;
 	}
-
-	// VERIFICAR TIPO DO ANIMINSTANCE
-	UE_LOG(LogTemp, Warning, TEXT("[Char] AnimInstance tipo: %s"), *AnimInstance->GetClass()->GetName());
-
-	// Interromper taunt anterior
 	InterruptTaunt(0.1f);
-
-	// TOCAR MONTAGE
 	const float PlayLength = AnimInstance->Montage_Play(AnimMontage2, 1.0f);
-	
-	UE_LOG(LogTemp, Warning, TEXT("[Char] Montage_Play Anim2 resultado: %.2f"), PlayLength);
-
 	if (PlayLength > 0.f)
 	{
-		// *** CRÍTICO: CONFIGURAR ROOT MOTION APÓS TOCAR O MONTAGE ***
 		AnimInstance->SetRootMotionMode(ERootMotionMode::IgnoreRootMotion);
-		
-		// SUCESSO
 		CurrentTauntMontage = AnimMontage2;
 		bTauntWasSuccessfullyStarted = true;
 		TauntInterruptGraceEndTime = GetWorld()->GetTimeSeconds() + 0.4f;
-		
-		// Configurar callback
 		AnimInstance->OnMontageEnded.RemoveAll(this);
 		AnimInstance->OnMontageEnded.AddDynamic(this, &AMyCharacter::OnTauntMontageEnded);
-		
-		UE_LOG(LogTemp, Warning, TEXT("[Char] ?????? ANIM2 TOCANDO COM SUCESSO! ??????"));
-		UE_LOG(LogTemp, Warning, TEXT("[Char] ? Root Motion configurado para IGNORE após montage"));
-	}
-	else
-	{
-		// DIAGNÓSTICO DE FALHA
-		UE_LOG(LogTemp, Error, TEXT("[Char] ??? FALHA AO TOCAR ANIM2 ???"));
-		UE_LOG(LogTemp, Error, TEXT("[Char] Montage: %s"), AnimMontage2 ? *AnimMontage2->GetName() : TEXT("NULL"));
-		UE_LOG(LogTemp, Error, TEXT("[Char] AnimInstance: %s"), *AnimInstance->GetClass()->GetName());
-		UE_LOG(LogTemp, Error, TEXT("[Char] SkeletalMesh: %s"), *MeshComp->GetSkeletalMeshAsset()->GetName());
-		
-		// VERIFICAR COMPATIBILIDADE DE SKELETON
-		if (AnimMontage2->GetSkeleton() && MeshComp->GetSkeletalMeshAsset()->GetSkeleton())
-		{
-			bool bCompatible = (AnimMontage2->GetSkeleton() == MeshComp->GetSkeletalMeshAsset()->GetSkeleton());
-			UE_LOG(LogTemp, Error, TEXT("[Char] Skeleton compatível: %s"), bCompatible ? TEXT("SIM") : TEXT("NÃO"));
-			
-			if (!bCompatible)
-			{
-				UE_LOG(LogTemp, Error, TEXT("[Char] Montage Skeleton: %s"), *AnimMontage2->GetSkeleton()->GetName());
-				UE_LOG(LogTemp, Error, TEXT("[Char] Mesh Skeleton: %s"), *MeshComp->GetSkeletalMeshAsset()->GetSkeleton()->GetName());
-			}
-		}
-		else
-		{
-			UE_LOG(LogTemp, Error, TEXT("[Char] Um dos skeletons é NULL!"));
-		}
 	}
 }
 
@@ -370,7 +326,6 @@ void AMyCharacter::CharDump()
 	USkeletalMeshComponent* MeshComp = GetMesh();
 	USkeletalMesh* SkeletalMeshAsset = MeshComp ? MeshComp->GetSkeletalMeshAsset() : nullptr;
 	UClass* AnimClass = MeshComp ? MeshComp->GetAnimClass() : nullptr;
-	
 	UE_LOG(LogTemp, Warning, TEXT("=== CHARACTER DEBUG DUMP ==="));
 	UE_LOG(LogTemp, Warning, TEXT("Mesh: %s"), SkeletalMeshAsset ? *SkeletalMeshAsset->GetName() : TEXT("NULL"));
 	UE_LOG(LogTemp, Warning, TEXT("AnimClass: %s"), AnimClass ? *AnimClass->GetName() : TEXT("NULL"));
@@ -378,44 +333,36 @@ void AMyCharacter::CharDump()
 	UE_LOG(LogTemp, Warning, TEXT("CurrentTaunt: %s"), CurrentTauntMontage ? *CurrentTauntMontage->GetName() : TEXT("NULL"));
 	UE_LOG(LogTemp, Warning, TEXT("Anim1: %s"), AnimMontage1 ? *AnimMontage1->GetName() : TEXT("NULL"));
 	UE_LOG(LogTemp, Warning, TEXT("Anim2: %s"), AnimMontage2 ? *AnimMontage2->GetName() : TEXT("NULL"));
+	UE_LOG(LogTemp, Warning, TEXT("Health: %s"), Health ? *FString::Printf(TEXT("%.1f/%.1f"), Health->CurrentHealth, Health->MaxHealth) : TEXT("NULL"));
+	UE_LOG(LogTemp, Warning, TEXT("XP: %s"), XP ? *FString::Printf(TEXT("Level %d, %.1f/%.1f"), XP->CurrentLevel, XP->CurrentXP, XP->XPToNextLevel) : TEXT("NULL"));
 	UE_LOG(LogTemp, Warning, TEXT("========================"));
 }
 
 void AMyCharacter::Tick(float DeltaTime)
 {
 	Super::Tick(DeltaTime);
-	
-	// DEBUG: Rastrear posições para detectar problemas
-	DebugPositionTracking();
+	if (Health && ContactingEnemies.Num() > 0)
+	{
+		const float TotalDmg = ContactDPS * ContactingEnemies.Num() * DeltaTime;
+		Health->ReceiveDamage(TotalDmg);
+	}
 }
 
 void AMyCharacter::DebugPositionTracking()
 {
 	FVector CurrentPosition = GetActorLocation();
-	
 	if (!LastTickPosition.IsZero())
 	{
 		float DistanceMoved = FVector::Dist(CurrentPosition, LastTickPosition);
-		
-		// Detectar saltos de posição suspeitos
-		if (DistanceMoved > 200.0f && DistanceMoved < 5000.0f) // Evitar falsos positivos
+		if (DistanceMoved > 200.0f && DistanceMoved < 5000.0f)
 		{
-			PositionJumpCount++;
-			UE_LOG(LogTemp, Error, TEXT("?? [CHARACTER] Posição saltou %.1f unidades! (#%d)"), 
-				DistanceMoved, PositionJumpCount);
-			UE_LOG(LogTemp, Error, TEXT("?? De: %s | Para: %s"), 
-				*LastTickPosition.ToString(), *CurrentPosition.ToString());
-				
-			// Verificar se há discrepância entre componentes
+			++PositionJumpCount;
 			ValidateComponentAlignment();
 		}
 	}
-	
 	LastTickPosition = CurrentPosition;
-	
-	// Debug periódico
-	DebugUpdateTimer += GetWorld()->GetDeltaSeconds();
-	if (DebugUpdateTimer >= 2.0f) // A cada 2 segundos
+	DebugUpdateTimer = GetWorld()->GetDeltaSeconds();
+	if (DebugUpdateTimer >= 2.0f)
 	{
 		ValidateComponentAlignment();
 		DebugUpdateTimer = 0.f;
@@ -427,56 +374,31 @@ void AMyCharacter::ValidateComponentAlignment()
 	FVector ActorLoc = GetActorLocation();
 	FVector MeshLoc = GetMesh()->GetComponentLocation();
 	FVector CapsuleLoc = GetCapsuleComponent()->GetComponentLocation();
-	
 	float MeshDiscrepancy = FVector::Dist(ActorLoc, MeshLoc);
 	float CapsuleDiscrepancy = FVector::Dist(ActorLoc, CapsuleLoc);
-	
 	if (MeshDiscrepancy > 50.0f || CapsuleDiscrepancy > 50.0f)
 	{
-	//	UE_LOG(LogTemp, Error, TEXT("?? [ALIGNMENT] Actor: %s"), *ActorLoc.ToString());
-	//	UE_LOG(LogTemp, Error, TEXT("?? [ALIGNMENT] Mesh: %s (Disc: %.1f)"), *MeshLoc.ToString(), MeshDiscrepancy);
-	//	UE_LOG(LogTemp, Error, TEXT("?? [ALIGNMENT] Capsule: %s (Disc: %.1f)"), *CapsuleLoc.ToString(), CapsuleDiscrepancy);
 		if (UAnimInstance* AnimInstance = GetMesh()->GetAnimInstance())
 		{
 			const FString MontageName = AnimInstance->GetCurrentActiveMontage() ? AnimInstance->GetCurrentActiveMontage()->GetName() : TEXT("None");
-			//UE_LOG(LogTemp, Error, TEXT("?? [ALIGNMENT] Montage: %s"), *MontageName);
+			// UE_LOG(LogTemp, VeryVerbose, TEXT("Alignment check montage: %s"), *MontageName); // opcional
 		}
 	}
 }
 
-// ============================================================================
-// COMANDOS DE DEBUG EXECUTÁVEIS
-// ============================================================================
-
 void AMyCharacter::DebugRootMotion()
 {
-	UE_LOG(LogTemp, Warning, TEXT("=== ROOT MOTION DEBUG ==="));
-	
 	if (UAnimInstance* AnimInstance = GetMesh()->GetAnimInstance())
 	{
-		const FString MontageName = AnimInstance->GetCurrentActiveMontage() ? 
-			AnimInstance->GetCurrentActiveMontage()->GetName() : 
-			TEXT("None");
-		UE_LOG(LogTemp, Warning, TEXT("Active Montage: %s"), *MontageName);
-		
 		if (AnimInstance->GetCurrentActiveMontage())
 		{
 			UAnimMontage* CurrentMontage = AnimInstance->GetCurrentActiveMontage();
-			UE_LOG(LogTemp, Warning, TEXT("Montage Position: %.3f / %.3f"), 
-				AnimInstance->Montage_GetPosition(CurrentMontage), 
-				CurrentMontage->GetPlayLength());
+			AnimInstance->Montage_GetPosition(CurrentMontage);
 		}
-		
-		// LOG SKELETON COMPATIBILITY (sem deprecated IsCompatible)
 		if (GetMesh()->GetSkeletalMeshAsset())
 		{
-			USkeleton* MeshSkeleton = GetMesh()->GetSkeletalMeshAsset()->GetSkeleton();
-			UE_LOG(LogTemp, Warning, TEXT("Mesh Skeleton: %s"), MeshSkeleton ? *MeshSkeleton->GetName() : TEXT("NULL"));
+			GetMesh()->GetSkeletalMeshAsset()->GetSkeleton();
 		}
-	}
-	else
-	{
-		UE_LOG(LogTemp, Error, TEXT("? AnimInstance é NULL!"));
 	}
 }
 
@@ -485,94 +407,31 @@ void AMyCharacter::ForceIgnoreRootMotion()
 	if (UAnimInstance* AnimInstance = GetMesh()->GetAnimInstance())
 	{
 		AnimInstance->SetRootMotionMode(ERootMotionMode::IgnoreRootMotion);
-		UE_LOG(LogTemp, Warning, TEXT("? [FORCE] Root Motion configurado para IGNORE"));
-		
-		// PARAR QUALQUER MONTAGE ATIVO
 		if (UAnimMontage* ActiveMontage = AnimInstance->GetCurrentActiveMontage())
 		{
 			AnimInstance->Montage_Stop(0.1f, ActiveMontage);
-			UE_LOG(LogTemp, Warning, TEXT("? [FORCE] Montage parado: %s"), *ActiveMontage->GetName());
 		}
-		
-		// RESETAR TAUNTS
 		CurrentTauntMontage = nullptr;
 		bTauntWasSuccessfullyStarted = false;
 		TauntInterruptGraceEndTime = 0.f;
-	}
-	else
-	{
-		UE_LOG(LogTemp, Error, TEXT("? [FORCE] AnimInstance é NULL"));
 	}
 }
 
 void AMyCharacter::ValidateSetup()
 {
-	UE_LOG(LogTemp, Warning, TEXT("=== VALIDAÇÃO COMPLETA DO SETUP ==="));
-	
-	// VALIDAR SKELETAL MESH
 	USkeletalMeshComponent* MeshComp = GetMesh();
 	if (MeshComp && MeshComp->GetSkeletalMeshAsset())
 	{
-		UE_LOG(LogTemp, Warning, TEXT("? SkeletalMesh: %s"), *MeshComp->GetSkeletalMeshAsset()->GetName());
-		
 		if (USkeleton* MeshSkeleton = MeshComp->GetSkeletalMeshAsset()->GetSkeleton())
 		{
-			UE_LOG(LogTemp, Warning, TEXT("? Skeleton: %s"), *MeshSkeleton->GetName());
-		}
-		else
-		{
-			UE_LOG(LogTemp, Error, TEXT("? Skeleton é NULL"));
 		}
 	}
-	else
-	{
-		UE_LOG(LogTemp, Error, TEXT("? SkeletalMeshAsset é NULL"));
-	}
-	
-	// VALIDAR ANIM INSTANCE COM DETALHES
 	if (UAnimInstance* AnimInstance = MeshComp->GetAnimInstance())
 	{
-		UE_LOG(LogTemp, Warning, TEXT("? AnimInstance: %s"), *AnimInstance->GetClass()->GetName());
 	}
-	else
-	{
-		UE_LOG(LogTemp, Error, TEXT("? AnimInstance é NULL"));
-	}
-	
-	// VALIDAR MONTAGES
-	if (AnimMontage1)
-	{
-		UE_LOG(LogTemp, Warning, TEXT("? AnimMontage1: %s | Length: %.2f"), 
-			*AnimMontage1->GetName(), AnimMontage1->GetPlayLength());
-	}
-	else
-	{
-		UE_LOG(LogTemp, Error, TEXT("? AnimMontage1 é NULL"));
-	}
-	
-	if (AnimMontage2)
-	{
-		UE_LOG(LogTemp, Warning, TEXT("? AnimMontage2: %s | Length: %.2f"), 
-			*AnimMontage2->GetName(), AnimMontage2->GetPlayLength());
-	}
-	else
-	{
-		UE_LOG(LogTemp, Error, TEXT("? AnimMontage2 é NULL"));
-	}
-	
-	// VALIDAR MOVEMENT COMPONENT
 	if (UCharacterMovementComponent* MovementComp = GetCharacterMovement())
 	{
-		UE_LOG(LogTemp, Warning, TEXT("? CharacterMovement: MaxWalkSpeed=%.1f Mode=%d"), 
-			MovementComp->MaxWalkSpeed, (int32)MovementComp->MovementMode);
+		(void)MovementComp->MaxWalkSpeed;
 	}
-	else
-	{
-		UE_LOG(LogTemp, Error, TEXT("? CharacterMovementComponent é NULL"));
-	}
-	
-	// VALIDAR POSIÇÕES
 	ValidateComponentAlignment();
-	
-	UE_LOG(LogTemp, Warning, TEXT("=== FIM DA VALIDAÇÃO ==="));
 }

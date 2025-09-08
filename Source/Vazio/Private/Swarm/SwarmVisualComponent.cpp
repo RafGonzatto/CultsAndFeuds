@@ -33,6 +33,16 @@ void USwarmVisualComponent::BuildFromConfig(const USwarmConfig& Cfg) {
         auto* H = NewObject<UHierarchicalInstancedStaticMeshComponent>(GetOwner());
         H->SetupAttachment(GetOwner()->GetRootComponent());
         H->SetMobility(EComponentMobility::Movable);
+
+    // Ajuste de colisão: inimigos do enxame NÃO devem empurrar / levantar o player.
+    // Passam "através" e o dano é calculado manualmente via distância.
+    H->SetCollisionEnabled(ECollisionEnabled::QueryOnly);
+    H->SetCollisionObjectType(ECC_WorldDynamic);
+    H->SetCollisionResponseToAllChannels(ECR_Ignore);
+    // (Opcional) permitir overlaps com Pawn caso futuramente se queira efeitos de overlap
+    H->SetCollisionResponseToChannel(ECC_Pawn, ECR_Overlap);
+    H->SetGenerateOverlapEvents(true); // Mantém possibilidade de futuras detecções sem bloqueio
+
         UStaticMesh* M = ResolveMesh(Cfg, Cfg.EnemyTypes[i]);
         if (M) { H->SetStaticMesh(M); }
         else { UE_LOG(LogSwarm, Warning, TEXT("SwarmVisual: Type %d has no resolved StaticMesh (set DefaultSphere/Cube/Capsule or OverrideMesh)."), i); }

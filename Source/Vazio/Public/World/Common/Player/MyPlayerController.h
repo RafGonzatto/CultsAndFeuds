@@ -3,11 +3,14 @@
 #include "CoreMinimal.h"
 #include "GameFramework/PlayerController.h"
 #include "InputActionValue.h"
-#include "MyPlayerController.generated.h"
 
 class UInputMappingContext;
 class UInputAction;
 class UInteractableComponent;
+class AMyCharacter;
+class UPlayerHUDWidget;
+
+#include "MyPlayerController.generated.h"
 
 UCLASS()
 class VAZIO_API AMyPlayerController : public APlayerController
@@ -21,6 +24,19 @@ protected:
 	virtual void BeginPlay() override;
 	virtual void SetupInputComponent() override;
 	virtual void Tick(float DeltaTime) override;
+    /** ------------- NEW: Ataque ------------- */
+	UPROPERTY(EditAnywhere, Category = "Combat") float AttackRadius = 300.f;
+	UPROPERTY(EditAnywhere, Category = "Combat") float AttackDamage = 20.f;
+	void PerformAreaAttack();
+
+	/** ------------- NEW: HUD ------------- */
+	UPROPERTY(EditAnywhere, Category = "UI") 
+	TSubclassOf<UPlayerHUDWidget> PlayerHUDWidgetClass;
+	
+	UPROPERTY() 
+	UPlayerHUDWidget* PlayerHUDWidget = nullptr;
+	
+	void CreatePlayerHUD();
 
 private:
 	// Enhanced Input Context e Actions

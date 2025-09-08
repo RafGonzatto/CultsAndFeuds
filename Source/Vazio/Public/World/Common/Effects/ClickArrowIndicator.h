@@ -2,9 +2,10 @@
 
 #include "CoreMinimal.h"
 #include "GameFramework/Actor.h"
-#include "ClickArrowIndicator.generated.h"
 
 class UArrowComponent;
+
+#include "ClickArrowIndicator.generated.h"
 
 UCLASS()
 class VAZIO_API AClickArrowIndicator : public AActor

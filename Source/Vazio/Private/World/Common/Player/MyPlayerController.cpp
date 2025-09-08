@@ -1,8 +1,12 @@
 #include "World/Common/Player/MyPlayerController.h"
 #include "World/Common/Player/MyCharacter.h"
+#include "World/Common/Enemy/EnemyHealthComponent.h"
+#include "Kismet/KismetSystemLibrary.h"
+#include "DrawDebugHelpers.h"
 #include "World/Common/Effects/ClickArrowIndicator.h"
 #include "World/Commom/Interaction/InteractableComponent.h"
 #include "World/Common/Interaction/Interactable.h"
+#include "UI/Widgets/PlayerHUDWidget.h"
 
 #include "EnhancedInputSubsystems.h"
 #include "EnhancedInputComponent.h"
@@ -20,6 +24,12 @@
 #include "GameFramework/PlayerInput.h"
 #include "InputCoreTypes.h"
 #include "InputModifiers.h"
+#include "Blueprint/UserWidget.h"
+#include "UObject/ConstructorHelpers.h"
+#include "Kismet/GameplayStatics.h"
+
+// Categoria de log para UI
+DEFINE_LOG_CATEGORY_STATIC(LogUI, Log, All);
 
 AMyPlayerController::AMyPlayerController()
 {
@@ -27,6 +37,18 @@ AMyPlayerController::AMyPlayerController()
 	bShowMouseCursor = true;
 	bEnableClickEvents = true;
 	bEnableTouchEvents = false;
+	
+	// Carregar a classe do widget de HUD durante a construção
+	static ConstructorHelpers::FClassFinder<UPlayerHUDWidget> DefaultHUDClass(TEXT("/Game/UI/WBP_PlayerHUD"));
+	if (DefaultHUDClass.Succeeded())
+	{
+		PlayerHUDWidgetClass = DefaultHUDClass.Class;
+		UE_LOG(LogUI, Display, TEXT("PlayerHUDWidgetClass carregado no construtor"));
+	}
+	else
+	{
+		UE_LOG(LogUI, Warning, TEXT("Não foi possível encontrar /Game/UI/WBP_PlayerHUD no construtor"));
+	}
 }
 
 void AMyPlayerController::BeginPlay()
@@ -110,6 +132,56 @@ void AMyPlayerController::BeginPlay()
 	}
 
 	UE_LOG(LogTemp, Warning, TEXT("[PC] PlayerController inicializado - sistema unificado ativo"));
+	
+	// Criar HUD apenas se estivermos no level de batalha (Battle_Main)
+	if (UWorld* W = GetWorld())
+	{
+		const FString MapName = W->GetMapName(); // Pode vir como UEDPIE_0_Battle_Main em PIE
+		const bool bIsBattle = MapName.Contains(TEXT("Battle_Main"));
+		UE_LOG(LogUI, Log, TEXT("[PC] BeginPlay Map=%s IsBattle=%d"), *MapName, bIsBattle ? 1 : 0);
+		if (bIsBattle)
+		{
+			CreatePlayerHUD();
+		}
+		else
+		{
+			UE_LOG(LogUI, Verbose, TEXT("[PC] HUD NAO criado (level nao eh Battle_Main)"));
+		}
+	}
+}
+
+void AMyPlayerController::CreatePlayerHUD()
+{
+	// Verificar se temos uma classe de HUD válida (deve ter sido carregada no construtor)
+	if (!PlayerHUDWidgetClass)
+	{
+		// Tentar carregar diretamente usando LoadClass - uma alternativa segura fora do construtor
+		// Nota: isso é mais lento que usar ConstructorHelpers no construtor
+		PlayerHUDWidgetClass = LoadClass<UPlayerHUDWidget>(nullptr, TEXT("/Game/UI/WBP_PlayerHUD"));
+		
+		if (!PlayerHUDWidgetClass)
+		{
+			UE_LOG(LogUI, Error, TEXT("[PC] Não foi possível carregar a classe do HUD"));
+			return;
+		}
+	}
+	
+	if (PlayerHUDWidgetClass)
+	{
+		PlayerHUDWidget = CreateWidget<UPlayerHUDWidget>(this, PlayerHUDWidgetClass);
+		if (PlayerHUDWidget)
+		{
+			PlayerHUDWidget->AddToViewport();
+			UE_LOG(LogUI, Display, TEXT("[PC] HUD do player criado e adicionado ao viewport"));
+			
+			// Tentativa de vincular aos componentes imediatamente
+			PlayerHUDWidget->BindToPlayerComponents();
+		}
+	}
+	else
+	{
+		UE_LOG(LogUI, Error, TEXT("[PC] PlayerHUDWidgetClass é null, não foi possível criar a UI"));
+	}
 }
 
 void AMyPlayerController::SetupInputComponent()
@@ -120,8 +192,31 @@ void AMyPlayerController::SetupInputComponent()
 void AMyPlayerController::OnInteract(const FInputActionValue& Value)
 {
 	if (!Value.Get<bool>()) return;
-	HandleInteract();
+	// GATE: Só permitir ataque especial no mapa Battle_Main
+	const bool bIsBattle = GetWorld() && GetWorld()->GetMapName().Contains(TEXT("Battle_Main"));
+	if (FocusedInteractable.IsValid())
+	{
+		HandleInteract();
+		return;
+	}
+	if (bIsBattle)
+	{
+		PerformAreaAttack();
+	}
+	else
+	{
+		UE_LOG(LogTemp, Verbose, TEXT("[PC] Tecla E ignorada (fora de Battle_Main)"));
+	}
 }
+
+void AMyPlayerController::PerformAreaAttack()
+ {
+	APawn * P = GetPawn(); if (!P) return;
+if (AMyCharacter* C = Cast<AMyCharacter>(P)) {
+		C->PerformAreaAttack(AttackRadius, AttackDamage);
+		
+	}
+	 }
 
 void AMyPlayerController::HandleInteract()
 {
@@ -297,7 +392,7 @@ void AMyPlayerController::ProcessMovement(float DeltaTime)
 	}
 	else if (!bIsMovingToTarget)
 	{
-		// Opcional de depuração – frenagem “seca” quando sem input e sem click-to-move
+		// Opcional de depuração – frenagem "seca" quando sem input e sem click-to-move
 		if (UCharacterMovementComponent* CMC = Cast<UCharacterMovementComponent>(MyPawn->GetMovementComponent()))
 		{
 			CMC->StopMovementImmediately();

@@ -4,6 +4,7 @@
 #include "SwarmProjectilePool.h"
 #include "Swarm/SwarmVisibilityComponent.h"
 #include "Swarm/SwarmSpawnRules.h"
+#include "World/Common/Player/PlayerHealthComponent.h"
 #include "EngineUtils.h"
 #include "HAL/IConsoleManager.h"
 #include <random>
@@ -90,7 +91,7 @@ void USwarmSubsystem::Tick(float Dt) {
         }
     }
 
-	// Progressive in-view spawn
+    // Progressive in-view spawn
     int32 SpawnedThisFrame = 0;
     if (Cfg && Cfg->bSpawnInViewOnly && PendingSpawnPerType.Num() == Cfg->EnemyTypes.Num())
     {
@@ -103,7 +104,7 @@ void USwarmSubsystem::Tick(float Dt) {
             static int32 DebugFrames = 240; // 4s de logs de alto nível
             if (DebugFrames > 0)
             {
-                UE_LOG(LogSwarm, Warning, TEXT("[SpawnDbg] Budget=%d Rays=%d PendingTotal=%d"), Budget, Rays, PendingSpawnPerType.Num()>0 ? Algo::Accumulate(PendingSpawnPerType, 0) : 0);
+          //      UE_LOG(LogSwarm, Warning, TEXT("[SpawnDbg] Budget=%d Rays=%d PendingTotal=%d"), Budget, Rays, PendingSpawnPerType.Num()>0 ? Algo::Accumulate(PendingSpawnPerType, 0) : 0);
             }
             for (int32 t = 0; t < PendingSpawnPerType.Num() && Budget > 0; ++t)
             {
@@ -156,12 +157,12 @@ void USwarmSubsystem::Tick(float Dt) {
                             bSpawned = true;
                             if (DebugFrames > 0)
                             {
-                                UE_LOG(LogSwarm, Warning, TEXT("[SpawnDbg] OK t=%d p=(%.0f,%.0f,%.0f)"), t, FinalP.X, FinalP.Y, FinalP.Z);
+                             //   UE_LOG(LogSwarm, Warning, TEXT("[SpawnDbg] OK t=%d p=(%.0f,%.0f,%.0f)"), t, FinalP.X, FinalP.Y, FinalP.Z);
                             }
                         }
                         else if (DebugFrames > 0)
                         {
-                            UE_LOG(LogSwarm, Warning, TEXT("[SpawnDbg] FAIL t=%d attempt=%d cand=(%.0f,%.0f,%.0f)"), t, attempt+1, Candidate.X, Candidate.Y, Candidate.Z);
+                         //   UE_LOG(LogSwarm, Warning, TEXT("[SpawnDbg] FAIL t=%d attempt=%d cand=(%.0f,%.0f,%.0f)"), t, attempt+1, Candidate.X, Candidate.Y, Candidate.Z);
                         }
                     }
                 }
@@ -189,8 +190,53 @@ void USwarmSubsystem::Tick(float Dt) {
         }
     }
 
-	StepVisuals();
+    StepVisuals();
 	Manager->GetProjPool()->SyncFromCore(Core->Proj);
+
+    // --- DANO DE CONTATO DO ENXAME NO PLAYER ---
+    static double LastContactDamageTime = 0.0;
+    if (UWorld* World = GetWorld())
+    {
+        const double Now = World->GetTimeSeconds();
+        const double Interval = 0.25; // aplica a cada 0.25s
+        if (Now - LastContactDamageTime >= Interval)
+        {
+            APawn* PlayerPawn = World->GetFirstPlayerController() ? World->GetFirstPlayerController()->GetPawn() : nullptr;
+            if (PlayerPawn && Core)
+            {
+                if (UPlayerHealthComponent* PH = PlayerPawn->FindComponentByClass<UPlayerHealthComponent>())
+                {
+                    const FVector PLoc = PlayerPawn->GetActorLocation();
+                    const float ContactRadius = 120.f; // igual ao DamageSense do player
+                    const float R2 = ContactRadius * ContactRadius;
+                    float AccumDmg = 0.f;
+                    int32 ContactCount = 0;
+                    const int N = (int)Core->Px.size();
+                    for (int i = 0; i < N; ++i)
+                    {
+                        if (!Core->Alive[i]) continue;
+                        float dx = Core->Px[i] - PLoc.X;
+                        float dy = Core->Py[i] - PLoc.Y;
+                        float dz = Core->P.LockZ ? 0.f : (Core->Pz[i] - PLoc.Z);
+                        float d2 = dx*dx + dy*dy + dz*dz;
+                        if (d2 <= R2)
+                        {
+                            // DPS do tipo convertido ao intervalo
+                            const float Dps = Core->TypeDefs[Core->Type[i]].DPS;
+                            AccumDmg += Dps * Interval; // dano proporcional ao intervalo
+                            ContactCount++;
+                        }
+                    }
+                    if (AccumDmg > 0.f)
+                    {
+                        PH->ReceiveDamage(AccumDmg);
+                        UE_LOG(LogSwarm, Verbose, TEXT("[SwarmContact] %d inimigos em contato -> Dano=%.1f (Interval=%.2f)"), ContactCount, AccumDmg, Interval);
+                    }
+                }
+            }
+            LastContactDamageTime = Now;
+        }
+    }
 
     // Periodic count log every 5 seconds
     if (UWorld* World = GetWorld())
@@ -222,5 +268,37 @@ void USwarmSubsystem::Tick(float Dt) {
 
 
 void USwarmSubsystem::StepVisuals() { if (!Cfg || !Manager.IsValid()) return; auto* Vis = Manager->GetVisual(); const int types = Cfg->EnemyTypes.Num(); for (int t = 0; t < types; ++t) { TArray<FTransform> X; X.Reserve(1024); if (Cfg->FrustumCull || Cfg->DistanceCull) { if (Visibility) { const TArray<int32>& Indices = Visibility->GetVisibleOfType(t); X.Reserve(Indices.Num()); for (int32 i : Indices) { const FVector p(Core->Px[i], Core->Py[i], Core->Pz[i]); const FVector v(Core->Vx[i], Core->Vy[i], Core->Vz[i]); const FRotator r = v.IsNearlyZero() ? FRotator::ZeroRotator : v.Rotation(); X.Add(FTransform(r, p)); } } } else { const int N = (int)Core->Px.size(); for (int i = 0; i < N; ++i) { if (!Core->Alive[i] || Core->Type[i] != t) continue; const FVector p(Core->Px[i], Core->Py[i], Core->Pz[i]); const FVector v(Core->Vx[i], Core->Vy[i], Core->Vz[i]); const FRotator r = v.IsNearlyZero() ? FRotator::ZeroRotator : v.Rotation(); X.Add(FTransform(r, p)); } } Vis->UpdateTypeTransforms(t, X); } }
+
+int32 USwarmSubsystem::ApplyRadialDamage(const FVector& Origin, float Radius, float DamagePerEnemy)
+{
+    if (!Core || Radius <= 0.f || DamagePerEnemy <= 0.f)
+    {
+        UE_LOG(LogSwarm, Warning, TEXT("[SwarmDamage] ApplyRadialDamage ignorado (Core=%s Radius=%.1f Dmg=%.1f)"), Core?TEXT("OK"):TEXT("NULL"), Radius, DamagePerEnemy);
+        return 0;
+    }
+
+    const float R2 = Radius * Radius;
+    int32 HitCount = 0;
+    const int N = (int)Core->Px.size();
+    for (int i = 0; i < N; ++i)
+    {
+        if (!Core->Alive[i]) continue;
+        const float dx = Core->Px[i] - Origin.X;
+        const float dy = Core->Py[i] - Origin.Y;
+        const float dz = Core->P.LockZ ? 0.f : (Core->Pz[i] - Origin.Z);
+        const float d2 = dx*dx + dy*dy + dz*dz;
+        if (d2 <= R2)
+        {
+            Core->HP[i] -= DamagePerEnemy;
+            HitCount++;
+            if (Core->HP[i] <= 0.f)
+            {
+                Core->Kill(i);
+            }
+        }
+    }
+    UE_LOG(LogSwarm, Display, TEXT("[SwarmDamage] Ataque radial Origin=(%.0f,%.0f,%.0f) R=%.0f Dmg=%.0f -> %d inimigos afetados"), Origin.X, Origin.Y, Origin.Z, Radius, DamagePerEnemy, HitCount);
+    return HitCount;
+}
 
 
