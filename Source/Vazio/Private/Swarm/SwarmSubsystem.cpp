@@ -5,6 +5,7 @@
 #include "Swarm/SwarmVisibilityComponent.h"
 #include "Swarm/SwarmSpawnRules.h"
 #include "World/Common/Player/PlayerHealthComponent.h"
+#include "World/Common/Collectables/XPOrb.h"
 #include "EngineUtils.h"
 #include "HAL/IConsoleManager.h"
 #include <random>
@@ -36,7 +37,11 @@ void USwarmSubsystem::InitWithConfig(USwarmConfig* InCfg, ASwarmManager* InMgr) 
 	if (Cfg->EnemyTypes.Num() == 0) { UE_LOG(LogSwarm, Warning, TEXT("SwarmSubsystem: Config '%s' has 0 EnemyTypes; no enemies will be spawned."), *Cfg->GetName()); }
 	Params P{ Cfg->CellSize,Cfg->Separation,Cfg->MaxSpeed,Cfg->WorldExtent };
 	P.LockZ = Cfg->bLockAgentsToGround; P.GroundZ = Cfg->GroundZHeight; P.ChaseTarget = true; P.ChaseAccel = 600.f;
-	std::vector<EnemyType> T; T.reserve(Cfg->EnemyTypes.Num()); for (auto& e : Cfg->EnemyTypes) { T.push_back({ e.Radius,e.Speed,e.HP,e.DPS }); }
+    std::vector<EnemyType> T; T.reserve(Cfg->EnemyTypes.Num());
+    for (auto& e : Cfg->EnemyTypes)
+    {
+        EnemyType ET; ET.Radius = e.Radius; ET.Speed = e.Speed; ET.HP = e.HP; ET.DPS = e.DPS; ET.XPReward = e.XPReward; T.push_back(ET);
+    }
 	Core = new World(); Core->Configure(P, T, Cfg->ProjectilePool, Cfg->ProjectileSpeed, Cfg->ProjectileRadius); Manager->BindCore(Core); BuildVisuals();
 
 	// Hook visibility component if present
@@ -293,7 +298,24 @@ int32 USwarmSubsystem::ApplyRadialDamage(const FVector& Origin, float Radius, fl
             HitCount++;
             if (Core->HP[i] <= 0.f)
             {
+                // Guardar posição antes do kill
+                const FVector DeathPos(Core->Px[i], Core->Py[i], Core->Pz[i]);
+                const int TypeIdx = (int)Core->Type[i];
+                const int XPReward = (Core->TypeDefs.size() > 0 && TypeIdx < (int)Core->TypeDefs.size()) ? (int)Core->TypeDefs[TypeIdx].XPReward : 0;
                 Core->Kill(i);
+
+                if (XPReward > 0)
+                {
+                    if (UWorld* World = GetWorld())
+                    {
+                        FActorSpawnParameters P; P.SpawnCollisionHandlingOverride = ESpawnActorCollisionHandlingMethod::AlwaysSpawn;
+                        const FVector SpawnLoc = DeathPos + FVector(0,0,30.f);
+                        if (AXPOrb* Orb = World->SpawnActor<AXPOrb>(AXPOrb::StaticClass(), SpawnLoc, FRotator::ZeroRotator, P))
+                        {
+                            Orb->XPAmount = XPReward;
+                        }
+                    }
+                }
             }
         }
     }

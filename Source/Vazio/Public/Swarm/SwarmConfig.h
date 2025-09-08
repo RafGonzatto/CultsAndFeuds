@@ -29,6 +29,10 @@ struct FSwarmEnemyTypeConfig {
 	UPROPERTY(EditAnywhere, Category = "Core")
 	float DPS = 5.f;
 
+	// XP entregue ao morrer (apenas para agentes de enxame, usado em drop de orbs)
+	UPROPERTY(EditAnywhere, Category = "Core")
+	int32 XPReward = 1;
+
 	UPROPERTY(EditAnywhere, Category = "Core")
 	int32 MaxCount = 10000;
 

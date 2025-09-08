@@ -28,8 +28,8 @@
 #include "UObject/ConstructorHelpers.h"
 #include "Kismet/GameplayStatics.h"
 
-// Categoria de log para UI
-DEFINE_LOG_CATEGORY_STATIC(LogUI, Log, All);
+// Categoria de log para UI do player (diferente do LogUI no PlayerHUDWidget)
+DEFINE_LOG_CATEGORY_STATIC(LogPlayerUI, Log, All);
 
 AMyPlayerController::AMyPlayerController()
 {
@@ -43,11 +43,11 @@ AMyPlayerController::AMyPlayerController()
 	if (DefaultHUDClass.Succeeded())
 	{
 		PlayerHUDWidgetClass = DefaultHUDClass.Class;
-		UE_LOG(LogUI, Display, TEXT("PlayerHUDWidgetClass carregado no construtor"));
+		UE_LOG(LogPlayerUI, Display, TEXT("PlayerHUDWidgetClass carregado no construtor"));
 	}
 	else
 	{
-		UE_LOG(LogUI, Warning, TEXT("Não foi possível encontrar /Game/UI/WBP_PlayerHUD no construtor"));
+		UE_LOG(LogPlayerUI, Warning, TEXT("Não foi possível encontrar /Game/UI/WBP_PlayerHUD no construtor"));
 	}
 }
 
@@ -138,14 +138,14 @@ void AMyPlayerController::BeginPlay()
 	{
 		const FString MapName = W->GetMapName(); // Pode vir como UEDPIE_0_Battle_Main em PIE
 		const bool bIsBattle = MapName.Contains(TEXT("Battle_Main"));
-		UE_LOG(LogUI, Log, TEXT("[PC] BeginPlay Map=%s IsBattle=%d"), *MapName, bIsBattle ? 1 : 0);
+		UE_LOG(LogPlayerUI, Log, TEXT("[PC] BeginPlay Map=%s IsBattle=%d"), *MapName, bIsBattle ? 1 : 0);
 		if (bIsBattle)
 		{
 			CreatePlayerHUD();
 		}
 		else
 		{
-			UE_LOG(LogUI, Verbose, TEXT("[PC] HUD NAO criado (level nao eh Battle_Main)"));
+			UE_LOG(LogPlayerUI, Verbose, TEXT("[PC] HUD NAO criado (level nao eh Battle_Main)"));
 		}
 	}
 }
@@ -161,7 +161,7 @@ void AMyPlayerController::CreatePlayerHUD()
 		
 		if (!PlayerHUDWidgetClass)
 		{
-			UE_LOG(LogUI, Error, TEXT("[PC] Não foi possível carregar a classe do HUD"));
+			UE_LOG(LogPlayerUI, Error, TEXT("[PC] Não foi possível carregar a classe do HUD"));
 			return;
 		}
 	}
@@ -172,7 +172,7 @@ void AMyPlayerController::CreatePlayerHUD()
 		if (PlayerHUDWidget)
 		{
 			PlayerHUDWidget->AddToViewport();
-			UE_LOG(LogUI, Display, TEXT("[PC] HUD do player criado e adicionado ao viewport"));
+			UE_LOG(LogPlayerUI, Display, TEXT("[PC] HUD do player criado e adicionado ao viewport"));
 			
 			// Tentativa de vincular aos componentes imediatamente
 			PlayerHUDWidget->BindToPlayerComponents();
@@ -180,7 +180,7 @@ void AMyPlayerController::CreatePlayerHUD()
 	}
 	else
 	{
-		UE_LOG(LogUI, Error, TEXT("[PC] PlayerHUDWidgetClass é null, não foi possível criar a UI"));
+		UE_LOG(LogPlayerUI, Error, TEXT("[PC] PlayerHUDWidgetClass é null, não foi possível criar a UI"));
 	}
 }
 
