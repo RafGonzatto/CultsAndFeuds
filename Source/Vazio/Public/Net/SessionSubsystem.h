@@ -51,6 +51,20 @@ public:
 	UFUNCTION(BlueprintCallable)
 	FString GetPlayerSteamName() const;
 
+	// Get current session parameters
+	UFUNCTION(BlueprintCallable)
+	FString GetCurrentMapName() const;
+	
+	UFUNCTION(BlueprintCallable)
+	FString GetCurrentDifficulty() const;
+
+	// Get session search results
+	UFUNCTION(BlueprintCallable)
+	int32 GetSessionSearchResultsCount() const;
+
+	UFUNCTION(BlueprintCallable)
+	FString GetSessionInfo(int32 SessionIndex) const;
+
 	// Delegates
 	UPROPERTY(BlueprintAssignable)
 	FSessionCreateComplete OnCreateSessionCompleteEvent;

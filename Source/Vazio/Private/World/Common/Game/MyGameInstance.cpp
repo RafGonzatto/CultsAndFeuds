@@ -58,12 +58,21 @@ void UMyGameInstance::LoadComplete(const float LoadTime, const FString& MapName)
 
 void UMyGameInstance::InitializeSteamLogin()
 {
+	// Check if we're in the editor - if so, skip Steam initialization to prevent crashes
+#if WITH_EDITOR
+	UE_LOG(LogTemp, Warning, TEXT("[MyGameInstance] Running in Editor - Steam initialization skipped"));
+	return;
+#endif
+
 	// Initialize Steam API first
+	UE_LOG(LogTemp, Warning, TEXT("[MyGameInstance] Attempting Steam API initialization..."));
 	if (!SteamAPIWrapper::Initialize())
 	{
-		UE_LOG(LogTemp, Error, TEXT("[MyGameInstance] Failed to initialize Steam API"));
+		UE_LOG(LogTemp, Warning, TEXT("[MyGameInstance] Steam API initialization failed - continuing without Steam"));
 		return;
 	}
+	
+	UE_LOG(LogTemp, Warning, TEXT("[MyGameInstance] Steam API initialized successfully"));
 	
 	IOnlineSubsystem* OnlineSubsystem = IOnlineSubsystem::Get();
 	if (!OnlineSubsystem)

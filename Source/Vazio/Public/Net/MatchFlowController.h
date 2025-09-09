@@ -42,6 +42,9 @@ public:
 	UFUNCTION(BlueprintCallable)
 	void LeaveMatch();
 	
+	// Single Player fallback
+	void StartSinglePlayerSession(const FString& MapName, const FString& Difficulty);
+	
 	UFUNCTION(BlueprintCallable)
 	EMatchFlowState GetCurrentState() const { return CurrentState; }
 	
@@ -79,5 +82,9 @@ private:
 	
 	// Loading screen management
 	void CreateLoadingScreenWidget();
+	
+	// Solo play timer
+	FTimerHandle SoloPlayTimerHandle;
+	void CheckForSoloPlay();
 	void DestroyLoadingScreenWidget();
 };

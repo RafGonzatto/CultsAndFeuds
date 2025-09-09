@@ -119,9 +119,9 @@ protected:
     bool bIsSessionActive;
 
 private:
-    // Initialize with placeholder data (since we don't have actual Steam SDK integration yet)
+    // Initialize player data (real Steam data when available, placeholder for development)
     void InitializePlaceholderData();
 
-    // Update friends list with placeholder data
+    // Update friends list with placeholder data (fallback for development/testing)
     void UpdatePlaceholderFriends();
 };
