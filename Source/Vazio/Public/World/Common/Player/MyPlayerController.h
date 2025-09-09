@@ -25,6 +25,10 @@ public:
 	// NEW: Swarm Level Up
 	void TriggerSwarmLevelUp();
 
+	// Networking
+	virtual void OnPossess(APawn* InPawn) override;
+	virtual void AcknowledgePossession(APawn* P) override;
+
 protected:
 	virtual void BeginPlay() override;
 	virtual void SetupInputComponent() override;

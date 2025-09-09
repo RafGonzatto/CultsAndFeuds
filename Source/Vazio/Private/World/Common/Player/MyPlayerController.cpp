@@ -10,6 +10,7 @@
 #include "Swarm/Upgrades/SwarmUpgradeSystem.h"
 #include "UI/HUD/HUDSubsystem.h"
 #include "Engine/World.h"
+#include "Net/MatchFlowController.h"
 
 #include "EnhancedInputSubsystems.h"
 #include "EnhancedInputComponent.h"
@@ -663,6 +664,62 @@ void AMyPlayerController::SetFocusedInteractable(UInteractableComponent* NewTarg
 				if (Comp != NewTarget)
 				{
 					Comp->ShowPrompt(false);
+				}
+			}
+		}
+	}
+}
+
+void AMyPlayerController::OnPossess(APawn* InPawn)
+{
+	Super::OnPossess(InPawn);
+	
+	UE_LOG(LogTemp, Warning, TEXT("[PC] OnPossess: %s"), InPawn ? *InPawn->GetName() : TEXT("None"));
+	
+	// If we're the host and this is Battle_Main, transition to InMatchHost
+	if (HasAuthority() && GetWorld())
+	{
+		const FString MapName = GetWorld()->GetMapName();
+		if (MapName.Contains(TEXT("Battle_Main")))
+		{
+			if (UGameInstance* GI = GetGameInstance())
+			{
+				if (UMatchFlowController* MatchFlow = GI->GetSubsystem<UMatchFlowController>())
+				{
+					// Set to InMatchHost state and hide loading screen after a short delay
+					FTimerHandle DelayTimer;
+					GetWorld()->GetTimerManager().SetTimer(DelayTimer, [MatchFlow]()
+					{
+						MatchFlow->HideLoadingScreen();
+					}, 1.5f, false);
+				}
+			}
+		}
+	}
+}
+
+void AMyPlayerController::AcknowledgePossession(APawn* P)
+{
+	Super::AcknowledgePossession(P);
+	
+	UE_LOG(LogTemp, Warning, TEXT("[PC] AcknowledgePossession: %s"), P ? *P->GetName() : TEXT("None"));
+	
+	// If we're a client and acknowledged pawn in Battle_Main, hide loading screen
+	if (!HasAuthority() && GetWorld())
+	{
+		const FString MapName = GetWorld()->GetMapName();
+		if (MapName.Contains(TEXT("Battle_Main")))
+		{
+			if (UGameInstance* GI = GetGameInstance())
+			{
+				if (UMatchFlowController* MatchFlow = GI->GetSubsystem<UMatchFlowController>())
+				{
+					// Small delay to ensure everything is ready
+					FTimerHandle DelayTimer;
+					GetWorld()->GetTimerManager().SetTimer(DelayTimer, [MatchFlow]()
+					{
+						MatchFlow->HideLoadingScreen();
+					}, 1.0f, false);
 				}
 			}
 		}

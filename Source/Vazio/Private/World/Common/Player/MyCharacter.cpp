@@ -20,6 +20,7 @@
 #include "Kismet/KismetSystemLibrary.h"
 #include "Kismet/GameplayStatics.h"
 #include "Swarm/SwarmSubsystem.h"
+#include "Net/UnrealNetwork.h"
 
 // Categorias de log espec�ficas para cada sistema
 DEFINE_LOG_CATEGORY_STATIC(LogPlayerHealth, Log, All);
@@ -82,6 +83,14 @@ AMyCharacter::AMyCharacter()
 	DamageSense->SetGenerateOverlapEvents(true);
 	DamageSense->OnComponentBeginOverlap.AddDynamic(this, &AMyCharacter::OnSenseBegin);
 	DamageSense->OnComponentEndOverlap.AddDynamic(this, &AMyCharacter::OnSenseEnd);
+}
+
+void AMyCharacter::GetLifetimeReplicatedProps(TArray<FLifetimeProperty>& OutLifetimeProps) const
+{
+	Super::GetLifetimeReplicatedProps(OutLifetimeProps);
+	
+	// Add any custom replicated properties here if needed
+	// DOREPLIFETIME(AMyCharacter, SomeProperty);
 }
 
 void AMyCharacter::OnSenseBegin(UPrimitiveComponent*, AActor* Other, UPrimitiveComponent*, int32, bool, const FHitResult&)

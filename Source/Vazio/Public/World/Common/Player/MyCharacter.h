@@ -21,12 +21,15 @@ class VAZIO_API AMyCharacter : public ACharacter
 public:
 	AMyCharacter();
 
+	// Replication
+	virtual void GetLifetimeReplicatedProps(TArray<FLifetimeProperty>& OutLifetimeProps) const override;
+
 protected:
 	virtual void BeginPlay() override;
 	virtual void PostInitializeComponents() override;
 	virtual void Tick(float DeltaTime) override;
 
-	// Câmera top-down
+	// Cï¿½mera top-down
 	UPROPERTY(VisibleAnywhere, BlueprintReadOnly, Category = Camera)
 	USpringArmComponent* SpringArm = nullptr;
 
@@ -37,7 +40,7 @@ protected:
 	UPROPERTY(EditAnywhere, BlueprintReadOnly, Category = "Custom Character|Animation")
 	TSubclassOf<UAnimInstance> AnimBPClass;
 
-	// SISTEMA DE TAUNTS ÚNICO - SEM FALLBACKS
+	// SISTEMA DE TAUNTS ï¿½NICO - SEM FALLBACKS
 	UPROPERTY(Transient)
 	UAnimMontage* CurrentTauntMontage = nullptr;
 	float TauntInterruptGraceEndTime = 0.f;
@@ -46,7 +49,7 @@ protected:
 	UFUNCTION()
 	void OnTauntMontageEnded(UAnimMontage* Montage, bool bInterrupted);
 
-	// DEBUG AVANÇADO
+	// DEBUG AVANï¿½ADO
 	FVector LastTickPosition;
 	float DebugUpdateTimer = 0.f;
 	int32 PositionJumpCount = 0;
@@ -66,7 +69,7 @@ public:
 	UPROPERTY(VisibleAnywhere, BlueprintReadOnly, Category = "RPG")
 	UXPComponent* XP = nullptr;
 
-	/** Ataque em área (chamado pelo PlayerController) */
+	/** Ataque em ï¿½rea (chamado pelo PlayerController) */
 	UFUNCTION(BlueprintCallable, Category = "Combat")
 	void PerformAreaAttack(float Radius, float Damage);
 
@@ -74,7 +77,7 @@ private:
 	/** Dano por segundo causado por inimigos em contato */
 	UPROPERTY(EditAnywhere, Category = "Combat") float ContactDPS = 5.f;
 
-	/** Sensor simples para detectar inimigos próximos (apenas overlap) */
+	/** Sensor simples para detectar inimigos prï¿½ximos (apenas overlap) */
 	UPROPERTY(VisibleAnywhere, Category = "Combat") USphereComponent* DamageSense = nullptr;
 
 	/** Conjunto de inimigos atualmente em contato */
@@ -86,7 +89,7 @@ private:
 	void OnSenseEnd(UPrimitiveComponent* OverlappedComp, AActor* OtherActor, UPrimitiveComponent* OtherComp, int32 OtherBodyIndex);
 
 public:
-	// Assets de configuração
+	// Assets de configuraï¿½ï¿½o
 	UPROPERTY(EditAnywhere, BlueprintReadOnly, Category = "Custom Character")
 	USkeletalMesh* CustomSkeletalMesh = nullptr;
 
@@ -96,7 +99,7 @@ public:
 	UPROPERTY(EditAnywhere, BlueprintReadOnly, Category = "Custom Character")
 	UAnimMontage* AnimMontage2 = nullptr;
 
-	// SISTEMA ÚNICO E DEFINITIVO - SEM FALLBACKS
+	// SISTEMA ï¿½NICO E DEFINITIVO - SEM FALLBACKS
 	UFUNCTION(BlueprintCallable, Category = "Custom Character")
 	void PlayAnim1();
 

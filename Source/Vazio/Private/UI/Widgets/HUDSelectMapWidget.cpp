@@ -13,6 +13,7 @@
 #include "Kismet/GameplayStatics.h"
 #include "Swarm/SwarmGameFlow.h"
 #include "Multiplayer/SteamMultiplayerSubsystem.h"
+#include "Net/MatchFlowController.h"
 
 UHUDSelectMapWidget::UHUDSelectMapWidget(const FObjectInitializer& ObjectInitializer)
     : Super(ObjectInitializer)
@@ -510,21 +511,12 @@ void UHUDSelectMapWidget::OnConfirmSelection()
         return;
     }
 
-    UE_LOG(LogTemp, Warning, TEXT("[HUDSelectMap] Starting session with map: %s"), *SelectedMap.MapName);
+    UE_LOG(LogTemp, Warning, TEXT("[HUDSelectMap] Starting multiplayer session with map: %s"), *SelectedMap.MapName);
 
-    // Create multiplayer session if Steam is initialized
+    // Use new networking system
     if (UGameInstance* GI = GetGameInstance())
     {
-        if (USteamMultiplayerSubsystem* SteamSubsystem = GI->GetSubsystem<USteamMultiplayerSubsystem>())
-        {
-            if (SteamSubsystem->IsSteamInitialized())
-            {
-                FString SessionName = FString::Printf(TEXT("%s_%s_Session"), *SelectedMap.MapDisplayName, *SteamSubsystem->GetPlayerSteamName());
-                SteamSubsystem->CreateMultiplayerSession(SessionName, 4); // Max 4 players
-            }
-        }
-
-        // Set up return point similar to SwarmArenaModalWidget
+        // Set up return point for SwarmGameFlow
         if (UWorld* World = GetWorld())
         {
             if (USwarmGameFlow* Flow = GI->GetSubsystem<USwarmGameFlow>())
@@ -557,8 +549,13 @@ void UHUDSelectMapWidget::OnConfirmSelection()
 
                 const FName CurrentLevelName = FName(*UGameplayStatics::GetCurrentLevelName(World, true));
                 Flow->SetReturnPoint(CurrentLevelName, ReturnXf);
-                Flow->EnterArena(*SelectedMap.MapName);
             }
+        }
+
+        // Start hosting session using new system
+        if (UMatchFlowController* MatchFlow = GI->GetSubsystem<UMatchFlowController>())
+        {
+            MatchFlow->StartHosting(SelectedMap.MapName, SelectedMap.Difficulty);
         }
     }
 
