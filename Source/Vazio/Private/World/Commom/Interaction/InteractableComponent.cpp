@@ -4,6 +4,7 @@
 #include "Blueprint/UserWidget.h"
 #include "UI/Widgets/BaseModalWidget.h"
 #include "UI/Widgets/SwarmArenaModalWidget.h"
+#include "UI/Widgets/HUDSelectMapWidget.h"
 #include "UI/Widgets/InteractPromptWidget.h"
 #include "GameFramework/PlayerController.h"
 #include "Engine/LocalPlayer.h"
@@ -186,14 +187,14 @@ TSubclassOf<UBaseModalWidget> UInteractableComponent::GetModalClassByTag() const
 {
     // 1) Preferir tags do próprio componente
     if (ComponentHasTag(TEXT("House"))) return TSubclassOf<UBaseModalWidget>(UHouseModalWidget::StaticClass());
-    if (ComponentHasTag(TEXT("Arena"))) return TSubclassOf<UBaseModalWidget>(USwarmArenaModalWidget::StaticClass());
+    if (ComponentHasTag(TEXT("Arena"))) return TSubclassOf<UBaseModalWidget>(UHUDSelectMapWidget::StaticClass());
     if (ComponentHasTag(TEXT("Shop")))  return TSubclassOf<UBaseModalWidget>(UShopModalWidget::StaticClass());
 
     // 2) Checar tags do componente pai (mesh) se existir
     if (const UActorComponent* Parent = GetAttachParent())
     {
         if (Parent->ComponentHasTag(TEXT("House"))) return TSubclassOf<UBaseModalWidget>(UHouseModalWidget::StaticClass());
-        if (Parent->ComponentHasTag(TEXT("Arena"))) return TSubclassOf<UBaseModalWidget>(USwarmArenaModalWidget::StaticClass());
+        if (Parent->ComponentHasTag(TEXT("Arena"))) return TSubclassOf<UBaseModalWidget>(UHUDSelectMapWidget::StaticClass());
         if (Parent->ComponentHasTag(TEXT("Shop")))  return TSubclassOf<UBaseModalWidget>(UShopModalWidget::StaticClass());
     }
 
@@ -201,7 +202,7 @@ TSubclassOf<UBaseModalWidget> UInteractableComponent::GetModalClassByTag() const
     if (AActor* Owner = GetOwner())
     {
         if (Owner->ActorHasTag(TEXT("House"))) return TSubclassOf<UBaseModalWidget>(UHouseModalWidget::StaticClass());
-        if (Owner->ActorHasTag(TEXT("Arena"))) return TSubclassOf<UBaseModalWidget>(USwarmArenaModalWidget::StaticClass());
+        if (Owner->ActorHasTag(TEXT("Arena"))) return TSubclassOf<UBaseModalWidget>(UHUDSelectMapWidget::StaticClass());
         if (Owner->ActorHasTag(TEXT("Shop")))  return TSubclassOf<UBaseModalWidget>(UShopModalWidget::StaticClass());
     }
 

@@ -9,7 +9,7 @@
 UBaseModalWidget::UBaseModalWidget(const FObjectInitializer& ObjectInitializer)
 	: Super(ObjectInitializer)
 {
-	bIsFocusable = true; // permite receber teclas
+	SetIsFocusable(true); // permite receber teclas
 }
 
 TSharedRef<SWidget> UBaseModalWidget::RebuildWidget()
@@ -115,15 +115,15 @@ TSharedRef<SWidget> UBaseModalWidget::BuildBody()
 // ---- Derived Modals ----
 TSharedRef<SWidget> UHouseModalWidget::BuildBody()
 {
-    return SNew(STextBlock).Text(FText::FromString(TEXT("Bem-vindo à House")));
+    return SNew(STextBlock).Text(FText::FromString(TEXT("Bem-vindo ï¿½ House")));
 }
 
 TSharedRef<SWidget> UArenaModalWidget::BuildBody()
 {
-    return SNew(STextBlock).Text(FText::FromString(TEXT("Bem-vindo à Arena")));
+    return SNew(STextBlock).Text(FText::FromString(TEXT("Bem-vindo ï¿½ Arena")));
 }
 
 TSharedRef<SWidget> UShopModalWidget::BuildBody()
 {
-    return SNew(STextBlock).Text(FText::FromString(TEXT("Bem-vindo à Shop")));
+    return SNew(STextBlock).Text(FText::FromString(TEXT("Bem-vindo ï¿½ Shop")));
 }

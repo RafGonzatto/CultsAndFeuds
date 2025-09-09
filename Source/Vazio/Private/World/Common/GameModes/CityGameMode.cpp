@@ -20,7 +20,7 @@ ACityGameMode::ACityGameMode()
 	DefaultPawnClass = AMyCharacter::StaticClass();
 	PlayerControllerClass = AMyPlayerController::StaticClass();
 
-	// Tentar carregar o BP do personagem e usá-lo como DefaultPawnClass
+	// Tentar carregar o BP do personagem e usï¿½-lo como DefaultPawnClass
 	static ConstructorHelpers::FClassFinder<APawn> BPCharClass(TEXT("/Game/Characters/PlayerChar/BP_MyCharacter"));
 	if (BPCharClass.Succeeded())
 	{
@@ -32,7 +32,7 @@ ACityGameMode::ACityGameMode()
 		UE_LOG(LogTemp, Warning, TEXT("[CityGameMode] Nao encontrei /Game/Characters/PlayerChar/BP_MyCharacter - usando AMyCharacter"));
 	}
 
-	// Carregar assets no constructor (onde FObjectFinder é permitido)
+	// Carregar assets no constructor (onde FObjectFinder ï¿½ permitido)
 	static ConstructorHelpers::FObjectFinder<UStaticMesh> CubeMeshAsset(TEXT("/Engine/BasicShapes/Cube"));
 	if (CubeMeshAsset.Succeeded())
 	{
@@ -81,7 +81,7 @@ void ACityGameMode::BeginPlay()
 
 void ACityGameMode::CreateEnvironmentDelayed()
 {
-	// Criar o resto do ambiente após PlayerStart estar pronto
+	// Criar o resto do ambiente apï¿½s PlayerStart estar pronto
 	CreateCityGround();
 	CreateBasicLighting();
 	
@@ -93,21 +93,23 @@ void ACityGameMode::CreatePlayerStartIfNeeded()
 	UWorld* World = GetWorld();
 	if (!World) return;
 
-	// Verificar se já existe um PlayerStart
+	// Verificar se jï¿½ existe um PlayerStart
 	for (TActorIterator<APlayerStart> ActorItr(World); ActorItr; ++ActorItr)
 	{
-		UE_LOG(LogTemp, Warning, TEXT("[CityGameMode] PlayerStart já existe"));
+		UE_LOG(LogTemp, Warning, TEXT("[CityGameMode] PlayerStart jï¿½ existe"));
 		return;
 	}
 
-	// Criar PlayerStart no centro da cidade com rotação e configurações adequadas
+	// Criar PlayerStart no centro da cidade com rotaï¿½ï¿½o e configuraï¿½ï¿½es adequadas
 	FVector SpawnLocation(0.0f, 0.0f, 150.0f); // Mais alto para garantir spawn seguro
 	FRotator SpawnRotation(0.0f, 0.0f, 0.0f);
 	
 	APlayerStart* PlayerStart = World->SpawnActor<APlayerStart>(SpawnLocation, SpawnRotation);
 	if (PlayerStart)
 	{
+#if WITH_EDITOR
 		PlayerStart->SetActorLabel(TEXT("CityPlayerStart"));
+#endif
 		
 		UE_LOG(LogTemp, Warning, TEXT("[CityGameMode] PlayerStart criado e configurado em (0,0,150)"));
 	}
@@ -122,13 +124,13 @@ void ACityGameMode::CreateCityGround()
 	UWorld* World = GetWorld();
 	if (!World) 
 	{
-		UE_LOG(LogTemp, Error, TEXT("[CityGameMode] World é NULL"));
+		UE_LOG(LogTemp, Error, TEXT("[CityGameMode] World ï¿½ NULL"));
 		return;
 	}
 
 	if (!CubeMesh)
 	{
-		UE_LOG(LogTemp, Error, TEXT("[CityGameMode] CubeMesh não foi carregado!"));
+		UE_LOG(LogTemp, Error, TEXT("[CityGameMode] CubeMesh nï¿½o foi carregado!"));
 		return;
 	}
 
@@ -150,28 +152,30 @@ void ACityGameMode::CreateCityGround()
 		// Fazer scale para criar um plano: 30x30x0.2 metros
 		GroundActor->SetActorScale3D(FVector(30.0f, 30.0f, 0.2f));
 		
-		// Aplicar cor verde para o chão ser visível
+		// Aplicar cor verde para o chï¿½o ser visï¿½vel
 		if (BasicMaterial)
 		{
-			// Criar uma instância dinâmica do material para mudar a cor
+			// Criar uma instï¿½ncia dinï¿½mica do material para mudar a cor
 			UMaterialInstanceDynamic* DynamicMaterial = UMaterialInstanceDynamic::Create(BasicMaterial, GroundActor);
 			if (DynamicMaterial)
 			{
-				// Definir cor verde para o chão
+				// Definir cor verde para o chï¿½o
 				DynamicMaterial->SetVectorParameterValue(TEXT("Color"), FLinearColor(0.2f, 0.8f, 0.2f, 1.0f));
 				GroundMesh->SetMaterial(0, DynamicMaterial);
 			}
 		}
 		
+#if WITH_EDITOR
 		GroundActor->SetActorLabel(TEXT("CityGround"));
-		UE_LOG(LogTemp, Warning, TEXT("[CityGameMode] Chão VERDE da cidade criado: 30x30m - Posição: %s"), *GroundLocation.ToString());
+#endif
+		UE_LOG(LogTemp, Warning, TEXT("[CityGameMode] Chï¿½o VERDE da cidade criado: 30x30m - Posiï¿½ï¿½o: %s"), *GroundLocation.ToString());
 	}
 	else
 	{
 		UE_LOG(LogTemp, Error, TEXT("[CityGameMode] Falha ao criar GroundActor"));
 	}
 
-	// Criar alguns cubos de referência coloridos
+	// Criar alguns cubos de referï¿½ncia coloridos
 	CreateReferenceCubes();
 }
 
@@ -180,7 +184,7 @@ void ACityGameMode::CreateReferenceCubes()
 	UWorld* World = GetWorld();
 	if (!World || !CubeMesh || !BasicMaterial) return;
 
-	// Criar 4 cubos coloridos para referência visual
+	// Criar 4 cubos coloridos para referï¿½ncia visual
 	TArray<FVector> CubePositions = {
 		FVector(500.0f, 500.0f, 100.0f),   // Nordeste - Azul
 		FVector(-500.0f, 500.0f, 100.0f),  // Noroeste - Vermelho  
@@ -209,7 +213,7 @@ void ACityGameMode::CreateReferenceCubes()
 			CubeMeshComp->SetStaticMesh(CubeMesh);
 			CubeActor->SetActorScale3D(FVector(2.0f, 2.0f, 2.0f)); // Cubos de 200x200x200cm
 			
-			// Aplicar cor específica
+			// Aplicar cor especï¿½fica
 			UMaterialInstanceDynamic* DynamicMaterial = UMaterialInstanceDynamic::Create(BasicMaterial, CubeActor);
 			if (DynamicMaterial)
 			{
@@ -217,12 +221,14 @@ void ACityGameMode::CreateReferenceCubes()
 				CubeMeshComp->SetMaterial(0, DynamicMaterial);
 			}
 			
+#if WITH_EDITOR
 			CubeActor->SetActorLabel(FString::Printf(TEXT("RefCube_%d"), i));
-			UE_LOG(LogTemp, Warning, TEXT("[CityGameMode] Cubo %d criado na posição: %s"), i, *CubePositions[i].ToString());
+#endif
+			UE_LOG(LogTemp, Warning, TEXT("[CityGameMode] Cubo %d criado na posiï¿½ï¿½o: %s"), i, *CubePositions[i].ToString());
 		}
 	}
 	
-	UE_LOG(LogTemp, Warning, TEXT("[CityGameMode] 4 cubos de referência coloridos criados com Mobility corrigida"));
+	UE_LOG(LogTemp, Warning, TEXT("[CityGameMode] 4 cubos de referï¿½ncia coloridos criados com Mobility corrigida"));
 }
 
 void ACityGameMode::CreateBasicLighting()
@@ -237,24 +243,34 @@ void ACityGameMode::CreateBasicLighting()
 	ADirectionalLight* DirectionalLight = World->SpawnActor<ADirectionalLight>(LightLocation, LightRotation);
 	if (DirectionalLight)
 	{
-		UDirectionalLightComponent* LightComponent = DirectionalLight->GetComponent();
-		LightComponent->SetIntensity(5.0f); // Bem brilhante
-		LightComponent->SetLightColor(FLinearColor(1.0f, 0.9f, 0.8f, 1.0f)); // Cor de sol
+		UDirectionalLightComponent* LightComponent = Cast<UDirectionalLightComponent>(DirectionalLight->GetLightComponent());
+		if (LightComponent)
+		{
+			LightComponent->SetIntensity(5.0f); // Bem brilhante
+			LightComponent->SetLightColor(FLinearColor(1.0f, 0.9f, 0.8f, 1.0f)); // Cor de sol
+		}
 		
+#if WITH_EDITOR
 		DirectionalLight->SetActorLabel(TEXT("CityDirectionalLight"));
+#endif
 		UE_LOG(LogTemp, Warning, TEXT("[CityGameMode] Directional Light criado"));
 	}
 
-	// Criar Sky Light para iluminação ambiente
+	// Criar Sky Light para iluminaï¿½ï¿½o ambiente
 	FVector SkyLightLocation(0.0f, 0.0f, 800.0f);
 	ASkyLight* SkyLight = World->SpawnActor<ASkyLight>(SkyLightLocation, FRotator::ZeroRotator);
 	if (SkyLight)
 	{
-		USkyLightComponent* SkyLightComponent = SkyLight->GetLightComponent();
-		SkyLightComponent->SetIntensity(2.0f);
-		SkyLightComponent->SetLightColor(FLinearColor(0.5f, 0.7f, 1.0f, 1.0f)); // Azul claro
+		USkyLightComponent* SkyLightComponent = Cast<USkyLightComponent>(SkyLight->GetLightComponent());
+		if (SkyLightComponent)
+		{
+			SkyLightComponent->SetIntensity(2.0f);
+			SkyLightComponent->SetLightColor(FLinearColor(0.5f, 0.7f, 1.0f, 1.0f)); // Azul claro
+		}
 		
+#if WITH_EDITOR
 		SkyLight->SetActorLabel(TEXT("CitySkyLight"));
+#endif
 		UE_LOG(LogTemp, Warning, TEXT("[CityGameMode] Sky Light criado"));
 	}
 }
@@ -279,11 +295,11 @@ AActor* ACityGameMode::ChoosePlayerStart_Implementation(AController* Player)
 		}
 	}
 	
-	// Se não encontrou nenhum, forçar criação de um temporário
+	// Se nï¿½o encontrou nenhum, forï¿½ar criaï¿½ï¿½o de um temporï¿½rio
 	UE_LOG(LogTemp, Error, TEXT("[CityGameMode] NENHUM PlayerStart encontrado! Criando um temporario"));
 	CreatePlayerStartIfNeeded();
 	
-	// Tentar novamente após criar
+	// Tentar novamente apï¿½s criar
 	if (World)
 	{
 		for (TActorIterator<APlayerStart> ActorItr(World); ActorItr; ++ActorItr)

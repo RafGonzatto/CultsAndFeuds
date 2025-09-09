@@ -72,7 +72,9 @@ void ABattleGameMode::CreatePlayerStartIfNeeded()
     // Spawn a basic PlayerStart near the origin
     if (APlayerStart* PS = World->SpawnActor<APlayerStart>(FVector(0, 0, 150), FRotator::ZeroRotator))
     {
+#if WITH_EDITOR
         PS->SetActorLabel(TEXT("BattlePlayerStart"));
+#endif
         UE_LOG(LogTemp, Display, TEXT("[BattleGM] PlayerStart created at (0,0,150)"));
     }
 }
@@ -143,7 +145,9 @@ void ABattleGameMode::CreateBattleGround()
             Mesh->SetMaterial(0, Dyn);
         }
     }
+#if WITH_EDITOR
     Ground->SetActorLabel(TEXT("BattleGround"));
+#endif
     UE_LOG(LogTemp, Display, TEXT("[BattleGM] Battle ground created"));
 }
 
@@ -161,7 +165,7 @@ void ABattleGameMode::CreateBasicLighting()
     }
     if (ADirectionalLight* Dir = World->SpawnActor<ADirectionalLight>(FVector(0, 0, 1000), FRotator(-45, 45, 0)))
     {
-        if (UDirectionalLightComponent* C = Dir->GetComponent())
+        if (UDirectionalLightComponent* C = Cast<UDirectionalLightComponent>(Dir->GetLightComponent()))
         {
             C->SetIntensity(6.f);
             C->SetLightColor(FLinearColor(1.0f, 0.95f, 0.85f));
