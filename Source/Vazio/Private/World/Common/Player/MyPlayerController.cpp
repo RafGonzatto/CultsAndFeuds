@@ -7,6 +7,9 @@
 #include "World/Commom/Interaction/InteractableComponent.h"
 #include "World/Common/Interaction/Interactable.h"
 #include "UI/Widgets/PlayerHUDWidget.h"
+#include "Swarm/Upgrades/SwarmUpgradeSystem.h"
+#include "UI/HUD/HUDSubsystem.h"
+#include "Engine/World.h"
 
 #include "EnhancedInputSubsystems.h"
 #include "EnhancedInputComponent.h"
@@ -38,14 +41,7 @@ AMyPlayerController::AMyPlayerController()
 	bEnableClickEvents = true;
 	bEnableTouchEvents = false;
 	
-	// Carregar a classe do widget de HUD durante a construção
-	static ConstructorHelpers::FClassFinder<UPlayerHUDWidget> DefaultHUDClass(TEXT("/Game/UI/WBP_PlayerHUD"));
-	if (DefaultHUDClass.Succeeded())
-	{
-		PlayerHUDWidgetClass = DefaultHUDClass.Class;
-		UE_LOG(LogPlayerUI, Display, TEXT("PlayerHUDWidgetClass carregado no construtor"));
-	}
-	else
+	// HUD will be managed by HUDSubsystem instead of Blueprint Widget
 	{
 		UE_LOG(LogPlayerUI, Warning, TEXT("Não foi possível encontrar /Game/UI/WBP_PlayerHUD no construtor"));
 	}
@@ -141,47 +137,37 @@ void AMyPlayerController::BeginPlay()
 		UE_LOG(LogPlayerUI, Log, TEXT("[PC] BeginPlay Map=%s IsBattle=%d"), *MapName, bIsBattle ? 1 : 0);
 		if (bIsBattle)
 		{
-			CreatePlayerHUD();
+			InitializeHUD();
 		}
 		else
 		{
 			UE_LOG(LogPlayerUI, Verbose, TEXT("[PC] HUD NAO criado (level nao eh Battle_Main)"));
 		}
 	}
+	InitializeSwarmSystems();
 }
 
-void AMyPlayerController::CreatePlayerHUD()
+void AMyPlayerController::InitializeHUD()
 {
-	// Verificar se temos uma classe de HUD válida (deve ter sido carregada no construtor)
-	if (!PlayerHUDWidgetClass)
+	UE_LOG(LogPlayerUI, Display, TEXT("[PC] Inicializando HUD Slate via HUDSubsystem"));
+	
+	UGameInstance* GameInstance = GetGameInstance();
+	if (!GameInstance)
 	{
-		// Tentar carregar diretamente usando LoadClass - uma alternativa segura fora do construtor
-		// Nota: isso é mais lento que usar ConstructorHelpers no construtor
-		PlayerHUDWidgetClass = LoadClass<UPlayerHUDWidget>(nullptr, TEXT("/Game/UI/WBP_PlayerHUD"));
-		
-		if (!PlayerHUDWidgetClass)
-		{
-			UE_LOG(LogPlayerUI, Error, TEXT("[PC] Não foi possível carregar a classe do HUD"));
-			return;
-		}
+		UE_LOG(LogPlayerUI, Error, TEXT("[PC] GameInstance é null, não é possível obter HUDSubsystem"));
+		return;
 	}
 	
-	if (PlayerHUDWidgetClass)
+	UHUDSubsystem* HUDSubsystem = GameInstance->GetSubsystem<UHUDSubsystem>();
+	if (!HUDSubsystem)
 	{
-		PlayerHUDWidget = CreateWidget<UPlayerHUDWidget>(this, PlayerHUDWidgetClass);
-		if (PlayerHUDWidget)
-		{
-			PlayerHUDWidget->AddToViewport();
-			UE_LOG(LogPlayerUI, Display, TEXT("[PC] HUD do player criado e adicionado ao viewport"));
-			
-			// Tentativa de vincular aos componentes imediatamente
-			PlayerHUDWidget->BindToPlayerComponents();
-		}
+		UE_LOG(LogPlayerUI, Error, TEXT("[PC] HUDSubsystem não encontrado"));
+		return;
 	}
-	else
-	{
-		UE_LOG(LogPlayerUI, Error, TEXT("[PC] PlayerHUDWidgetClass é null, não foi possível criar a UI"));
-	}
+	
+	// Show the Slate HUD
+	HUDSubsystem->ShowHUD();
+	UE_LOG(LogPlayerUI, Display, TEXT("[PC] HUD Slate inicializado com sucesso"));
 }
 
 void AMyPlayerController::SetupInputComponent()
@@ -624,7 +610,34 @@ UInteractableComponent* AMyPlayerController::FindBestInteractable(const FVector&
 	}
 	return Best;
 }
+// Adicione estas novas funções no final do arquivo:
+void AMyPlayerController::InitializeSwarmSystems()
+{
+    if (!GetWorld())
+    {
+        return;
+    }
+    
+    FString LevelName = GetWorld()->GetMapName();
+    if (LevelName.Contains(TEXT("Battle_Main")))
+    {
+        // Create and initialize upgrade system
+        SwarmUpgradeSystem = NewObject<USwarmUpgradeSystem>(this);
+        if (SwarmUpgradeSystem)
+        {
+            SwarmUpgradeSystem->Initialize(this);
+            UE_LOG(LogTemp, Warning, TEXT("Swarm Upgrade System initialized for Battle_Main"));
+        }
+    }
+}
 
+void AMyPlayerController::TriggerSwarmLevelUp()
+{
+    if (SwarmUpgradeSystem)
+    {
+        SwarmUpgradeSystem->TriggerLevelUp();
+    }
+}
 void AMyPlayerController::SetFocusedInteractable(UInteractableComponent* NewTarget)
 {
 	UInteractableComponent* Old = FocusedInteractable.Get();

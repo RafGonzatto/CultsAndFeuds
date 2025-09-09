@@ -167,10 +167,10 @@ void AMyCharacter::PostInitializeComponents()
 	}
 	else
 	{
-		UE_LOG(LogPlayerHealth, Display, TEXT("Health component inicializado: Max=%.1f, Current=%.1f"), 
-			Health->MaxHealth, Health->CurrentHealth);
-		UE_LOG(LogXP, Display, TEXT("XP component inicializado: Level=%d, XP=%.1f/%.1f"), 
-			XP->CurrentLevel, XP->CurrentXP, XP->XPToNextLevel);
+		UE_LOG(LogPlayerHealth, Display, TEXT("Health component inicializado"));
+		UE_LOG(LogPlayerHealth, Display, TEXT("Max=%.1f Current=%.1f"), Health->GetMaxHealth(), Health->GetCurrentHealth());
+		UE_LOG(LogXP, Display, TEXT("XP component inicializado"));
+		UE_LOG(LogXP, Display, TEXT("Level=%d XP=%d/%d"), XP->GetCurrentLevel(), XP->GetCurrentXP(), XP->GetXPToNextLevel());
 	}
 }
 
@@ -215,8 +215,9 @@ void AMyCharacter::BeginPlay()
 	{
 		// Garantir inicializa��o adequada
 		Health->OnDeath.AddDynamic(this, &AMyCharacter::OnPlayerDeath);
-		UE_LOG(LogPlayerHealth, Display, TEXT("Health inicializado com HP=%.1f/%.1f"), 
-			Health->CurrentHealth, Health->MaxHealth);
+		UE_LOG(LogPlayerHealth, Display, TEXT("Health inicializado"));
+		UE_LOG(LogPlayerHealth, Display, TEXT("HP=%.1f/%.1f"), 
+			Health->GetCurrentHealth(), Health->GetMaxHealth());
 	}
 	else
 	{
@@ -225,8 +226,9 @@ void AMyCharacter::BeginPlay()
 	
 	if (XP)
 	{
-		UE_LOG(LogXP, Display, TEXT("XP inicializado com Level=%d, XP=%.1f/%.1f"), 
-			XP->CurrentLevel, XP->CurrentXP, XP->XPToNextLevel);
+		UE_LOG(LogXP, Display, TEXT("XP inicializado"));
+		UE_LOG(LogXP, Display, TEXT("Level=%d XP=%d/%d"), 
+			XP->GetCurrentLevel(), XP->GetCurrentXP(), XP->GetXPToNextLevel());
 	}
 	else
 	{
@@ -327,14 +329,10 @@ void AMyCharacter::CharDump()
 	USkeletalMesh* SkeletalMeshAsset = MeshComp ? MeshComp->GetSkeletalMeshAsset() : nullptr;
 	UClass* AnimClass = MeshComp ? MeshComp->GetAnimClass() : nullptr;
 	UE_LOG(LogTemp, Warning, TEXT("=== CHARACTER DEBUG DUMP ==="));
-	UE_LOG(LogTemp, Warning, TEXT("Mesh: %s"), SkeletalMeshAsset ? *SkeletalMeshAsset->GetName() : TEXT("NULL"));
-	UE_LOG(LogTemp, Warning, TEXT("AnimClass: %s"), AnimClass ? *AnimClass->GetName() : TEXT("NULL"));
-	UE_LOG(LogTemp, Warning, TEXT("HasActiveTaunt: %s"), HasActiveTaunt() ? TEXT("TRUE") : TEXT("FALSE"));
-	UE_LOG(LogTemp, Warning, TEXT("CurrentTaunt: %s"), CurrentTauntMontage ? *CurrentTauntMontage->GetName() : TEXT("NULL"));
-	UE_LOG(LogTemp, Warning, TEXT("Anim1: %s"), AnimMontage1 ? *AnimMontage1->GetName() : TEXT("NULL"));
-	UE_LOG(LogTemp, Warning, TEXT("Anim2: %s"), AnimMontage2 ? *AnimMontage2->GetName() : TEXT("NULL"));
-	UE_LOG(LogTemp, Warning, TEXT("Health: %s"), Health ? *FString::Printf(TEXT("%.1f/%.1f"), Health->CurrentHealth, Health->MaxHealth) : TEXT("NULL"));
-	UE_LOG(LogTemp, Warning, TEXT("XP: %s"), XP ? *FString::Printf(TEXT("Level %d, %.1f/%.1f"), XP->CurrentLevel, XP->CurrentXP, XP->XPToNextLevel) : TEXT("NULL"));
+	UE_LOG(LogTemp, Warning, TEXT("Mesh=%s"), SkeletalMeshAsset ? *SkeletalMeshAsset->GetName() : TEXT("NULL"));
+	UE_LOG(LogTemp, Warning, TEXT("AnimClass=%s"), AnimClass ? *AnimClass->GetName() : TEXT("NULL"));
+	if (Health) UE_LOG(LogTemp, Warning, TEXT("Health=%.1f/%.1f"), Health->GetCurrentHealth(), Health->GetMaxHealth());
+	if (XP) UE_LOG(LogTemp, Warning, TEXT("XP=Level %d %d/%d"), XP->GetCurrentLevel(), XP->GetCurrentXP(), XP->GetXPToNextLevel());
 	UE_LOG(LogTemp, Warning, TEXT("========================"));
 }
 

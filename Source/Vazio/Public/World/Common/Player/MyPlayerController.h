@@ -9,6 +9,8 @@ class UInputAction;
 class UInteractableComponent;
 class AMyCharacter;
 class UPlayerHUDWidget;
+class USwarmUpgradeSystem;
+class UHUDSubsystem;
 
 #include "MyPlayerController.generated.h"
 
@@ -20,6 +22,9 @@ class VAZIO_API AMyPlayerController : public APlayerController
 public:
 	AMyPlayerController();
 
+	// NEW: Swarm Level Up
+	void TriggerSwarmLevelUp();
+
 protected:
 	virtual void BeginPlay() override;
 	virtual void SetupInputComponent() override;
@@ -29,14 +34,14 @@ protected:
 	UPROPERTY(EditAnywhere, Category = "Combat") float AttackDamage = 20.f;
 	void PerformAreaAttack();
 
-	/** ------------- NEW: HUD ------------- */
-	UPROPERTY(EditAnywhere, Category = "UI") 
-	TSubclassOf<UPlayerHUDWidget> PlayerHUDWidgetClass;
+	/** ------------- NEW: HUD (Slate) ------------- */
+	void InitializeHUD();
+
+	// NEW: Swarm Upgrade System
+	UPROPERTY()
+	USwarmUpgradeSystem* SwarmUpgradeSystem;
 	
-	UPROPERTY() 
-	UPlayerHUDWidget* PlayerHUDWidget = nullptr;
-	
-	void CreatePlayerHUD();
+	void InitializeSwarmSystems();
 
 private:
 	// Enhanced Input Context e Actions

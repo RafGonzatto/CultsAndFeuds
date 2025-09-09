@@ -15,24 +15,24 @@ class VAZIO_API UPlayerHUDWidget : public UUserWidget
     GENERATED_BODY()
 
 public:
-    // Referências para os componentes do player que queremos monitorar
+    // Referï¿½ncias para os componentes do player que queremos monitorar
     UPROPERTY(BlueprintReadWrite, Category = "Components")
     TObjectPtr<UPlayerHealthComponent> HealthComponent;
 
     UPROPERTY(BlueprintReadWrite, Category = "Components")
     TObjectPtr<UXPComponent> XPComponent;
 
-    // Métodos para atualizar a UI com base nos componentes
+    // Mï¿½todos para atualizar a UI com base nos componentes
     UFUNCTION(BlueprintCallable, Category = "Updates")
     void UpdateHealthBar(float NewHealth);
 
     UFUNCTION(BlueprintCallable, Category = "Updates")
-    void UpdateXPBar(float NewXP);
+void UpdateXPBar(int32 CurrentXP, int32 XPToNextLevel);
 
     UFUNCTION(BlueprintCallable, Category = "Updates")
     void UpdateLevel(int32 NewLevel);
 
-    // Função para encontrar e vincular aos componentes
+    // Funï¿½ï¿½o para encontrar e vincular aos componentes
     UFUNCTION(BlueprintCallable, Category = "Setup")
     void BindToPlayerComponents();
 
@@ -40,7 +40,7 @@ protected:
     virtual void NativeConstruct() override;
     virtual void NativeTick(const FGeometry& MyGeometry, float InDeltaTime) override;
 
-    // UI Elements - serão conectados pelo Blueprint
+    // UI Elements - serï¿½o conectados pelo Blueprint
     UPROPERTY(BlueprintReadOnly, meta = (BindWidget))
     UProgressBar* HealthBar;
 

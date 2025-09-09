@@ -13,7 +13,7 @@ void UPlayerHUDWidget::NativeConstruct()
     
     // Log inicial para ajudar debug de criação duplicada
     UE_LOG(LogUI, Log, TEXT("HUD: NativeConstruct iniciado (Addr=%p)"), this);
-    // Tenta encontrar os componentes do player logo na constru��o
+    // Tenta encontrar os componentes do player logo na construção
     BindToPlayerComponents();
 }
 
@@ -21,7 +21,7 @@ void UPlayerHUDWidget::NativeTick(const FGeometry& MyGeometry, float InDeltaTime
 {
     Super::NativeTick(MyGeometry, InDeltaTime);
     
-    // Se n�o temos os componentes ainda, tenta vincul�-los
+    // Se não temos os componentes ainda, tenta vinculá-los
     if (!HealthComponent || !XPComponent)
     {
         BindToPlayerComponents();
@@ -31,40 +31,27 @@ void UPlayerHUDWidget::NativeTick(const FGeometry& MyGeometry, float InDeltaTime
 void UPlayerHUDWidget::BindToPlayerComponents()
 {
     APawn* PlayerPawn = UGameplayStatics::GetPlayerPawn(this, 0);
-    if (!PlayerPawn)
-    {
-        UE_LOG(LogUI, Warning, TEXT("PlayerHUDWidget: PlayerPawn n�o encontrado"));
-        return;
-    }
-    
+    if (!PlayerPawn) return;
+
     // Encontrar os componentes
     HealthComponent = PlayerPawn->FindComponentByClass<UPlayerHealthComponent>();
     XPComponent = PlayerPawn->FindComponentByClass<UXPComponent>();
-    
-    if (!HealthComponent)
-    {
-        UE_LOG(LogUI, Warning, TEXT("PlayerHUDWidget: HealthComponent n�o encontrado"));
-    }
-    else
+
+    if (HealthComponent)
     {
         // Registrar callbacks para updates
         HealthComponent->OnDamaged.AddDynamic(this, &UPlayerHUDWidget::UpdateHealthBar);
-        // Atualiza��o inicial
-        UpdateHealthBar(HealthComponent->CurrentHealth);
+        // Atualização inicial
+        UpdateHealthBar(HealthComponent->GetCurrentHealth());
     }
-    
-    if (!XPComponent)
-    {
-        UE_LOG(LogUI, Warning, TEXT("PlayerHUDWidget: XPComponent n�o encontrado"));
-    }
-    else
+    if (XPComponent)
     {
         // Registrar callbacks para updates
         XPComponent->OnXPChanged.AddDynamic(this, &UPlayerHUDWidget::UpdateXPBar);
         XPComponent->OnLevelChanged.AddDynamic(this, &UPlayerHUDWidget::UpdateLevel);
-        // Atualiza��es iniciais
-        UpdateXPBar(XPComponent->CurrentXP);
-        UpdateLevel(XPComponent->CurrentLevel);
+        // Atualizações iniciais - corrigido para passar ambos os parâmetros
+        UpdateXPBar(XPComponent->GetCurrentXP(), XPComponent->GetXPToNextLevel());
+        UpdateLevel(XPComponent->GetCurrentLevel());
     }
 }
 
@@ -74,44 +61,33 @@ void UPlayerHUDWidget::UpdateHealthBar(float NewHealth)
     
     const float HealthPercent = HealthComponent->GetHealthPercent();
     
-    if (HealthBar)
-    {
-        HealthBar->SetPercent(HealthPercent);
-    }
-    
+    if (HealthBar) HealthBar->SetPercent(HealthPercent);
     if (HealthText)
     {
-        const int32 CurrentHP = FMath::RoundToInt(HealthComponent->CurrentHealth);
-        const int32 MaxHP = FMath::RoundToInt(HealthComponent->MaxHealth);
+        const int32 CurrentHP = FMath::RoundToInt(HealthComponent->GetCurrentHealth());
+        const int32 MaxHP = FMath::RoundToInt(HealthComponent->GetMaxHealth());
         HealthText->SetText(FText::FromString(FString::Printf(TEXT("%d / %d"), CurrentHP, MaxHP)));
     }
     
-    UE_LOG(LogUI, Verbose, TEXT("HUD: Health atualizado para %.1f/%.1f (%.1f%%)"), 
-        HealthComponent->CurrentHealth, HealthComponent->MaxHealth, HealthPercent * 100.0f);
+    UE_LOG(LogUI, Verbose, TEXT("HUD: Health atualizado: %.1f/%.1f (%.1f%%)"), HealthComponent->GetCurrentHealth(), HealthComponent->GetMaxHealth(), HealthPercent * 100.f);
 }
 
-void UPlayerHUDWidget::UpdateXPBar(float NewXP)
+void UPlayerHUDWidget::UpdateXPBar(int32 CurrentXP, int32 XPToNextLevel)
 {
-    if (!XPComponent) return;
+    if (!XPBar) return;
     
-    const float XPPercent = XPComponent->GetXPPercent();
+    float Percentage = XPToNextLevel > 0 ? (float)CurrentXP / (float)XPToNextLevel : 0.0f;
+    XPBar->SetPercent(Percentage);
     
-    if (XPBar)
-    {
-        XPBar->SetPercent(XPPercent);
-    }
-    
-    UE_LOG(LogUI, Verbose, TEXT("HUD: XP atualizado para %.1f/%.1f (%.1f%%)"), 
-        XPComponent->CurrentXP, XPComponent->XPToNextLevel, XPPercent * 100.0f);
+    // NOTE: Since there's no XPTextBlock declared in the header, we'll skip updating XP text
+    // If you need XP text, add a UTextBlock* XPText property to the header file with meta = (BindWidget)
 }
 
 void UPlayerHUDWidget::UpdateLevel(int32 NewLevel)
 {
-    if (!XPComponent) return;
-    
     if (LevelText)
     {
-        LevelText->SetText(FText::FromString(FString::Printf(TEXT("N�vel %d"), NewLevel)));
+        LevelText->SetText(FText::FromString(FString::Printf(TEXT("Nível %d"), NewLevel)));
     }
     
     UE_LOG(LogUI, Log, TEXT("HUD: Level atualizado para %d"), NewLevel);

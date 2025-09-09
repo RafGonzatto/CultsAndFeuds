@@ -1,26 +1,56 @@
 #pragma once
+
 #include "CoreMinimal.h"
 #include "Components/ActorComponent.h"
-
 #include "PlayerHealthComponent.generated.h"
 
-DECLARE_DYNAMIC_MULTICAST_DELEGATE(FOnPlayerDeath);
-DECLARE_DYNAMIC_MULTICAST_DELEGATE_OneParam(FOnPlayerDamaged, float, NewHealth);
+DECLARE_MULTICAST_DELEGATE_TwoParams(FOnHealthChanged, float /*Current*/, float /*Max*/);
+DECLARE_DYNAMIC_MULTICAST_DELEGATE_OneParam(FOnDamaged, float, NewHealth);
+DECLARE_DYNAMIC_MULTICAST_DELEGATE(FOnDeath);
 
 UCLASS(ClassGroup=(Custom), meta=(BlueprintSpawnableComponent))
-class VAZIO_API UPlayerHealthComponent : public UActorComponent {
+class VAZIO_API UPlayerHealthComponent : public UActorComponent
+{
     GENERATED_BODY()
+
 public:
     UPlayerHealthComponent();
 
-    UPROPERTY(EditAnywhere, BlueprintReadWrite, Category="Health") float MaxHealth = 100.f;
-    UPROPERTY(VisibleAnywhere, BlueprintReadOnly, Category="Health") float CurrentHealth = 0.f;
+    UFUNCTION(BlueprintCallable, Category="Health")
+    void ReceiveDamage(float DamageAmount); // renamed for external callers
 
-    UPROPERTY(BlueprintAssignable, Category="Health") FOnPlayerDamaged OnDamaged;
-    UPROPERTY(BlueprintAssignable, Category="Health") FOnPlayerDeath   OnDeath;
+    UFUNCTION(BlueprintCallable, Category="Health")
+    float GetCurrentHealth() const { return CurrentHealth; }
 
+    UFUNCTION(BlueprintCallable, Category="Health")
+    float GetMaxHealth() const { return MaxHealth; }
+
+    UFUNCTION(BlueprintCallable, Category="Health")
+    bool IsAlive() const { return CurrentHealth > 0.f; }
+
+    UFUNCTION(BlueprintCallable, Category="Health")
+    float GetHealthPercent() const { return MaxHealth > 0.f ? CurrentHealth / MaxHealth : 0.f; }
+
+    // Upgrade APIs
+    void SetMaxHealth(float NewMaxHealth);
+    void Heal(float Amount);
+
+    // Native delegates (non-dynamic)
+    FOnHealthChanged OnHealthChanged;
+
+    // Dynamic delegates for UI / BP (even if we avoid BP, keeps API consistent)
+    UPROPERTY(BlueprintAssignable, Category="Health")
+    FOnDamaged OnDamaged;
+
+    UPROPERTY(BlueprintAssignable, Category="Health")
+    FOnDeath OnDeath;
+
+protected:
     virtual void BeginPlay() override;
 
-    UFUNCTION(BlueprintCallable, Category="Health") void  ReceiveDamage(float DamageAmount);
-    UFUNCTION(BlueprintCallable, Category="Health") float GetHealthPercent() const;
+    UPROPERTY(EditAnywhere, Category="Health")
+    float MaxHealth = 100.f;
+
+    UPROPERTY(VisibleAnywhere, Category="Health")
+    float CurrentHealth = 0.f;
 };
