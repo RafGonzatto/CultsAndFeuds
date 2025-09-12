@@ -9,7 +9,7 @@ public class Vazio : ModuleRules
 
         PublicDependencyModuleNames.AddRange(new string[] {
             "Core","CoreUObject","Engine","InputCore","UMG","Slate","SlateCore","EnhancedInput","NavigationSystem",
-            "OnlineSubsystem", "OnlineSubsystemUtils"
+            "OnlineSubsystem", "OnlineSubsystemUtils", "Json"
         });
 
         // Add Steam if available

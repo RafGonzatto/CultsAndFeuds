@@ -111,6 +111,27 @@ private:
 	
 	UFUNCTION(Exec)
 	void ToggleMovementDebug();
+
+	UFUNCTION(Exec)
+	void TestEnemySpawn();
+
+	UFUNCTION(Exec)
+	void StartTestWave();
+
+	UFUNCTION(Exec)
+	void DebugEnemyCount();
+
+	UFUNCTION(Exec)
+	void ForceEnemyVisibility();
+
+	UFUNCTION(Exec)
+	void TestSpawnAndCount();
+
+	UFUNCTION(Exec)
+	void TeleportToEnemies();
+
+	UFUNCTION(Exec)
+	void TestCloseEnemySpawn();
 	
 	bool bDebugMovementEnabled = false;
 	void LogMovementState();
@@ -135,4 +156,15 @@ private:
 
 	UFUNCTION() void OnInteract(const FInputActionValue& Value); // Enhanced Input
 	void HandleInteract(); // Legacy/funcional
+	
+	// Debug function to test all enemy fixes
+	UFUNCTION(CallInEditor, Category="Debug")
+	void TestAllEnemyFixes();
+	
+	// New comprehensive test function
+	UFUNCTION(Exec, CallInEditor, Category="Debug")
+	void TestCompleteFixes();
+
+	// Consome a tecla F1 (evitar crash vindo de Blueprints antigos) e executa teste seguro
+	void OnDebugF1();
 };

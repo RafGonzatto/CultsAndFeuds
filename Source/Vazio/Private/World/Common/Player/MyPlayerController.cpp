@@ -11,6 +11,14 @@
 #include "UI/HUD/HUDSubsystem.h"
 #include "Engine/World.h"
 #include "Net/MatchFlowController.h"
+#include "Enemy/EnemySpawnerSubsystem.h"
+#include "Enemy/EnemySpawnHelper.h"
+#include "Enemy/EnemyBase.h"
+#include "GameFramework/Character.h"
+#include "EngineUtils.h"
+#include "Components/StaticMeshComponent.h"
+#include "Materials/MaterialInstanceDynamic.h"
+#include "World/Battle/BattleGameMode.h"
 
 #include "EnhancedInputSubsystems.h"
 #include "EnhancedInputComponent.h"
@@ -174,6 +182,26 @@ void AMyPlayerController::InitializeHUD()
 void AMyPlayerController::SetupInputComponent()
 {
 	Super::SetupInputComponent();
+
+	// Bind F1 manually if not already bound (some legacy BP podia estar causando crash)
+	if (InputComponent)
+	{
+		InputComponent->BindKey(EKeys::F1, IE_Pressed, this, &AMyPlayerController::OnDebugF1);
+	}
+}
+
+void AMyPlayerController::OnDebugF1()
+{
+	// Executa versão segura do teste – evita qualquer chamada a sistemas potencialmente nulos
+	if (!IsValid(this) || !GetWorld())
+	{
+		UE_LOG(LogTemp, Warning, TEXT("[F1] PlayerController ou World inválido – ignorando"));
+		return;
+	}
+
+	UE_LOG(LogTemp, Warning, TEXT("[F1] Disparado – executando TestCompleteFixes seguro"));
+	// Chama a função Exec diretamente (não via console) para garantir mesma lógica
+	TestCompleteFixes();
 }
 
 void AMyPlayerController::OnInteract(const FInputActionValue& Value)
@@ -188,7 +216,13 @@ void AMyPlayerController::OnInteract(const FInputActionValue& Value)
 	}
 	if (bIsBattle)
 	{
-		PerformAreaAttack();
+		UE_LOG(LogTemp, Log, TEXT("Area attack requested"));
+		
+		// Execute area attack through the character
+		if (AMyCharacter* MyChar = Cast<AMyCharacter>(GetPawn()))
+		{
+			MyChar->Attack();
+		}
 	}
 	else
 	{
@@ -196,14 +230,7 @@ void AMyPlayerController::OnInteract(const FInputActionValue& Value)
 	}
 }
 
-void AMyPlayerController::PerformAreaAttack()
- {
-	APawn * P = GetPawn(); if (!P) return;
-if (AMyCharacter* C = Cast<AMyCharacter>(P)) {
-		C->PerformAreaAttack(AttackRadius, AttackDamage);
-		
-	}
-	 }
+
 
 void AMyPlayerController::HandleInteract()
 {
@@ -486,8 +513,8 @@ void AMyPlayerController::OnAnim1Action(const FInputActionValue& Value)
 	
 	if (AMyCharacter* MyChar = Cast<AMyCharacter>(GetPawn()))
 	{
-		UE_LOG(LogTemp, Warning, TEXT("[PC] Executando Ctrl+1 - PlayAnim1"));
-		MyChar->PlayAnim1();
+		UE_LOG(LogTemp, Warning, TEXT("[PC] Executando Ctrl+1 - Debug Animation"));
+		// Animation debug function removed
 	}
 }
 
@@ -498,8 +525,8 @@ void AMyPlayerController::OnAnim2Action(const FInputActionValue& Value)
 	
 	if (AMyCharacter* MyChar = Cast<AMyCharacter>(GetPawn()))
 	{
-		UE_LOG(LogTemp, Warning, TEXT("[PC] Executando Ctrl+2 - PlayAnim2"));
-		MyChar->PlayAnim2();
+		UE_LOG(LogTemp, Warning, TEXT("[PC] Executando Ctrl+2 - Debug Animation"));
+		// Animation debug function removed
 	}
 }
 
@@ -554,6 +581,396 @@ void AMyPlayerController::ToggleMovementDebug()
 {
 	bDebugMovementEnabled = !bDebugMovementEnabled;
 	UE_LOG(LogTemp, Warning, TEXT("Debug Movement: %s"), bDebugMovementEnabled ? TEXT("ENABLED") : TEXT("DISABLED"));
+}
+
+void AMyPlayerController::TestEnemySpawn()
+{
+	UE_LOG(LogTemp, Warning, TEXT("=== TESTING ENEMY SPAWN ==="));
+	
+	if (!GetWorld())
+	{
+		UE_LOG(LogTemp, Error, TEXT("No world found"));
+		return;
+	}
+
+	// Check if we're in Battle_Main
+	FString MapName = GetWorld()->GetMapName();
+	if (!MapName.Contains(TEXT("Battle_Main")))
+	{
+		UE_LOG(LogTemp, Warning, TEXT("Not in Battle_Main level, spawning test enemies anyway"));
+	}
+
+	// Test JSON for quick spawn - TESTING WITH DELAY to avoid timer issues
+	FString TestJSON = TEXT(R"({
+		"spawnEvents": [
+			{
+				"time": 0.0,
+				"spawns": {
+					"NormalEnemy": {
+						"count": 3,
+						"big": true
+					}
+				}
+			},
+			{
+				"time": 1.0,
+				"spawns": {
+					"HeavyEnemy": 2,
+					"circle": [
+						{
+							"type": "RangedEnemy",
+							"count": 3,
+							"radius": 300
+						}
+					]
+				}
+			}
+		]
+	})");
+
+	// Use the helper function to spawn enemies
+	UEnemySpawnHelper::QuickSpawnEnemies(this, TestJSON, FMath::Rand());
+	UE_LOG(LogTemp, Warning, TEXT("Started enemy spawn timeline using QuickSpawnEnemies"));
+}
+
+void AMyPlayerController::StartTestWave()
+{
+	UE_LOG(LogTemp, Warning, TEXT("=== STARTING TEST WAVE VIA GAMEMODE ==="));
+	
+	if (!GetWorld())
+	{
+		UE_LOG(LogTemp, Error, TEXT("No world found"));
+		return;
+	}
+
+	// Try to get the BattleGameMode and start the test wave
+	if (ABattleGameMode* BattleGM = Cast<ABattleGameMode>(GetWorld()->GetAuthGameMode()))
+	{
+		BattleGM->StartTestWave();
+		UE_LOG(LogTemp, Warning, TEXT("Started test wave via BattleGameMode"));
+	}
+	else
+	{
+		UE_LOG(LogTemp, Warning, TEXT("Not using BattleGameMode, falling back to direct spawn"));
+		TestEnemySpawn();
+	}
+}
+
+void AMyPlayerController::DebugEnemyCount()
+{
+	UE_LOG(LogTemp, Warning, TEXT("=== DEBUGGING ENEMY COUNT ==="));
+	
+	UWorld* World = GetWorld();
+	if (!World)
+	{
+		UE_LOG(LogTemp, Error, TEXT("No world found"));
+		return;
+	}
+	
+	int32 TotalEnemies = 0;
+	int32 VisibleEnemies = 0;
+	int32 EnemyBaseCount = 0;
+	
+	// Count all AEnemyBase actors
+	for (TActorIterator<AEnemyBase> ActorItr(World); ActorItr; ++ActorItr)
+	{
+		AEnemyBase* Enemy = *ActorItr;
+		if (Enemy && IsValid(Enemy))
+		{
+			EnemyBaseCount++;
+			FVector Location = Enemy->GetActorLocation();
+			bool bHasVisualMesh = Enemy->VisualMesh != nullptr;
+			bool bIsVisible = bHasVisualMesh ? Enemy->VisualMesh->IsVisible() : false;
+			
+			if (bIsVisible) VisibleEnemies++;
+			
+			UE_LOG(LogTemp, Warning, TEXT("[DEBUG] Enemy %s at location %s - VisualMesh=%s, Visible=%s"), 
+				*Enemy->GetName(),
+				*Location.ToString(),
+				bHasVisualMesh ? TEXT("YES") : TEXT("NO"),
+				bIsVisible ? TEXT("YES") : TEXT("NO"));
+		}
+	}
+	
+	// Set TotalEnemies to same as EnemyBaseCount for now
+	TotalEnemies = EnemyBaseCount;
+	
+	UE_LOG(LogTemp, Warning, TEXT("[DEBUG] SUMMARY: EnemyBase=%d, Visible=%d, TotalCharacters=%d"), 
+		EnemyBaseCount, VisibleEnemies, TotalEnemies);
+		
+	// Also check player location for reference
+	if (APawn* PlayerPawn = GetPawn())
+	{
+		UE_LOG(LogTemp, Warning, TEXT("[DEBUG] Player location: %s"), *PlayerPawn->GetActorLocation().ToString());
+	}
+}
+
+void AMyPlayerController::ForceEnemyVisibility()
+{
+	UE_LOG(LogTemp, Warning, TEXT("=== ENSURING ENEMY VISIBILITY (NORMAL SIZE) ==="));
+	
+	UWorld* World = GetWorld();
+	if (!World)
+	{
+		UE_LOG(LogTemp, Error, TEXT("No world found"));
+		return;
+	}
+	
+	int32 ProcessedEnemies = 0;
+	
+	for (TActorIterator<AEnemyBase> ActorItr(World); ActorItr; ++ActorItr)
+	{
+		AEnemyBase* Enemy = *ActorItr;
+		if (Enemy && IsValid(Enemy))
+		{
+			ProcessedEnemies++;
+			
+			// ENSURE REASONABLE VISIBILITY
+			if (Enemy->VisualMesh)
+			{
+				// Set static mesh to ensure it exists - SAFE RUNTIME LOADING
+				if (UStaticMesh* CubeMesh = LoadObject<UStaticMesh>(nullptr, TEXT("/Engine/BasicShapes/Cube")))
+				{
+					Enemy->VisualMesh->SetStaticMesh(CubeMesh);
+				}
+				
+				// NORMAL CHARACTER SCALE - Player-sized
+				Enemy->VisualMesh->SetWorldScale3D(FVector(0.9f, 0.9f, 1.6f));
+				
+				// ENSURE VISIBILITY
+				Enemy->VisualMesh->SetVisibility(true);
+				Enemy->VisualMesh->SetHiddenInGame(false);
+				Enemy->VisualMesh->SetComponentTickEnabled(true);
+				
+				// Keep color coding but make it less bright
+				UMaterialInstanceDynamic* DynamicMat = Enemy->VisualMesh->CreateAndSetMaterialInstanceDynamic(0);
+				if (DynamicMat)
+				{
+					FString ClassName = Enemy->GetClass()->GetName();
+					FLinearColor EnemyColor = FLinearColor::Red; // Default
+					
+					if (ClassName.Contains(TEXT("Heavy"))) EnemyColor = FLinearColor::Blue;
+					else if (ClassName.Contains(TEXT("Ranged"))) EnemyColor = FLinearColor::Yellow;
+					else if (ClassName.Contains(TEXT("Dash"))) EnemyColor = FLinearColor::Green;
+					
+					DynamicMat->SetVectorParameterValue("BaseColor", EnemyColor * 0.8f); // Slightly dimmed
+					DynamicMat->SetScalarParameterValue("Metallic", 0.1f);
+					DynamicMat->SetScalarParameterValue("Roughness", 0.8f);
+				}
+				
+				// KEEP ON GROUND LEVEL - No extreme elevation
+				FVector CurrentLoc = Enemy->GetActorLocation();
+				if (CurrentLoc.Z > 400.0f || CurrentLoc.Z < 50.0f)
+				{
+					Enemy->SetActorLocation(FVector(CurrentLoc.X, CurrentLoc.Y, 90.0f)); // Ground level
+				}
+				
+				UE_LOG(LogTemp, Warning, TEXT("[NORMAL] Enemy %s: Location=%s, Scale=%s, Visible=%s"), 
+					*Enemy->GetName(),
+					*Enemy->GetActorLocation().ToString(),
+					*Enemy->VisualMesh->GetComponentScale().ToString(),
+					Enemy->VisualMesh->IsVisible() ? TEXT("YES") : TEXT("NO"));
+			}
+			else
+			{
+				UE_LOG(LogTemp, Error, TEXT("[NORMAL] Enemy %s has NO VisualMesh!"), *Enemy->GetName());
+			}
+		}
+	}
+	
+	UE_LOG(LogTemp, Warning, TEXT("[NORMAL] Processed %d enemies - Look for NORMAL-SIZED colored cubes at ground level!"), ProcessedEnemies);
+}
+
+void AMyPlayerController::TestSpawnAndCount()
+{
+	UE_LOG(LogTemp, Warning, TEXT("=== TEST SPAWN AND IMMEDIATE COUNT WITH AUTO-TELEPORT ==="));
+	
+	// First, do the spawn
+	TestEnemySpawn();
+	
+	// Create timer handles
+	FTimerHandle CountTimer;
+	FTimerHandle VisibilityTimer;
+	FTimerHandle TeleportTimer;
+	
+	// Wait a small delay for spawn to process, then count
+	GetWorldTimerManager().SetTimer(
+		CountTimer,
+		this,
+		&AMyPlayerController::DebugEnemyCount,
+		0.1f,
+		false
+	);
+	
+	// Also force visibility after longer delay
+	GetWorldTimerManager().SetTimer(
+		VisibilityTimer,
+		this,
+		&AMyPlayerController::ForceEnemyVisibility,
+		0.5f,
+		false
+	);
+	
+	// Auto-teleport to enemies after they're processed
+	GetWorldTimerManager().SetTimer(
+		TeleportTimer,
+		this,
+		&AMyPlayerController::TeleportToEnemies,
+		1.0f,
+		false
+	);
+}
+
+void AMyPlayerController::TeleportToEnemies()
+{
+	UE_LOG(LogTemp, Warning, TEXT("=== TELEPORTING TO ENEMIES ==="));
+	
+	UWorld* World = GetWorld();
+	if (!World)
+	{
+		UE_LOG(LogTemp, Error, TEXT("No world found"));
+		return;
+	}
+	
+	// Find the first enemy
+	for (TActorIterator<AEnemyBase> ActorItr(World); ActorItr; ++ActorItr)
+	{
+		AEnemyBase* Enemy = *ActorItr;
+		if (Enemy && IsValid(Enemy))
+		{
+			FVector EnemyLocation = Enemy->GetActorLocation();
+			FVector TeleportLocation = EnemyLocation + FVector(0, 0, 50); // Slightly above enemy
+			
+			if (APawn* PlayerPawn = GetPawn())
+			{
+				PlayerPawn->SetActorLocation(TeleportLocation);
+				UE_LOG(LogTemp, Warning, TEXT("[TELEPORT] Moved player to %s (near %s)"), 
+					*TeleportLocation.ToString(), *Enemy->GetName());
+				return;
+			}
+		}
+	}
+	
+	UE_LOG(LogTemp, Warning, TEXT("[TELEPORT] No enemies found to teleport to"));
+}
+
+void AMyPlayerController::TestCloseEnemySpawn()
+{
+	UE_LOG(LogTemp, Warning, TEXT("=== TESTING NORMAL-SIZED ENEMY SPAWN ==="));
+	
+	if (!GetWorld())
+	{
+		UE_LOG(LogTemp, Error, TEXT("No world found"));
+		return;
+	}
+
+	// JSON for normal gameplay spawn - balanced distances and sizes
+	FString TestJSON = TEXT(R"({
+		"spawnEvents": [
+			{
+				"time": 0.0,
+				"spawns": {
+					"NormalEnemy": 2,
+					"HeavyEnemy": 1,
+					"circle": [
+						{
+							"type": "RangedEnemy",
+							"count": 2,
+							"radius": 250
+						}
+					]
+				}
+			}
+		]
+	})");
+
+	// Use the helper function to spawn enemies
+	UEnemySpawnHelper::QuickSpawnEnemies(this, TestJSON, FMath::Rand());
+	UE_LOG(LogTemp, Warning, TEXT("Started NORMAL-SIZED enemy spawn - player-sized enemies with performance optimization!"));
+}
+
+void AMyPlayerController::TestAllEnemyFixes()
+{
+	UE_LOG(LogTemp, Warning, TEXT("=== TESTING ALL 3 ENEMY FIXES ==="));
+	
+	UWorld* World = GetWorld();
+	if (!World)
+	{
+		UE_LOG(LogTemp, Error, TEXT("No world found"));
+		return;
+	}
+	
+	// First spawn some enemies
+	TestCloseEnemySpawn();
+	
+	// Wait a bit then test all systems
+	FTimerHandle TestTimer;
+	GetWorldTimerManager().SetTimer(
+		TestTimer,
+		[this]()
+		{
+			UWorld* World = GetWorld();
+			if (!World) return;
+			
+			int32 TotalEnemies = 0;
+			int32 ColoredEnemies = 0;
+			int32 MovingEnemies = 0;
+			int32 DamageReadyEnemies = 0;
+			
+			for (TActorIterator<AEnemyBase> ActorItr(World); ActorItr; ++ActorItr)
+			{
+				AEnemyBase* Enemy = *ActorItr;
+				if (Enemy && IsValid(Enemy))
+				{
+					TotalEnemies++;
+					
+					// Test 1: Check colors
+					if (Enemy->VisualMesh && Enemy->VisualMesh->GetMaterial(0))
+					{
+						ColoredEnemies++;
+						UE_LOG(LogTemp, Warning, TEXT("[FIX1-COLOR] %s has colored material"), *Enemy->GetName());
+					}
+					else
+					{
+						UE_LOG(LogTemp, Error, TEXT("[FIX1-COLOR] %s missing colored material!"), *Enemy->GetName());
+					}
+					
+					// Test 2: Check movement capability
+					if (UCharacterMovementComponent* MovementComp = Enemy->GetCharacterMovement())
+					{
+						if (MovementComp->MaxWalkSpeed > 0.0f)
+						{
+							MovingEnemies++;
+							UE_LOG(LogTemp, Warning, TEXT("[FIX2-CHASE] %s can move (Speed: %.1f)"), *Enemy->GetName(), MovementComp->MaxWalkSpeed);
+						}
+						else
+						{
+							UE_LOG(LogTemp, Error, TEXT("[FIX2-CHASE] %s cannot move!"), *Enemy->GetName());
+						}
+					}
+					
+					// Test 3: Check damage system
+					if (Enemy->GetCapsuleComponent()->GetGenerateOverlapEvents())
+					{
+						DamageReadyEnemies++;
+						UE_LOG(LogTemp, Warning, TEXT("[FIX3-DAMAGE] %s ready to deal damage"), *Enemy->GetName());
+					}
+					else
+					{
+						UE_LOG(LogTemp, Error, TEXT("[FIX3-DAMAGE] %s cannot deal damage!"), *Enemy->GetName());
+					}
+				}
+			}
+			
+			UE_LOG(LogTemp, Warning, TEXT("=== ENEMY FIXES SUMMARY ==="));
+			UE_LOG(LogTemp, Warning, TEXT("Total Enemies: %d"), TotalEnemies);
+			UE_LOG(LogTemp, Warning, TEXT("FIX 1 (Colors): %d/%d working"), ColoredEnemies, TotalEnemies);
+			UE_LOG(LogTemp, Warning, TEXT("FIX 2 (Chase): %d/%d working"), MovingEnemies, TotalEnemies);
+			UE_LOG(LogTemp, Warning, TEXT("FIX 3 (Damage): %d/%d working"), DamageReadyEnemies, TotalEnemies);
+		},
+		1.0f,
+		false
+	);
 }
 
 // ============================================================================
@@ -724,4 +1141,101 @@ void AMyPlayerController::AcknowledgePossession(APawn* P)
 			}
 		}
 	}
+}
+
+void AMyPlayerController::TestCompleteFixes()
+{
+	UE_LOG(LogTemp, Warning, TEXT("=== CRASH-SAFE ENEMY TEST STARTED ==="));
+	
+	UWorld* World = GetWorld();
+	if (!World || !IsValid(World))
+	{
+		UE_LOG(LogTemp, Error, TEXT("No valid world found"));
+		return;
+	}
+	
+	// IMMEDIATE TEST - No timers to avoid crashes
+	UE_LOG(LogTemp, Warning, TEXT("TESTING EXISTING ENEMIES..."));
+	
+	int32 TotalEnemies = 0;
+	int32 ValidEnemies = 0;
+	int32 VisibleEnemies = 0;
+	int32 MovingEnemies = 0;
+	int32 TickingEnemies = 0;
+	
+	// SAFE iteration through enemies
+	for (TActorIterator<AEnemyBase> ActorItr(World); ActorItr; ++ActorItr)
+	{
+		AEnemyBase* Enemy = *ActorItr;
+		if (!Enemy)
+		{
+			continue;
+		}
+		
+		TotalEnemies++;
+		
+		// Test validity
+		if (IsValid(Enemy))
+		{
+			ValidEnemies++;
+			
+			// Test visibility (with null checks)
+			if (Enemy->VisualMesh && IsValid(Enemy->VisualMesh) && Enemy->VisualMesh->IsVisible())
+			{
+				VisibleEnemies++;
+			}
+			
+			// Test movement capability (with null checks)
+			UCharacterMovementComponent* MovementComp = Enemy->GetCharacterMovement();
+			if (MovementComp && IsValid(MovementComp) && MovementComp->MaxWalkSpeed > 0.0f)
+			{
+				MovingEnemies++;
+			}
+			
+			// Test tick capability
+			if (Enemy->IsActorTickEnabled())
+			{
+				TickingEnemies++;
+			}
+			
+			UE_LOG(LogTemp, Warning, TEXT("[SAFE] Enemy %s: Valid=%s, Visible=%s, CanMove=%s, Ticking=%s"), 
+				*Enemy->GetName(),
+				IsValid(Enemy) ? TEXT("YES") : TEXT("NO"),
+				(Enemy->VisualMesh && Enemy->VisualMesh->IsVisible()) ? TEXT("YES") : TEXT("NO"),
+				(MovementComp && MovementComp->MaxWalkSpeed > 0.0f) ? TEXT("YES") : TEXT("NO"),
+				Enemy->IsActorTickEnabled() ? TEXT("YES") : TEXT("NO"));
+		}
+	}
+	
+	UE_LOG(LogTemp, Warning, TEXT("=== SAFE TEST RESULTS ==="));
+	UE_LOG(LogTemp, Warning, TEXT("Total: %d, Valid: %d, Visible: %d, Moving: %d, Ticking: %d"), 
+		TotalEnemies, ValidEnemies, VisibleEnemies, MovingEnemies, TickingEnemies);
+	
+	// SPAWN NEW ENEMIES SAFELY
+	if (TotalEnemies == 0)
+	{
+		UE_LOG(LogTemp, Warning, TEXT("No enemies found, spawning test enemies..."));
+		TestCloseEnemySpawn();
+	}
+	
+	// Test player system safely
+	if (APawn* PlayerPawn = GetPawn())
+	{
+		if (IsValid(PlayerPawn))
+		{
+			UE_LOG(LogTemp, Warning, TEXT("Player: Valid and active at %s"), *PlayerPawn->GetActorLocation().ToString());
+			
+			if (AMyCharacter* MyChar = Cast<AMyCharacter>(PlayerPawn))
+			{
+				if (MyChar->GetHealthComponent())
+				{
+					float CurrentHP = MyChar->GetHealthComponent()->GetCurrentHealth();
+					float MaxHP = MyChar->GetHealthComponent()->GetMaxHealth();
+					UE_LOG(LogTemp, Warning, TEXT("Player Health: %.1f/%.1f HP"), CurrentHP, MaxHP);
+				}
+			}
+		}
+	}
+	
+	UE_LOG(LogTemp, Warning, TEXT("=== CRASH-SAFE TEST COMPLETED ==="));
 }

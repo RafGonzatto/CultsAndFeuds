@@ -21,107 +21,104 @@ class VAZIO_API AMyCharacter : public ACharacter
 public:
 	AMyCharacter();
 
-	// Replication
-	virtual void GetLifetimeReplicatedProps(TArray<FLifetimeProperty>& OutLifetimeProps) const override;
+public:
+	// Override TakeDamage to route damage to PlayerHealthComponent
+	virtual float TakeDamage(float DamageAmount, struct FDamageEvent const& DamageEvent, AController* EventInstigator, AActor* DamageCauser) override;
 
 protected:
 	virtual void BeginPlay() override;
 	virtual void PostInitializeComponents() override;
 	virtual void Tick(float DeltaTime) override;
-
-	// C�mera top-down
-	UPROPERTY(VisibleAnywhere, BlueprintReadOnly, Category = Camera)
-	USpringArmComponent* SpringArm = nullptr;
-
-	UPROPERTY(VisibleAnywhere, BlueprintReadOnly, Category = Camera)
-	UCameraComponent* Camera = nullptr;
-
-	// Classe do Animation Blueprint a ser usada em runtime (defina no BP)
-	UPROPERTY(EditAnywhere, BlueprintReadOnly, Category = "Custom Character|Animation")
-	TSubclassOf<UAnimInstance> AnimBPClass;
-
-	// SISTEMA DE TAUNTS �NICO - SEM FALLBACKS
-	UPROPERTY(Transient)
-	UAnimMontage* CurrentTauntMontage = nullptr;
-	float TauntInterruptGraceEndTime = 0.f;
-	bool bTauntWasSuccessfullyStarted = false;
-	
-	UFUNCTION()
-	void OnTauntMontageEnded(UAnimMontage* Montage, bool bInterrupted);
-
-	// DEBUG AVAN�ADO
-	FVector LastTickPosition;
-	float DebugUpdateTimer = 0.f;
-	int32 PositionJumpCount = 0;
-	
-	void DebugPositionTracking();
-	void ValidateComponentAlignment();
-
-	// Handler de morte do jogador
-	UFUNCTION()
-	void OnPlayerDeath();
+	virtual void GetLifetimeReplicatedProps(TArray<FLifetimeProperty>& OutLifetimeProps) const override;
 
 public:
-	/** --------------------  NEW: Health & XP  -------------------- */
-	UPROPERTY(VisibleAnywhere, BlueprintReadOnly, Category = "RPG")
-	UPlayerHealthComponent* Health = nullptr;
-
-	UPROPERTY(VisibleAnywhere, BlueprintReadOnly, Category = "RPG")
-	UXPComponent* XP = nullptr;
-
-	/** Ataque em �rea (chamado pelo PlayerController) */
-	UFUNCTION(BlueprintCallable, Category = "Combat")
-	void PerformAreaAttack(float Radius, float Damage);
-
-private:
-	/** Dano por segundo causado por inimigos em contato */
-	UPROPERTY(EditAnywhere, Category = "Combat") float ContactDPS = 5.f;
-
-	/** Sensor simples para detectar inimigos pr�ximos (apenas overlap) */
-	UPROPERTY(VisibleAnywhere, Category = "Combat") USphereComponent* DamageSense = nullptr;
-
-	/** Conjunto de inimigos atualmente em contato */
-	TSet<TWeakObjectPtr<AActor>> ContactingEnemies;
-
-	UFUNCTION()
-	void OnSenseBegin(UPrimitiveComponent* OverlappedComp, AActor* OtherActor, UPrimitiveComponent* OtherComp, int32 OtherBodyIndex, bool bFromSweep, const FHitResult& SweepResult);
-	UFUNCTION()
-	void OnSenseEnd(UPrimitiveComponent* OverlappedComp, AActor* OtherActor, UPrimitiveComponent* OtherComp, int32 OtherBodyIndex);
-
-public:
-	// Assets de configura��o
+	// Assets de configuração
 	UPROPERTY(EditAnywhere, BlueprintReadOnly, Category = "Custom Character")
 	USkeletalMesh* CustomSkeletalMesh = nullptr;
 
 	UPROPERTY(EditAnywhere, BlueprintReadOnly, Category = "Custom Character")
-	UAnimMontage* AnimMontage1 = nullptr;
+	TSubclassOf<UAnimInstance> CustomAnimInstance;
 
 	UPROPERTY(EditAnywhere, BlueprintReadOnly, Category = "Custom Character")
-	UAnimMontage* AnimMontage2 = nullptr;
+	USkeletalMesh* WeaponMesh = nullptr;
 
-	// SISTEMA �NICO E DEFINITIVO - SEM FALLBACKS
-	UFUNCTION(BlueprintCallable, Category = "Custom Character")
-	void PlayAnim1();
+	UPROPERTY(EditAnywhere, BlueprintReadOnly, Category = "Custom Character")
+	UAnimMontage* AttackMontage = nullptr;
 
-	UFUNCTION(BlueprintCallable, Category = "Custom Character")
-	void PlayAnim2();
+	UPROPERTY(EditAnywhere, BlueprintReadOnly, Category = "Custom Character")
+	float AttackDamage = 20.0f;
 
-	UFUNCTION(BlueprintCallable, Category = "Custom Character")
-	void InterruptTaunt(float BlendOutTime = 0.2f);
-	
-	UFUNCTION(BlueprintCallable, Category = "Custom Character")
-	bool HasActiveTaunt() const;
+	UPROPERTY(EditAnywhere, BlueprintReadOnly, Category = "Custom Character")
+	float AttackRange = 200.0f;
 
-	// COMANDOS DE DEBUG
-	UFUNCTION(Exec)
-	void CharDump();
-	
-	UFUNCTION(Exec)
-	void DebugRootMotion();
-	
-	UFUNCTION(Exec)
-	void ForceIgnoreRootMotion();
-	
-	UFUNCTION(Exec)
-	void ValidateSetup();
+protected:
+	// Camera components
+	UPROPERTY(VisibleAnywhere, BlueprintReadOnly, Category = "Camera")
+	USpringArmComponent* SpringArmComponent;
+
+	UPROPERTY(VisibleAnywhere, BlueprintReadOnly, Category = "Camera")
+	UCameraComponent* CameraComponent;
+
+	// Health and XP components
+	UPROPERTY(VisibleAnywhere, BlueprintReadOnly, Category = "Player Stats")
+	UPlayerHealthComponent* HealthComponent;
+
+	UPROPERTY(VisibleAnywhere, BlueprintReadOnly, Category = "Player Stats")
+	UXPComponent* XPComponent;
+
+	// Damage detection sphere
+	UPROPERTY(VisibleAnywhere, BlueprintReadOnly, Category = "Combat")
+	USphereComponent* DamageSphere;
+
+public:
+	// Input handling
+	virtual void SetupPlayerInputComponent(class UInputComponent* PlayerInputComponent) override;
+
+	// Movement input functions
+	void MoveForward(float Value);
+	void MoveRight(float Value);
+	void Turn(float Value);
+	void LookUp(float Value);
+
+	// Combat functions
+	void Attack();
+	void PerformAttack();
+
+	// Utility functions
+	UFUNCTION(BlueprintCallable, Category = "Player Stats")
+	float GetCurrentHealth() const;
+
+	UFUNCTION(BlueprintCallable, Category = "Player Stats")
+	float GetMaxHealth() const;
+
+	UFUNCTION(BlueprintCallable, Category = "Player Stats")
+	float GetCurrentXP() const;
+
+	UFUNCTION(BlueprintCallable, Category = "Player Stats")
+	int32 GetCurrentLevel() const;
+
+	UFUNCTION(BlueprintCallable, Category = "Combat")
+	void TakeDamageFromEnemy(float Damage);
+
+	// Overlap functions for damage detection
+	UFUNCTION()
+	void OnOverlapBegin(UPrimitiveComponent* OverlappedComp, AActor* OtherActor, UPrimitiveComponent* OtherComp, int32 OtherBodyIndex, bool bFromSweep, const FHitResult& SweepResult);
+
+	UFUNCTION()
+	void OnOverlapEnd(UPrimitiveComponent* OverlappedComp, AActor* OtherActor, UPrimitiveComponent* OtherComp, int32 OtherBodyIndex);
+
+	// Getters for components
+	FORCEINLINE UPlayerHealthComponent* GetHealthComponent() const { return HealthComponent; }
+	FORCEINLINE UXPComponent* GetXPComponent() const { return XPComponent; }
+
+private:
+	bool bIsAttacking = false;
+	FTimerHandle AttackTimerHandle;
+
+	// Network replication
+	UPROPERTY(ReplicatedUsing = OnRep_Health)
+	float CurrentHealth;
+
+	UFUNCTION()
+	void OnRep_Health();
 };

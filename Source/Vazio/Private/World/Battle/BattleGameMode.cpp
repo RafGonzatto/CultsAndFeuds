@@ -16,6 +16,14 @@
 #include "Components/SkyLightComponent.h"
 #include "NavigationSystem.h"
 
+// Enemy System Integration
+#include "Enemy/EnemySpawnerSubsystem.h"
+#include "Enemy/EnemyConfig.h"
+#include "Enemy/EnemySpawnHelper.h"
+
+// Old Swarm System (for disabling)
+#include "Swarm/SwarmSubsystem.h"
+
 ABattleGameMode::ABattleGameMode()
 {
     DefaultPawnClass = AMyCharacter::StaticClass();
@@ -56,6 +64,21 @@ void ABattleGameMode::BeginPlay()
         Nav->Build();
         UE_LOG(LogTemp, Display, TEXT("[BattleGM] Requested NavMesh rebuild"));
     }
+
+    // Initialize new enemy system and disable old swarm system
+    InitializeEnemySystem();
+    DisableOldSwarmSystem();
+    
+    // Auto-start the first wave after a small delay to ensure everything is initialized
+    FTimerHandle AutoStartTimer;
+    GetWorldTimerManager().SetTimer(
+        AutoStartTimer,
+        this,
+        &ABattleGameMode::StartTestWave,
+        2.0f, // 2 second delay
+        false
+    );
+    UE_LOG(LogTemp, Warning, TEXT("[BattleGM] Auto-starting first wave in 2 seconds..."));
 }
 
 void ABattleGameMode::CreatePlayerStartIfNeeded()
@@ -187,4 +210,109 @@ AfterDirectional:
             C->SetLightColor(FLinearColor(0.6f, 0.7f, 1.0f));
         }
     }
+}
+
+void ABattleGameMode::InitializeEnemySystem()
+{
+    UEnemySpawnerSubsystem* SpawnerSubsystem = GetWorld()->GetSubsystem<UEnemySpawnerSubsystem>();
+    if (!SpawnerSubsystem)
+    {
+        UE_LOG(LogTemp, Error, TEXT("[BattleGM] Could not get EnemySpawnerSubsystem"));
+        return;
+    }
+
+    // Create or use existing enemy config
+    if (!DefaultEnemyConfig)
+    {
+        DefaultEnemyConfig = UEnemyConfig::CreateDefaultConfig();
+        UE_LOG(LogTemp, Log, TEXT("[BattleGM] Created default enemy config"));
+    }
+
+    SpawnerSubsystem->SetEnemyConfig(DefaultEnemyConfig);
+    UE_LOG(LogTemp, Warning, TEXT("[BattleGM] Enemy system initialized - old swarm system disabled"));
+}
+
+void ABattleGameMode::DisableOldSwarmSystem()
+{
+    UWorld* World = GetWorld();
+    if (!World) return;
+
+    // AGGRESSIVE SHUTDOWN: Find and destroy SwarmManager actors
+    TArray<AActor*> ActorsToDestroy;
+    for (TActorIterator<AActor> It(World); It; ++It)
+    {
+        AActor* Actor = *It;
+        if (Actor && (Actor->GetClass()->GetName().Contains(TEXT("SwarmManager")) || 
+                      Actor->GetClass()->GetName().Contains(TEXT("BP_SwarmManager"))))
+        {
+            ActorsToDestroy.Add(Actor);
+            UE_LOG(LogTemp, Warning, TEXT("[BattleGM] Marked SwarmManager for destruction: %s"), *Actor->GetName());
+        }
+    }
+    
+    // Destroy all SwarmManager actors
+    for (AActor* Actor : ActorsToDestroy)
+    {
+        Actor->SetActorTickEnabled(false);
+        Actor->SetActorHiddenInGame(true);
+        Actor->Destroy();
+        UE_LOG(LogTemp, Warning, TEXT("[BattleGM] DESTROYED SwarmManager: %s"), *Actor->GetName());
+    }
+    
+    // Also disable SwarmSubsystem directly
+    if (USwarmSubsystem* SwarmSS = World->GetSubsystem<USwarmSubsystem>())
+    {
+        SwarmSS->Deinitialize();
+        UE_LOG(LogTemp, Warning, TEXT("[BattleGM] DISABLED SwarmSubsystem directly"));
+    }
+}
+
+void ABattleGameMode::StartEnemyWave(const FString& JSONWaveData, int32 Seed)
+{
+    UEnemySpawnHelper::QuickSpawnEnemies(this, JSONWaveData, Seed);
+    UE_LOG(LogTemp, Warning, TEXT("[BattleGM] Started enemy wave with seed %d"), Seed);
+}
+
+void ABattleGameMode::StartDefaultWave()
+{
+    FString DefaultWaveJSON = UEnemySpawnHelper::GetExampleJSON();
+    StartEnemyWave(DefaultWaveJSON, FMath::Rand());
+}
+
+void ABattleGameMode::StartTestWave()
+{
+    // CORRECT JSON FORMAT for SpawnTimeline system
+    FString TestWaveJSON = TEXT(R"({
+        "spawnEvents": [
+            {
+                "time": 0.0,
+                "spawns": {
+                    "NormalEnemy": {
+                        "count": 3,
+                        "big": true
+                    },
+                    "circle": [
+                        {
+                            "type": "HeavyEnemy",
+                            "count": 2,
+                            "radius": 400
+                        }
+                    ]
+                }
+            },
+            {
+                "time": 5.0,
+                "spawns": {
+                    "RangedEnemy": 5,
+                    "DashEnemy": {
+                        "count": 2,
+                        "big": false
+                    }
+                }
+            }
+        ]
+    })");
+
+    StartEnemyWave(TestWaveJSON, FMath::Rand());
+    UE_LOG(LogTemp, Warning, TEXT("[BattleGM] Started test wave from JSON"));
 }

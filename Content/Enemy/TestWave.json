@@ -1,0 +1,83 @@
+{
+  "spawnEvents": [
+    {
+      "time": 0.0,
+      "pattern": "linear",
+      "spawns": [
+        {
+          "type": "Normal",
+          "count": 3,
+          "range": [200, 500],
+          "modifiers": {
+            "big": true
+          }
+        }
+      ]
+    },
+    {
+      "time": 5.0,
+      "pattern": "circle",
+      "spawns": [
+        {
+          "type": "Heavy",
+          "count": 2,
+          "range": [300, 600],
+          "modifiers": {
+            "immovable": true
+          }
+        }
+      ]
+    },
+    {
+      "time": 10.0,
+      "pattern": "linear",
+      "spawns": [
+        {
+          "type": "Ranged",
+          "count": 4,
+          "range": [400, 800]
+        },
+        {
+          "type": "Gold",
+          "count": 1,
+          "range": [200, 300],
+          "modifiers": {
+            "big": true,
+            "dissolveSeconds": 15.0
+          }
+        }
+      ]
+    },
+    {
+      "time": 15.0,
+      "pattern": "circle",
+      "spawns": [
+        {
+          "type": "Dash",
+          "count": 3,
+          "range": [350, 500]
+        }
+      ]
+    },
+    {
+      "time": 20.0,
+      "pattern": "linear",
+      "spawns": [
+        {
+          "type": "Aura",
+          "count": 1,
+          "range": [400, 600],
+          "modifiers": {
+            "big": true,
+            "immovable": true
+          }
+        },
+        {
+          "type": "SplitterSlime",
+          "count": 2,
+          "range": [300, 500]
+        }
+      ]
+    }
+  ]
+}
