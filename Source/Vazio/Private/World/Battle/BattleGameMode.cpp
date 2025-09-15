@@ -259,11 +259,11 @@ void ABattleGameMode::DisableOldSwarmSystem()
         UE_LOG(LogTemp, Warning, TEXT("[BattleGM] DESTROYED SwarmManager: %s"), *Actor->GetName());
     }
     
-    // Also disable SwarmSubsystem directly
+    // Also disable SwarmSubsystem directly (without deinitializing engine-managed subsystem)
     if (USwarmSubsystem* SwarmSS = World->GetSubsystem<USwarmSubsystem>())
     {
-        SwarmSS->Deinitialize();
-        UE_LOG(LogTemp, Warning, TEXT("[BattleGM] DISABLED SwarmSubsystem directly"));
+        SwarmSS->Disable();
+        UE_LOG(LogTemp, Warning, TEXT("[BattleGM] DISABLED SwarmSubsystem (soft)"));
     }
 }
 

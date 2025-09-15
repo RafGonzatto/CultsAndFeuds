@@ -19,6 +19,7 @@
 #include "Components/StaticMeshComponent.h"
 #include "Materials/MaterialInstanceDynamic.h"
 #include "World/Battle/BattleGameMode.h"
+#include "UI/Widgets/SPauseMenuSlate.h" // Added include for pause menu slate
 
 #include "EnhancedInputSubsystems.h"
 #include "EnhancedInputComponent.h"
@@ -31,16 +32,25 @@
 #include "Animation/AnimInstance.h"
 #include "Animation/AnimMontage.h"
 #include "Camera/CameraComponent.h"
-
-#include "Engine/LocalPlayer.h"
-#include "GameFramework/PlayerInput.h"
-#include "InputCoreTypes.h"
-#include "InputModifiers.h"
-#include "Blueprint/UserWidget.h"
-#include "UObject/ConstructorHelpers.h"
+// Navigation for click-to-move
+#include "NavigationSystem.h"
+#include "NavigationPath.h"
 #include "Kismet/GameplayStatics.h"
+// Helper local para mover player sem SimpleMoveToLocation
+static void MovePawnDirect(APawn* Pawn, const FVector& Goal)
+{
+    if (!Pawn) return; 
+    if (UCharacterMovementComponent* CMC = Pawn->FindComponentByClass<UCharacterMovementComponent>())
+    {
+        const FVector Dir = (Goal - Pawn->GetActorLocation());
+        FVector Flat = Dir; Flat.Z = 0.f; 
+        if (!Flat.IsNearlyZero())
+        {
+            Pawn->AddMovementInput(Flat.GetSafeNormal(), 1.f);
+        }
+    }
+}
 
-// Categoria de log para UI do player (diferente do LogUI no PlayerHUDWidget)
 DEFINE_LOG_CATEGORY_STATIC(LogPlayerUI, Log, All);
 
 AMyPlayerController::AMyPlayerController()
@@ -60,8 +70,9 @@ void AMyPlayerController::BeginPlay()
 {
 	Super::BeginPlay();
 
-	IgnoreClickUntilTime = GetWorld() ? GetWorld()->GetTimeSeconds() + 0.25f : 0.f;
-	bClickGuardActive = true;
+    // Make click-to-move responsive immediately
+    IgnoreClickUntilTime = 0.f;
+    bClickGuardActive = false;
 
 	FInputModeGameOnly GameOnly;
 	SetInputMode(GameOnly);
@@ -90,6 +101,9 @@ void AMyPlayerController::BeginPlay()
 	// Novo: Interact
 	InteractAction = NewObject<UInputAction>(this, TEXT("IA_Interact"));
 	InteractAction->ValueType = EInputActionValueType::Boolean;
+	// Novo: Pause
+	PauseAction = NewObject<UInputAction>(this, TEXT("IA_Pause"));
+	PauseAction->ValueType = EInputActionValueType::Boolean;
 
 	Mapping->MapKey(MoveForwardAction, EKeys::W);
 	{
@@ -107,6 +121,8 @@ void AMyPlayerController::BeginPlay()
 	Mapping->MapKey(SprintAction, EKeys::LeftShift);
 	// Novo: mapear Interact no Enhanced Input
 	Mapping->MapKey(InteractAction, EKeys::E);
+	// Novo: mapear Pause no Enhanced Input
+	Mapping->MapKey(PauseAction, EKeys::Escape);
 
 	Subsys->ClearAllMappings();
 	Subsys->AddMappingContext(Mapping, 100);
@@ -125,6 +141,8 @@ void AMyPlayerController::BeginPlay()
 		EIC->BindAction(SprintAction, ETriggerEvent::Completed, this, &AMyPlayerController::OnSprintEnd);
 		// Novo: binding Enhanced para Interact
 		EIC->BindAction(InteractAction, ETriggerEvent::Started, this, &AMyPlayerController::OnInteract);
+		// Novo: binding Enhanced para Pause
+		EIC->BindAction(PauseAction, ETriggerEvent::Started, this, &AMyPlayerController::OnPauseAction);
 	}
 
 	if (InputComponent)
@@ -257,32 +275,36 @@ void AMyPlayerController::HandleInteract()
 
 void AMyPlayerController::OnMoveForward(const FInputActionValue& Value)
 {
-	ForwardInput = Value.Get<float>();
-	
-	// Cancelar click-to-move imediatamente
-	if (FMath::Abs(ForwardInput) > 0.01f)
-	{
-		if (bIsMovingToTarget)
-		{
-			bIsMovingToTarget = false;
-			UE_LOG(LogTemp, Log, TEXT("[PC] Click-to-move cancelado - input forward"));
-		}
-	}
+    ForwardInput = Value.Get<float>();
+    
+    // Cancelar click-to-move imediatamente
+    if (FMath::Abs(ForwardInput) > 0.01f)
+    {
+        if (bIsMovingToTarget)
+        {
+            bIsMovingToTarget = false;
+            UE_LOG(LogTemp, Log, TEXT("[PC] Click-to-move cancelado - input forward"));
+        }
+        // Stop any nav path following when player takes manual control
+        StopMovement();
+    }
 }
 
 void AMyPlayerController::OnMoveRight(const FInputActionValue& Value)
 {
-	RightInput = Value.Get<float>();
-	
-	// Cancelar click-to-move imediatamente
-	if (FMath::Abs(RightInput) > 0.01f)
-	{
-		if (bIsMovingToTarget)
-		{
-			bIsMovingToTarget = false;
-			UE_LOG(LogTemp, Log, TEXT("[PC] Click-to-move cancelado - input right"));
-		}
-	}
+    RightInput = Value.Get<float>();
+    
+    // Cancelar click-to-move imediatamente
+    if (FMath::Abs(RightInput) > 0.01f)
+    {
+        if (bIsMovingToTarget)
+        {
+            bIsMovingToTarget = false;
+            UE_LOG(LogTemp, Log, TEXT("[PC] Click-to-move cancelado - input right"));
+        }
+        // Stop any nav path following when player takes manual control
+        StopMovement();
+    }
 }
 
 void AMyPlayerController::OnMoveForwardCompleted(const FInputActionValue& Value)
@@ -399,10 +421,17 @@ void AMyPlayerController::ProcessMovement(float DeltaTime)
 			MovementComp->MaxWalkSpeed = TargetSpeed; // Aplicação direta
 		}
 
-		// APLICAR MOVIMENTO – usando Strength do input (sem turbo nas diagonais)
-		const FVector2D Axes(ForwardInput, RightInput);
-		const float Strength = FMath::Clamp(Axes.Size(), 0.f, 1.f);
-		MyPawn->AddMovementInput(MovementDirection, Strength);
+		// APLICAR MOVIMENTO - calcular strength apropriada
+		float InputStrength = 1.0f; // Default para click-to-move
+		
+		// Se há input WASD, usar a intensidade real do input
+		if (FMath::Abs(ForwardInput) > 0.01f || FMath::Abs(RightInput) > 0.01f)
+		{
+			const FVector2D Axes(ForwardInput, RightInput);
+			InputStrength = FMath::Clamp(Axes.Size(), 0.f, 1.f);
+		}
+		
+		MyPawn->AddMovementInput(MovementDirection, InputStrength);
 	}
 	else if (!bIsMovingToTarget)
 	{
@@ -498,8 +527,45 @@ void AMyPlayerController::OnLeftMouseRelease()
 
 void AMyPlayerController::MovePlayerToLocation(FVector TargetLocation)
 {
-	CurrentMoveTarget = TargetLocation;
-	bIsMovingToTarget = true;
+    APawn* MyPawn = GetPawn();
+    UWorld* World = GetWorld();
+    if (!MyPawn || !World)
+    {
+        CurrentMoveTarget = TargetLocation;
+        bIsMovingToTarget = true;
+        return;
+    }
+
+    StopMovement();
+
+    FVector MoveGoal = TargetLocation;
+    if (UNavigationSystemV1* Nav = FNavigationSystem::GetCurrent<UNavigationSystemV1>(World))
+    {
+        FNavLocation Projected;
+        const FVector QueryExtent(300.f, 300.f, 500.f);
+        if (Nav->ProjectPointToNavigation(TargetLocation, Projected, QueryExtent))
+        {
+            MoveGoal = Projected.Location;
+        }
+
+        if (UNavigationPath* Path = Nav->FindPathToLocationSynchronously(World, MyPawn->GetActorLocation(), MoveGoal))
+        {
+            if (Path->IsValid())
+            {
+                if (Path->IsPartial() && Path->PathPoints.Num() > 0)
+                {
+                    MoveGoal = Path->PathPoints.Last();
+                }
+                // Em versões onde SimpleMoveToLocation não está disponível para PlayerController, usar fallback manual
+                CurrentMoveTarget = MoveGoal;
+                bIsMovingToTarget = true; // ProcessMovement fará aproximação
+                return;
+            }
+        }
+    }
+
+    CurrentMoveTarget = MoveGoal;
+    bIsMovingToTarget = true;
 }
 
 // ============================================================================
@@ -527,6 +593,40 @@ void AMyPlayerController::OnAnim2Action(const FInputActionValue& Value)
 	{
 		UE_LOG(LogTemp, Warning, TEXT("[PC] Executando Ctrl+2 - Debug Animation"));
 		// Animation debug function removed
+	}
+}
+
+// ============================================================================
+// SISTEMA DE PAUSA
+// ============================================================================
+
+void AMyPlayerController::OnPauseAction(const FInputActionValue& Value)
+{
+	if (!Value.Get<bool>()) return;
+	
+	UE_LOG(LogTemp, Log, TEXT("[PC] ESC pressed - Toggling pause menu"));
+	TogglePauseMenu();
+}
+
+void AMyPlayerController::TogglePauseMenu()
+{
+	UWorld* World = GetWorld();
+	if (!World)
+	{
+		UE_LOG(LogTemp, Error, TEXT("[PC] TogglePauseMenu: No valid world"));
+		return;
+	}
+
+	// Check if pause menu is already visible
+	if (SPauseMenuSlate::IsPauseMenuVisible(World))
+	{
+		UE_LOG(LogTemp, Log, TEXT("[PC] Hiding pause menu"));
+		SPauseMenuSlate::HidePauseMenu(World);
+	}
+	else
+	{
+		UE_LOG(LogTemp, Log, TEXT("[PC] Showing pause menu"));
+		SPauseMenuSlate::ShowPauseMenu(World);
 	}
 }
 

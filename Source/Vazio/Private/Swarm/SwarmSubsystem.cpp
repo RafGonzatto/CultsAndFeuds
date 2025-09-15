@@ -13,6 +13,9 @@
 #include "Algo/Accumulate.h"
 using namespace SwarmCore;
 
+void USwarmSubsystem::Disable() { bDisabled = true; DestroyCore(); Manager.Reset(); Cfg = nullptr; Visibility = nullptr; }
+void USwarmSubsystem::DestroyCore(){ if(Core){ delete Core; Core=nullptr; } }
+
 
 void USwarmSubsystem::Initialize(FSubsystemCollectionBase& Collection)
 {
@@ -58,6 +61,7 @@ void USwarmSubsystem::BuildVisuals() { if (!Manager.IsValid() || !Cfg) return; M
 
 
 void USwarmSubsystem::Tick(float Dt) {
+    if (bDisabled) { return; }
     UE_LOG(LogSwarm, VeryVerbose, TEXT("[SwarmTick] Tick dt=%.3f"), Dt);
     if (!Manager.IsValid())
     {
@@ -322,5 +326,4 @@ int32 USwarmSubsystem::ApplyRadialDamage(const FVector& Origin, float Radius, fl
     UE_LOG(LogSwarm, Display, TEXT("[SwarmDamage] Ataque radial Origin=(%.0f,%.0f,%.0f) R=%.0f Dmg=%.0f -> %d inimigos afetados"), Origin.X, Origin.Y, Origin.Z, Radius, DamagePerEnemy, HitCount);
     return HitCount;
 }
-
 

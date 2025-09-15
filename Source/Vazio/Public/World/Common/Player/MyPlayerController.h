@@ -3,6 +3,7 @@
 #include "CoreMinimal.h"
 #include "GameFramework/PlayerController.h"
 #include "InputActionValue.h"
+#include "UI/Widgets/SPauseMenuSlate.h" // Added include to ensure visibility of SPauseMenuSlate static API
 
 class UInputMappingContext;
 class UInputAction;
@@ -57,6 +58,7 @@ private:
 	UPROPERTY() UInputAction* Anim2Action = nullptr;
 	UPROPERTY() UInputAction* SprintAction = nullptr;
 	UPROPERTY() UInputAction* InteractAction = nullptr; // Enhanced Input: Interact
+	UPROPERTY() UInputAction* PauseAction = nullptr; // Enhanced Input: Pause (ESC)
 
 	// Input Handlers WASD - SISTEMA SIMPLIFICADO
 	void OnMoveForward(const FInputActionValue& Value);
@@ -84,6 +86,10 @@ private:
 	// Atalhos Ctrl+1/Ctrl+2 - SISTEMA DIRETO
 	UFUNCTION() void OnAnim1Action(const FInputActionValue& Value);
 	UFUNCTION() void OnAnim2Action(const FInputActionValue& Value);
+
+	// Pause Menu - SISTEMA DE PAUSA
+	UFUNCTION() void OnPauseAction(const FInputActionValue& Value);
+	void TogglePauseMenu();
 
 	// Debug
 	UFUNCTION() void IncreaseWalkSpeed();

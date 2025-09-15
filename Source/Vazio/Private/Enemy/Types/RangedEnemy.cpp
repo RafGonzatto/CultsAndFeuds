@@ -141,7 +141,11 @@ void ARangedEnemy::FireProjectile()
     SpawnParams.Instigator = this;
     SpawnParams.SpawnCollisionHandlingOverride = ESpawnActorCollisionHandlingMethod::AdjustIfPossibleButAlwaysSpawn;
 
-    TSubclassOf<AActor> ClassToSpawn = ProjectileClass ? ProjectileClass : ARangedProjectile::StaticClass();
+    TSubclassOf<AActor> ClassToSpawn = ProjectileClass;
+    if (!ClassToSpawn)
+    {
+        ClassToSpawn = ARangedProjectile::StaticClass();
+    }
     if (ClassToSpawn)
     {
         if (AActor* NewProjectile = GetWorld()->SpawnActor<AActor>(ClassToSpawn, StartLocation, SpawnRotation, SpawnParams))
