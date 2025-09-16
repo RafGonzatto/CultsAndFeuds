@@ -10,7 +10,9 @@ enum class ESwarmUpgradeType : uint8
 {
     HealthBoost = 0,
     SpeedBoost,
-    XPMultiplier
+    XPMultiplier,
+    WeaponPistol,
+    WeaponSpinningSaws
 };
 
 USTRUCT()
@@ -56,6 +58,7 @@ private:
     void CloseLevelUpUI();
     void ApplyUpgrade(ESwarmUpgradeType UpgradeType);
     TArray<FSwarmUpgrade> GetRandomUpgrades(int32 Count);
+    void RefreshUpgradeDisplayData(FSwarmUpgrade& Upgrade) const;
     FSwarmUpgrade* FindUpgrade(ESwarmUpgradeType Type);
 
 private:

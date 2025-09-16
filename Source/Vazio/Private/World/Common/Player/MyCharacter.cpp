@@ -9,9 +9,12 @@
 #include "World/Common/Enemy/EnemyHealthComponent.h"
 #include "Engine/Engine.h"
 #include "Engine/DamageEvents.h"
+#include "Engine/World.h"
 #include "Net/UnrealNetwork.h"
 #include "CollisionQueryParams.h"
 #include "DrawDebugHelpers.h"
+#include "Swarm/Weapons/SwarmWeaponBase.h"
+#include "Engine/EngineTypes.h"
 
 DEFINE_LOG_CATEGORY_STATIC(LogPlayerHealth, Log, All);
 DEFINE_LOG_CATEGORY_STATIC(LogXP, Log, All);
@@ -75,6 +78,7 @@ AMyCharacter::AMyCharacter()
 	// Replication
 	bReplicates = true;
 	SetReplicateMovement(true);
+
 }
 
 void AMyCharacter::PostInitializeComponents()
@@ -108,6 +112,110 @@ void AMyCharacter::BeginPlay()
 		GetMesh()->SetAnimationMode(EAnimationMode::AnimationBlueprint);
 		GetMesh()->SetAnimInstanceClass(CustomAnimInstance);
 	}
+
+	SpawnDefaultWeapons();
+}
+
+void AMyCharacter::SpawnDefaultWeapons()
+{
+	if (!IsInSwarmBattleLevel())
+	{
+		return;
+	}
+
+	if (StartingWeapons.Num() == 0)
+	{
+		return;
+	}
+
+	EquippedWeapons.RemoveAll([](const TObjectPtr<ASwarmWeaponBase>& WeaponPtr)
+	{
+		return !IsValid(WeaponPtr.Get());
+	});
+
+	for (const TSubclassOf<ASwarmWeaponBase>& WeaponClass : StartingWeapons)
+	{
+		AddWeapon(WeaponClass);
+	}
+}
+
+ASwarmWeaponBase* AMyCharacter::AddWeapon(TSubclassOf<ASwarmWeaponBase> WeaponClass)
+{
+	if (!WeaponClass)
+	{
+		return nullptr;
+	}
+
+	if (!IsInSwarmBattleLevel())
+	{
+		return nullptr;
+	}
+
+	EquippedWeapons.RemoveAll([](const TObjectPtr<ASwarmWeaponBase>& WeaponPtr)
+	{
+		return !IsValid(WeaponPtr.Get());
+	});
+
+	if (ASwarmWeaponBase* ExistingWeapon = FindWeaponByClass(WeaponClass))
+	{
+		return ExistingWeapon;
+	}
+
+	UWorld* World = GetWorld();
+	if (!World)
+	{
+		return nullptr;
+	}
+
+	FActorSpawnParameters SpawnParams;
+	SpawnParams.Owner = this;
+	SpawnParams.Instigator = this;
+	SpawnParams.SpawnCollisionHandlingOverride = ESpawnActorCollisionHandlingMethod::AlwaysSpawn;
+
+	ASwarmWeaponBase* NewWeapon = World->SpawnActor<ASwarmWeaponBase>(WeaponClass, GetActorLocation(), GetActorRotation(), SpawnParams);
+	if (!IsValid(NewWeapon))
+	{
+		return nullptr;
+	}
+
+	NewWeapon->InitializeWeapon(this);
+	EquippedWeapons.Add(NewWeapon);
+
+	return NewWeapon;
+}
+
+ASwarmWeaponBase* AMyCharacter::FindWeaponByClass(TSubclassOf<ASwarmWeaponBase> WeaponClass) const
+{
+	if (!WeaponClass)
+	{
+		return nullptr;
+	}
+
+	for (const TObjectPtr<ASwarmWeaponBase>& WeaponPtr : EquippedWeapons)
+	{
+		ASwarmWeaponBase* Weapon = WeaponPtr.Get();
+		if (IsValid(Weapon) && Weapon->GetClass() == WeaponClass)
+		{
+			return Weapon;
+		}
+	}
+
+	return nullptr;
+}
+
+bool AMyCharacter::HasWeaponOfClass(TSubclassOf<ASwarmWeaponBase> WeaponClass) const
+{
+	return FindWeaponByClass(WeaponClass) != nullptr;
+}
+
+bool AMyCharacter::IsInSwarmBattleLevel() const
+{
+	if (const UWorld* World = GetWorld())
+	{
+		return World->GetMapName().Contains(TEXT("Battle_Main"));
+	}
+
+	return false;
 }
 
 void AMyCharacter::Tick(float DeltaTime)

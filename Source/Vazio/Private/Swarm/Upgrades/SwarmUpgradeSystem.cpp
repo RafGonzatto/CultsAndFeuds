@@ -1,10 +1,12 @@
-
 #include "Swarm/Upgrades/SwarmUpgradeSystem.h"
 #include "UI/LevelUp/SLevelUpModal.h"
 #include "World/Common/Player/MyCharacter.h"
 #include "World/Common/Player/PlayerHealthComponent.h"
 #include "World/Common/Player/XPComponent.h"
 #include "GameFramework/CharacterMovementComponent.h"
+#include "Swarm/Weapons/SwarmWeaponBase.h"
+#include "Swarm/Weapons/SwarmPistolWeapon.h"
+#include "Swarm/Weapons/SwarmSpinningSawsWeapon.h"
 #include "Kismet/GameplayStatics.h"
 #include "Engine/World.h"
 #include "Engine/GameViewportClient.h"
@@ -13,29 +15,11 @@
 USwarmUpgradeSystem::USwarmUpgradeSystem()
 {
     // Initialize upgrade definitions
-    FSwarmUpgrade HealthUpgrade;
-    HealthUpgrade.Type = ESwarmUpgradeType::HealthBoost;
-    HealthUpgrade.Title = TEXT("+10 HP");
-    HealthUpgrade.Description = TEXT("Aumenta vida maxima em 10 e cura 10 HP");
-    HealthUpgrade.IconColor = FLinearColor::Red;
-    HealthUpgrade.Value = 10.0f;
-    AvailableUpgrades.Add(HealthUpgrade);
-
-    FSwarmUpgrade SpeedUpgrade;
-    SpeedUpgrade.Type = ESwarmUpgradeType::SpeedBoost;
-    SpeedUpgrade.Title = TEXT("+5% Velocidade");
-    SpeedUpgrade.Description = TEXT("Aumenta velocidade de movimento em 5%");
-    SpeedUpgrade.IconColor = FLinearColor::Green;
-    SpeedUpgrade.Value = 0.05f;
-    AvailableUpgrades.Add(SpeedUpgrade);
-
-    FSwarmUpgrade XPUpgrade;
-    XPUpgrade.Type = ESwarmUpgradeType::XPMultiplier;
-    XPUpgrade.Title = TEXT("XP +1 por orbe");
-    XPUpgrade.Description = TEXT("Cada orbe de XP vale +1 adicional");
-    XPUpgrade.IconColor = FLinearColor::Blue;
-    XPUpgrade.Value = 1.0f;
-    AvailableUpgrades.Add(XPUpgrade);
+    FSwarmUpgrade HealthUpgrade; HealthUpgrade.Type = ESwarmUpgradeType::HealthBoost; HealthUpgrade.Title = TEXT("+10 HP"); HealthUpgrade.Description = TEXT("Aumenta vida maxima em 10 e cura 10 HP"); HealthUpgrade.IconColor = FLinearColor::Red; HealthUpgrade.Value = 10.0f; AvailableUpgrades.Add(HealthUpgrade);
+    FSwarmUpgrade SpeedUpgrade; SpeedUpgrade.Type = ESwarmUpgradeType::SpeedBoost; SpeedUpgrade.Title = TEXT("+5% Velocidade"); SpeedUpgrade.Description = TEXT("Aumenta velocidade de movimento em 5%"); SpeedUpgrade.IconColor = FLinearColor::Green; SpeedUpgrade.Value = 0.05f; AvailableUpgrades.Add(SpeedUpgrade);
+    FSwarmUpgrade XPUpgrade; XPUpgrade.Type = ESwarmUpgradeType::XPMultiplier; XPUpgrade.Title = TEXT("XP +1 por orbe"); XPUpgrade.Description = TEXT("Cada orbe de XP vale +1 adicional"); XPUpgrade.IconColor = FLinearColor::Blue; XPUpgrade.Value = 1.0f; AvailableUpgrades.Add(XPUpgrade);
+    FSwarmUpgrade PistolUpgrade; PistolUpgrade.Type = ESwarmUpgradeType::WeaponPistol; PistolUpgrade.Title = TEXT("Desbloquear Pistola"); PistolUpgrade.Description = TEXT("Desbloqueia a pistola. Depois concede +5 de dano"); PistolUpgrade.IconColor = FLinearColor::Yellow; PistolUpgrade.Value = 5.0f; AvailableUpgrades.Add(PistolUpgrade);
+    FSwarmUpgrade SawUpgrade; SawUpgrade.Type = ESwarmUpgradeType::WeaponSpinningSaws; SawUpgrade.Title = TEXT("Desbloquear Serras"); SawUpgrade.Description = TEXT("Desbloqueia serras giratorias. Depois concede +4 de dano"); SawUpgrade.IconColor = FLinearColor(0.75f, 0.75f, 0.75f, 1.0f); SawUpgrade.Value = 4.0f; AvailableUpgrades.Add(SawUpgrade);
 }
 
 void USwarmUpgradeSystem::Initialize(APlayerController* InController)
@@ -214,6 +198,42 @@ void USwarmUpgradeSystem::ApplyUpgrade(ESwarmUpgradeType UpgradeType)
             }
         }
         break;
+
+    case ESwarmUpgradeType::WeaponPistol:
+        {
+            const TSubclassOf<ASwarmWeaponBase> WeaponClass = ASwarmPistolWeapon::StaticClass();
+            if (!Character->HasWeaponOfClass(WeaponClass))
+            {
+                if (Character->AddWeapon(WeaponClass))
+                {
+                    UE_LOG(LogTemp, Warning, TEXT("LevelUp:Applied=Pistol Unlock"));
+                }
+            }
+            else if (ASwarmWeaponBase* Weapon = Character->FindWeaponByClass(WeaponClass))
+            {
+                Weapon->ApplyUpgrade(Upgrade->Value);
+                UE_LOG(LogTemp, Warning, TEXT("LevelUp:Applied=Pistol +%f Dano"), Upgrade->Value);
+            }
+        }
+        break;
+
+    case ESwarmUpgradeType::WeaponSpinningSaws:
+        {
+            const TSubclassOf<ASwarmWeaponBase> WeaponClass = ASwarmSpinningSawsWeapon::StaticClass();
+            if (!Character->HasWeaponOfClass(WeaponClass))
+            {
+                if (Character->AddWeapon(WeaponClass))
+                {
+                    UE_LOG(LogTemp, Warning, TEXT("LevelUp:Applied=Saws Unlock"));
+                }
+            }
+            else if (ASwarmWeaponBase* Weapon = Character->FindWeaponByClass(WeaponClass))
+            {
+                Weapon->ApplyUpgrade(Upgrade->Value);
+                UE_LOG(LogTemp, Warning, TEXT("LevelUp:Applied=Saws +%f Dano"), Upgrade->Value);
+            }
+        }
+        break;
     }
 
     Upgrade->TimesApplied++;
@@ -229,11 +249,48 @@ TArray<FSwarmUpgrade> USwarmUpgradeSystem::GetRandomUpgrades(int32 Count)
     for (int32 i = 0; i < Count; i++)
     {
         int32 RandomIndex = FMath::RandRange(0, TempUpgrades.Num() - 1);
-        Result.Add(TempUpgrades[RandomIndex]);
+        FSwarmUpgrade UpgradeCopy = TempUpgrades[RandomIndex];
+        RefreshUpgradeDisplayData(UpgradeCopy);
+        Result.Add(UpgradeCopy);
         TempUpgrades.RemoveAt(RandomIndex);
     }
 
     return Result;
+}
+
+void USwarmUpgradeSystem::RefreshUpgradeDisplayData(FSwarmUpgrade& Upgrade) const
+{
+    const AMyCharacter* Character = PlayerController ? Cast<AMyCharacter>(PlayerController->GetPawn()) : nullptr;
+
+    auto ConfigureWeaponUpgrade = [&](TSubclassOf<ASwarmWeaponBase> WeaponClass, const TCHAR* UnlockTitle, const TCHAR* UnlockDescription, const TCHAR* BaseName, const TCHAR* UpgradeDescription)
+    {
+        const bool bHasWeapon = Character && Character->HasWeaponOfClass(WeaponClass);
+        const bool bAlreadyApplied = Upgrade.TimesApplied > 0 || bHasWeapon;
+
+        if (!bAlreadyApplied)
+        {
+            Upgrade.Title = UnlockTitle;
+            Upgrade.Description = UnlockDescription;
+        }
+        else
+        {
+            // Build title manually to avoid non-literal format string issues
+            Upgrade.Title = FString::Printf(TEXT("%s +%.0f Dano"), BaseName, Upgrade.Value);
+            Upgrade.Description = UpgradeDescription;
+        }
+    };
+
+    switch (Upgrade.Type)
+    {
+    case ESwarmUpgradeType::WeaponPistol:
+        ConfigureWeaponUpgrade(ASwarmPistolWeapon::StaticClass(), TEXT("Desbloquear Pistola"), TEXT("Desbloqueia a pistola, disparando projeteis em inimigos."), TEXT("Pistola"), TEXT("Aumenta o dano base da pistola."));
+        break;
+    case ESwarmUpgradeType::WeaponSpinningSaws:
+        ConfigureWeaponUpgrade(ASwarmSpinningSawsWeapon::StaticClass(), TEXT("Desbloquear Serras"), TEXT("Desbloqueia serras giratorias que orbitam o campeao."), TEXT("Serras"), TEXT("Aumenta o dano periodico das serras."));
+        break;
+    default:
+        break;
+    }
 }
 
 FSwarmUpgrade* USwarmUpgradeSystem::FindUpgrade(ESwarmUpgradeType Type)

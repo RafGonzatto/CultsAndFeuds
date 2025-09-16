@@ -12,6 +12,7 @@ class UAnimMontage;
 class USkeletalMesh;
 class UAnimInstance;
 class USphereComponent;
+class ASwarmWeaponBase;
 
 UCLASS()
 class VAZIO_API AMyCharacter : public ACharacter
@@ -32,7 +33,7 @@ protected:
 	virtual void GetLifetimeReplicatedProps(TArray<FLifetimeProperty>& OutLifetimeProps) const override;
 
 public:
-	// Assets de configuração
+	// Assets de configuraÃƒÆ’Ã†â€™Ãƒâ€šÃ‚Â§ÃƒÆ’Ã†â€™Ãƒâ€šÃ‚Â£o
 	UPROPERTY(EditAnywhere, BlueprintReadOnly, Category = "Custom Character")
 	USkeletalMesh* CustomSkeletalMesh = nullptr;
 
@@ -70,9 +71,23 @@ protected:
 	UPROPERTY(VisibleAnywhere, BlueprintReadOnly, Category = "Combat")
 	USphereComponent* DamageSphere;
 
+	UPROPERTY(EditDefaultsOnly, Category = "Weapons")
+	TArray<TSubclassOf<ASwarmWeaponBase>> StartingWeapons;
+
+	UPROPERTY(VisibleInstanceOnly, Category = "Weapons")
+	TArray<TObjectPtr<ASwarmWeaponBase>> EquippedWeapons;
+
 public:
 	// Input handling
 	virtual void SetupPlayerInputComponent(class UInputComponent* PlayerInputComponent) override;
+
+	// Weapon management
+	void SpawnDefaultWeapons();
+	ASwarmWeaponBase* AddWeapon(TSubclassOf<ASwarmWeaponBase> WeaponClass);
+	ASwarmWeaponBase* FindWeaponByClass(TSubclassOf<ASwarmWeaponBase> WeaponClass) const;
+	bool HasWeaponOfClass(TSubclassOf<ASwarmWeaponBase> WeaponClass) const;
+	bool IsInSwarmBattleLevel() const;
+	const TArray<TObjectPtr<ASwarmWeaponBase>>& GetEquippedWeapons() const { return EquippedWeapons; }
 
 	// Movement input functions
 	void MoveForward(float Value);
