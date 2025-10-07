@@ -1,89 +1,116 @@
 #include "World/Common/GameModes/MainMenuGameMode.h"
-
-#include "UI/Widgets/MainMenuWidget.h"
-#include "Blueprint/UserWidget.h"
-#include "Engine/Engine.h"
-#include "Engine/GameViewportClient.h"
-#include "GameFramework/DefaultPawn.h"
-#include "GameFramework/PlayerController.h"
+#include "World/Common/Player/MainMenuPlayerController.h"
 #include "Kismet/GameplayStatics.h"
-#include "Kismet/KismetSystemLibrary.h"
 #include "TimerManager.h"
+#include "Engine/World.h"
+#include "Camera/CameraActor.h"
+#include "Engine/DirectionalLight.h"
+#include "Engine/StaticMeshActor.h"
+#include "Components/StaticMeshComponent.h"
+#include "Camera/PlayerCameraManager.h"
+#include "Atmosphere/AtmosphericFog.h"
+#include "Engine/ExponentialHeightFog.h"
+#include "Components/ExponentialHeightFogComponent.h"
 
 AMainMenuGameMode::AMainMenuGameMode()
 {
-	// Evita erro de SpawnActor e mantém um Pawn simples
-	DefaultPawnClass = ADefaultPawn::StaticClass();
-	bStartPlayersAsSpectators = true;
-
-	UE_LOG(LogTemp, Warning, TEXT("[GM] Ctor"));
+    // Main Menu não precisa de Pawn, Player Controller customizado, etc
+    DefaultPawnClass = nullptr;
+    PlayerControllerClass = AMainMenuPlayerController::StaticClass();
 }
 
 void AMainMenuGameMode::BeginPlay()
 {
-	Super::BeginPlay();
+    Super::BeginPlay();
 
-    // Removido PrintString na tela; manter apenas UE_LOG
-	UE_LOG(LogTemp, Warning, TEXT("[GM] BeginPlay"));
+        // 1. Criar câmera básica para renderizar algo
+    CreateMenuCamera();
+    
+    // UI é criada no PlayerController local
 
-	// Chama SpawnMenu no próximo tick para garantir viewport pronto
-	if (UWorld* World = GetWorld())
-	{
-		FTimerHandle Th;
-		World->GetTimerManager().SetTimerForNextTick(this, &AMainMenuGameMode::SpawnMenu);
-	}
+    UE_LOG(LogTemp, Log, TEXT("[MainMenu] Main Menu initialized successfully"));
 }
 
-void AMainMenuGameMode::SpawnMenu()
+
+void AMainMenuGameMode::CreateMenuCamera()
 {
-	UWorld* World = GetWorld();
-	if (!World)
-	{
-		UE_LOG(LogTemp, Error, TEXT("[GM] SpawnMenu: World nulo"));
-		return;
-	}
-
-    // Removido PrintString na tela; manter apenas UE_LOG
-
-	APlayerController* PC = UGameplayStatics::GetPlayerController(World, 0);
-    if (!PC)
+    UWorld* World = GetWorld();
+    if (!World)
     {
-        UE_LOG(LogTemp, Error, TEXT("[GM] SpawnMenu: PlayerController nulo"));
         return;
     }
 
-	Menu = CreateWidget<UMainMenuWidget>(PC, UMainMenuWidget::StaticClass());
-    if (!Menu)
+    // 1. Criar Atmospheric Fog para iluminação ambiente (Sky Atmosphere)
+    AAtmosphericFog* AtmosFog = World->SpawnActor<AAtmosphericFog>();
+    if (AtmosFog)
     {
-        UE_LOG(LogTemp, Error, TEXT("[GM] SpawnMenu: falha ao criar Menu"));
-        return;
+        UE_LOG(LogTemp, Warning, TEXT("[MainMenu] Atmospheric Fog created"));
+    }
+    
+    // 2. Criar Exponential Height Fog para profundidade
+    AExponentialHeightFog* Fog = World->SpawnActor<AExponentialHeightFog>();
+    if (Fog)
+    {
+        if (auto* FogComp = Fog->GetComponent())
+        {
+            FogComp->SetFogDensity(0.002f);
+        }
+        UE_LOG(LogTemp, Warning, TEXT("[MainMenu] Exponential Height Fog created"));
+    }
+    
+    // 3. Criar luz direcional para iluminar a cena
+    ADirectionalLight* Light = World->SpawnActor<ADirectionalLight>(FVector::ZeroVector, FRotator(-45.f, 0.f, 0.f));
+    if (Light)
+    {
+        Light->SetBrightness(10.0f); // Aumentando o brilho
+        UE_LOG(LogTemp, Warning, TEXT("[MainMenu] Directional light created with brightness 10"));
     }
 
-	// Configurar visibilidade ANTES de adicionar à viewport
-	Menu->SetVisibility(ESlateVisibility::Visible);
+    // 4. Spawnar cubo com material colorido PRIMEIRO (antes da câmera)
+    FVector CubeLocation(0.f, 200.f, 50.f);  // Um pouco acima do chão e à frente
+    FRotator CubeRotation(0.f, 45.f, 0.f);
+    AStaticMeshActor* TestCube = World->SpawnActor<AStaticMeshActor>(CubeLocation, CubeRotation);
+    if (TestCube && TestCube->GetStaticMeshComponent())
+    {
+        UStaticMesh* CubeMesh = LoadObject<UStaticMesh>(nullptr, TEXT("/Engine/BasicShapes/Cube.Cube"));
+        if (CubeMesh)
+        {
+            TestCube->GetStaticMeshComponent()->SetStaticMesh(CubeMesh);
+            TestCube->SetActorScale3D(FVector(2.0f, 2.0f, 2.0f));
+            
+            // Criar material básico colorido
+            UMaterial* BaseMaterial = LoadObject<UMaterial>(nullptr, TEXT("/Engine/BasicShapes/BasicShapeMaterial.BasicShapeMaterial"));
+            if (BaseMaterial)
+            {
+                UMaterialInstanceDynamic* DynMat = UMaterialInstanceDynamic::Create(BaseMaterial, TestCube);
+                if (DynMat)
+                {
+                    DynMat->SetVectorParameterValue(FName("Color"), FLinearColor(1.0f, 0.3f, 0.3f, 1.0f)); // Vermelho
+                    TestCube->GetStaticMeshComponent()->SetMaterial(0, DynMat);
+                    UE_LOG(LogTemp, Warning, TEXT("[MainMenu] Test cube at (%.1f, %.1f, %.1f) with RED material created!"),
+                        CubeLocation.X, CubeLocation.Y, CubeLocation.Z);
+                }
+            }
+        }
+    }
+    
+    // 5. Criar câmera olhando para o cubo
+    FVector CameraLocation(0.f, -300.f, 150.f);  // Atrás e um pouco acima
+    // Calcular rotação apontando para o cubo
+    FRotator CameraRotation = (CubeLocation - CameraLocation).Rotation();
 
-	// USAR Z-ORDER MÁXIMO POSSÍVEL
-	Menu->AddToViewport(32767);  // Z-order máximo (int16 max)
-	
-    UE_LOG(LogTemp, Warning, TEXT("[GM] AddToViewport com Z-order 32767"));
-
-	// FORÇAR O WIDGET PARA O TOPO DE TODAS AS CAMADAS
-	if (UGameViewportClient* ViewportClient = World->GetGameViewport())
-	{
-		// Remove e re-adiciona para garantir que fique no topo
-		Menu->RemoveFromParent();  // API atualizada
-		Menu->AddToViewport(32767);
-		
-        UE_LOG(LogTemp, Warning, TEXT("[GM] Widget removido e re-adicionado para forcar topo"));
-	}
-
-	// Configurar Input Mode para UI
-	FInputModeUIOnly InputMode;
-	InputMode.SetLockMouseToViewportBehavior(EMouseLockMode::DoNotLock);
-	PC->SetInputMode(InputMode);
-	PC->bShowMouseCursor = true;
-
-    // Removidos AddOnScreenDebugMessage para manter logs somente no Output
-
-	UE_LOG(LogTemp, Warning, TEXT("[GM] Menu configurado completamente com debug messages"));
+    ACameraActor* MenuCamera = World->SpawnActor<ACameraActor>(CameraLocation, CameraRotation);
+    if (MenuCamera)
+    {
+        APlayerController* PC = UGameplayStatics::GetPlayerController(this, 0);
+        if (PC)
+        {
+            PC->SetViewTargetWithBlend(Cast<AActor>(MenuCamera), 0.f);
+            UE_LOG(LogTemp, Warning, TEXT("[MainMenu] Camera at (%.1f, %.1f, %.1f) looking at cube at (%.1f, %.1f, %.1f)"), 
+                CameraLocation.X, CameraLocation.Y, CameraLocation.Z, CubeLocation.X, CubeLocation.Y, CubeLocation.Z);
+        }
+    }
 }
+
+
+// UI creation and input setup handled by AMainMenuPlayerController

@@ -11,7 +11,7 @@
 #include "Engine/Texture2D.h"
 #include "Engine/World.h"
 #include "Kismet/GameplayStatics.h"
-#include "Swarm/SwarmGameFlow.h"
+// #include "Swarm/SwarmGameFlow.h" // Removed - Swarm system deleted
 #include "Multiplayer/SteamMultiplayerSubsystem.h"
 #include "Net/MatchFlowController.h"
 
@@ -516,41 +516,8 @@ void UHUDSelectMapWidget::OnConfirmSelection()
     // Use new networking system
     if (UGameInstance* GI = GetGameInstance())
     {
-        // Set up return point for SwarmGameFlow
-        if (UWorld* World = GetWorld())
-        {
-            if (USwarmGameFlow* Flow = GI->GetSubsystem<USwarmGameFlow>())
-            {
-                // Find return marker
-                FTransform ReturnXf;
-                bool bFound = false;
-                TArray<AActor*> AllActors;
-                UGameplayStatics::GetAllActorsOfClass(World, AActor::StaticClass(), AllActors);
-                for (AActor* A : AllActors)
-                {
-                    if (A && (A->ActorHasTag(TEXT("ArenaReturn")) || A->GetName().Contains(TEXT("ArenaReturn"))))
-                    {
-                        ReturnXf = A->GetActorTransform();
-                        bFound = true;
-                        break;
-                    }
-                }
-                
-                if (!bFound)
-                {
-                    if (APlayerController* PC = World->GetFirstPlayerController())
-                    {
-                        if (APawn* P = PC->GetPawn())
-                        {
-                            ReturnXf = P->GetActorTransform();
-                        }
-                    }
-                }
-
-                const FName CurrentLevelName = FName(*UGameplayStatics::GetCurrentLevelName(World, true));
-                Flow->SetReturnPoint(CurrentLevelName, ReturnXf);
-            }
-        }
+        // TODO: SwarmGameFlow removed - implement generic return point system if needed
+        UE_LOG(LogTemp, Warning, TEXT("[HUDSelectMapWidget] SwarmGameFlow removed - skipping return point setup"));
 
         // Start hosting session using new system
         if (UMatchFlowController* MatchFlow = GI->GetSubsystem<UMatchFlowController>())

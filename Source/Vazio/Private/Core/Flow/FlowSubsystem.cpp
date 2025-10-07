@@ -4,42 +4,81 @@
 
 void UFlowSubsystem::Initialize(FSubsystemCollectionBase& Collection)
 {
-    Super::Initialize(Collection);
-
-    UE_LOG(LogTemp, Warning, TEXT("[FlowSubsystem] Inicializado com mapas:"));
-    UE_LOG(LogTemp, Warning, TEXT("  - MainMenu: %s"), *MainMenuMap.ToString());
-    UE_LOG(LogTemp, Warning, TEXT("  - City: %s"), *CityMap.ToString());
-    UE_LOG(LogTemp, Warning, TEXT("  - Battle: %s"), *BattleMap.ToString());
+	Super::Initialize(Collection);
+	UE_LOG(LogTemp, Log, TEXT("[Flow] Inicializado"));
+	LogMap(TEXT("MainMenu"), MainMenuMap);
+	LogMap(TEXT("City"),     CityMap);
+	LogMap(TEXT("Battle"),   BattleMap);
 }
 
-bool UFlowSubsystem::OpenLevelByName(FName MapName)
+void UFlowSubsystem::LogMap(const TCHAR* Label, const TSoftObjectPtr<UWorld>& MapRef) const
 {
-    if (!GetWorld() || MapName.IsNone())
-    {
-        UE_LOG(LogTemp, Error, TEXT("[Flow] OpenLevelByName falhou (MapName vazio ou World nulo)"));
-        return false;
-    }
-
-    UE_LOG(LogTemp, Warning, TEXT("[Flow] *** ABRINDO MAPA: %s ***"), *MapName.ToString());
-    UGameplayStatics::OpenLevel(GetWorld(), MapName);
-    return true;
+	const FString Path = MapRef.IsNull() ? TEXT("<vazio>") : MapRef.ToSoftObjectPath().ToString();
+	UE_LOG(LogTemp, Log, TEXT("  - %s: %s"), Label, *Path);
 }
 
-bool UFlowSubsystem::OpenMainMenu()
+bool UFlowSubsystem::ResolveLevelName(const TSoftObjectPtr<UWorld>& MapRef, FName& OutLevelName) const
 {
-    UE_LOG(LogTemp, Warning, TEXT("[Flow] OpenMainMenu() chamado"));
-    return OpenLevelByName(MainMenuMap);
+	if (MapRef.IsNull())
+	{
+		UE_LOG(LogTemp, Error, TEXT("[Flow] Mapa não configurado (soft reference vazia)."));
+		return false;
+	}
+	const FString LongName = MapRef.GetLongPackageName(); // ex: /Game/Levels/City_Main
+	if (LongName.IsEmpty())
+	{
+		UE_LOG(LogTemp, Error, TEXT("[Flow] Soft reference inválida: %s"), *MapRef.ToString());
+		return false;
+	}
+	OutLevelName = FName(*LongName);
+	return true;
 }
 
-bool UFlowSubsystem::OpenCity()
+bool UFlowSubsystem::IsCurrentLevel(const FName& LevelName) const
 {
-    UE_LOG(LogTemp, Warning, TEXT("[Flow] *** OpenCity() chamado - indo para %s ***"), *CityMap.ToString());
-    return OpenLevelByName(CityMap);
+	if (const UWorld* World = GetWorld())
+	{
+		// GetMapName() retorna "UEDPIE_0_Map" em PIE; checamos por sufixo para tolerar prefixos
+		return World->GetMapName().EndsWith(LevelName.ToString(), ESearchCase::IgnoreCase);
+	}
+	return false;
 }
 
-bool UFlowSubsystem::OpenBattle()
+bool UFlowSubsystem::OpenLevelByRef(const TSoftObjectPtr<UWorld>& MapRef)
 {
-    UE_LOG(LogTemp, Warning, TEXT("[Flow] OpenBattle() chamado"));
-    return OpenLevelByName(BattleMap);
+	if (!GetWorld())
+	{
+		UE_LOG(LogTemp, Error, TEXT("[Flow] World nulo."));
+		return false;
+	}
+
+	FName LevelName;
+	if (!ResolveLevelName(MapRef, LevelName)) return false;
+
+	if (IsCurrentLevel(LevelName))
+	{
+		UE_LOG(LogTemp, Verbose, TEXT("[Flow] Já estamos no mapa: %s (ignorando)"), *LevelName.ToString());
+		return true;
+	}
+
+	UE_LOG(LogTemp, Log, TEXT("[Flow] Abrindo mapa: %s"), *LevelName.ToString());
+	// Nota: OpenLevel inicia a viagem; sucesso real só é certo após carregar.
+	UGameplayStatics::OpenLevel(this, LevelName);
+	// OpenLevel returns void, assume success
+	{
+	}
+	return true;
 }
 
+bool UFlowSubsystem::Open(EVazioMode Mode)
+{
+	switch (Mode)
+	{
+		case EVazioMode::MainMenu: return OpenLevelByRef(MainMenuMap);
+		case EVazioMode::City:     return OpenLevelByRef(CityMap);
+		case EVazioMode::Battle:   return OpenLevelByRef(BattleMap);
+		default:
+			UE_LOG(LogTemp, Error, TEXT("[Flow] Mode inválido."));
+			return false;
+	}
+}

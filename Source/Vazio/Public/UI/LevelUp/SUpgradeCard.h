@@ -2,13 +2,13 @@
 
 #include "CoreMinimal.h"
 #include "Widgets/SCompoundWidget.h"
-#include "Swarm/Upgrades/SwarmUpgradeSystem.h"
+#include "Gameplay/Upgrades/UpgradeSystem.h"
 
 class VAZIO_API SUpgradeCard : public SCompoundWidget
 {
 public:
     SLATE_BEGIN_ARGS(SUpgradeCard) {}
-        SLATE_ARGUMENT(FSwarmUpgrade, Upgrade)
+        SLATE_ARGUMENT(FUpgradeData, Upgrade)
         SLATE_ARGUMENT(int32, CardIndex)
     SLATE_END_ARGS()
 
@@ -25,7 +25,7 @@ public:
     FOnCardClicked OnCardClicked;
 
 private:
-    FSwarmUpgrade CardUpgrade;
+    FUpgradeData CardUpgrade;
     int32 CardIndex = 0;
     bool bIsSelected = false;
     bool bIsHovered = false;

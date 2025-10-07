@@ -1,30 +1,37 @@
 #pragma once
-
 #include "CoreMinimal.h"
 #include "Blueprint/UserWidget.h"
+#include "Components/Overlay.h"
+#include "Components/VerticalBox.h"
+#include "Components/Button.h"
+#include "Components/TextBlock.h"
+#include "Components/Border.h"
+#include "Components/SizeBox.h"
+#include "Blueprint/WidgetTree.h"
 #include "MainMenuWidget.generated.h"
 
-class UOverlay;
-class UVerticalBox;
-class UButton;
-class UTextBlock;
-class UWidgetTree;
+class UWidget;
 
 UCLASS()
 class VAZIO_API UMainMenuWidget : public UUserWidget
 {
-	GENERATED_BODY()
+    GENERATED_BODY()
+
+public:
+    UMainMenuWidget(const FObjectInitializer& ObjectInitializer);
+    UFUNCTION(BlueprintCallable, Category="MainMenu")
+    UWidget* GetInitialFocusTarget() const;
 
 protected:
-	virtual void NativeConstruct() override;
+    virtual TSharedRef<SWidget> RebuildWidget() override;
+    virtual void NativeConstruct() override;
 
-	UFUNCTION()
-	void HandlePlay();
+    UFUNCTION() void HandlePlay();
 
 private:
-	// Guardas (não UPROPERTY pq criamos em runtime e o WidgetTree já mantém referências)
-	UOverlay* RootOverlay = nullptr;
-	UVerticalBox* MenuBox = nullptr;
+    UPROPERTY() UOverlay* RootOverlay;
+    UPROPERTY() UVerticalBox* MenuBox;
+    UPROPERTY() UButton* PlayButton;
 
-	UButton* CreatePlayButton();
+    UButton* CreatePlayButton();
 };

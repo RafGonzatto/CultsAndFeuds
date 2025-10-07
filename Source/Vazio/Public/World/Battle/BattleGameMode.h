@@ -37,7 +37,6 @@ protected:
 
     // Enemy system integration
     UFUNCTION() void InitializeEnemySystem();
-    UFUNCTION() void DisableOldSwarmSystem();
 
 protected:
     UPROPERTY(EditAnywhere, BlueprintReadWrite, Category = "Enemy Config")

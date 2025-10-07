@@ -1,4 +1,4 @@
-#pragma once
+﻿#pragma once
 
 #include "CoreMinimal.h"
 #include "Engine/DataAsset.h"
@@ -15,15 +15,21 @@ public:
     UPROPERTY(EditAnywhere, BlueprintReadWrite, Category = "Spawn Timeline")
     TArray<FSpawnEvent> Events;
 
+    UPROPERTY(EditAnywhere, BlueprintReadWrite, Category = "Spawn Timeline")
+    TArray<FBossSpawnEntry> BossEvents;
+
     virtual FPrimaryAssetId GetPrimaryAssetId() const override
     {
         return FPrimaryAssetId("SpawnTimeline", GetFName());
     }
 
-    // Parse JSON data into spawn events
     bool ParseFromJSON(const FString& JSONString);
 
 private:
     void NormalizeSpawnData(const TSharedPtr<FJsonObject>& SpawnObject, FSpawnEvent& OutEvent);
+    void ParseBossEvents(const TSharedPtr<FJsonObject>& RootObject);
     FEnemyInstanceModifiers ParseModifiers(const TSharedPtr<FJsonObject>& ModObject);
+    void ParseSpawnObjectIntoEvent(const TSharedPtr<FJsonObject>& SpawnsObject, FSpawnEvent& OutEvent);
 };
+
+

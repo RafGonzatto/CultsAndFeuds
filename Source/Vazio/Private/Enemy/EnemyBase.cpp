@@ -43,9 +43,8 @@ AEnemyBase::AEnemyBase()
     }
 
     // Configure collision - ENEMIES PASS THROUGH PLAYER, DEAL DAMAGE ON OVERLAP
-    GetCapsuleComponent()->SetCollisionResponseToChannel(ECC_Pawn, ECR_Overlap); // Pass through player
-    GetCapsuleComponent()->SetCollisionResponseToChannel(ECC_Vehicle, ECR_Overlap);
-    GetCapsuleComponent()->SetCollisionObjectType(ECC_Pawn); // Set as Pawn for overlap detection
+    // Use OverlapAllDynamic profile to match player's DamageSphere
+    GetCapsuleComponent()->SetCollisionProfileName(TEXT("OverlapAllDynamic"));
     GetCapsuleComponent()->SetGenerateOverlapEvents(true); // CRITICAL: Enable overlap events
     
     // PRECISE COLLISION - Much smaller for accurate damage area
@@ -687,17 +686,23 @@ void AEnemyBase::TakeDamageSimple(float Damage)
 
 void AEnemyBase::OnOverlapBegin(UPrimitiveComponent* OverlappedComp, AActor* OtherActor, UPrimitiveComponent* OtherComp, int32 OtherBodyIndex, bool bFromSweep, const FHitResult& SweepResult)
 {
-    // Log all overlaps for debugging
-    UE_LOG(LogTemp, VeryVerbose, TEXT("[OVERLAP] %s overlapped with %s"), *GetName(), OtherActor ? *OtherActor->GetName() : TEXT("NULL"));
+    // Log all overlaps for debugging with more detail
+    UE_LOG(LogTemp, Warning, TEXT("[ENEMY-OVERLAP] %s (%s) overlapped with %s (%s)"), 
+        *GetName(), 
+        OverlappedComp ? *OverlappedComp->GetName() : TEXT("NULL"), 
+        OtherActor ? *OtherActor->GetName() : TEXT("NULL"),
+        OtherComp ? *OtherComp->GetName() : TEXT("NULL"));
     
     // Damage player on overlap
     if (AMyCharacter* Player = Cast<AMyCharacter>(OtherActor))
     {
+        UE_LOG(LogTemp, Warning, TEXT("[DAMAGE-ATTEMPT] %s attempting to damage player %s"), *GetName(), *Player->GetName());
+        
         // Damage cooldown to prevent spam
         float CurrentTime = GetWorld()->GetTimeSeconds();
         if (CurrentTime - LastDamageTime < 1.0f) 
         {
-            UE_LOG(LogTemp, VeryVerbose, TEXT("[DAMAGE] %s damage on cooldown (%.2fs remaining)"), 
+            UE_LOG(LogTemp, Warning, TEXT("[DAMAGE] %s damage on cooldown (%.2fs remaining)"), 
                 *GetName(), 1.0f - (CurrentTime - LastDamageTime));
             return;
         }
@@ -712,10 +717,13 @@ void AEnemyBase::OnOverlapBegin(UPrimitiveComponent* OverlappedComp, AActor* Oth
         DamageEvent.HitInfo = SweepResult;
         DamageEvent.ShotDirection = (Player->GetActorLocation() - GetActorLocation()).GetSafeNormal();
         
-        Player->TakeDamage(DamageAmount, DamageEvent, nullptr, this);
-        
-        UE_LOG(LogTemp, Warning, TEXT("[DAMAGE] %s dealt %.1f damage to player %s"), 
+        UE_LOG(LogTemp, Warning, TEXT("[DAMAGE-APPLY] %s calling TakeDamage(%.1f) on player %s"), 
             *GetName(), DamageAmount, *Player->GetName());
+        
+        float ActualDamage = Player->TakeDamage(DamageAmount, DamageEvent, nullptr, this);
+        
+        UE_LOG(LogTemp, Warning, TEXT("[DAMAGE-RESULT] Player->TakeDamage returned %.1f (expected %.1f)"), 
+            ActualDamage, DamageAmount);
             
         // Visual feedback - make enemy flash or something
         if (VisualMesh)

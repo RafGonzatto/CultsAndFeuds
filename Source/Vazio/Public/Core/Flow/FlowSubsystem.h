@@ -1,42 +1,40 @@
 #pragma once
-
 #include "CoreMinimal.h"
 #include "Subsystems/GameInstanceSubsystem.h"
+#include "Engine/World.h"
 #include "FlowSubsystem.generated.h"
 
 UENUM(BlueprintType)
-enum class EVazioMode : uint8
-{
-	MainMenu,
-	City,
-	Battle
-};
+enum class EVazioMode : uint8 { MainMenu, City, Battle };
 
 UCLASS(Config=Game)
 class VAZIO_API UFlowSubsystem : public UGameInstanceSubsystem
 {
 	GENERATED_BODY()
-
 public:
-	// Nomes dos mapas corrigidos para os mapas que você criou
-	UPROPERTY(Config)
-	FName MainMenuMap = TEXT("MainMenu");
+	// Use soft refs p/ garantir cozimento e validação em runtime
+	UPROPERTY(Config, EditAnywhere, Category="Flow", meta=(AllowedClasses="World"))
+	TSoftObjectPtr<UWorld> MainMenuMap;
 
-	UPROPERTY(Config)
-	FName CityMap = TEXT("City_Main");  // Corrigido para o nome do seu mapa
+	UPROPERTY(Config, EditAnywhere, Category="Flow", meta=(AllowedClasses="World"))
+	TSoftObjectPtr<UWorld> CityMap;
 
-	UPROPERTY(Config)
-	FName BattleMap = TEXT("Battle_Main");  // Adicionado o mapa de batalha também
+	UPROPERTY(Config, EditAnywhere, Category="Flow", meta=(AllowedClasses="World"))
+	TSoftObjectPtr<UWorld> BattleMap;
 
-	// Carrega por nome simples (os mapas devem estar em /Game/Levels/...)
-	UFUNCTION()
-	bool OpenLevelByName(FName MapName);
+	UFUNCTION(BlueprintCallable) bool OpenLevelByRef(const TSoftObjectPtr<UWorld>& MapRef);
+	UFUNCTION(BlueprintCallable) bool Open(EVazioMode Mode);
 
 	// Atalhos
-	UFUNCTION() bool OpenMainMenu();
-	UFUNCTION() bool OpenCity();
-	UFUNCTION() bool OpenBattle();
+	UFUNCTION(BlueprintCallable) bool OpenMainMenu() { return Open(EVazioMode::MainMenu); }
+	UFUNCTION(BlueprintCallable) bool OpenCity()     { return Open(EVazioMode::City); }
+	UFUNCTION(BlueprintCallable) bool OpenBattle()   { return Open(EVazioMode::Battle); }
 
 protected:
 	virtual void Initialize(FSubsystemCollectionBase& Collection) override;
+
+private:
+	bool ResolveLevelName(const TSoftObjectPtr<UWorld>& MapRef, FName& OutLevelName) const;
+	bool IsCurrentLevel(const FName& LevelName) const;
+	void LogMap(const TCHAR* Label, const TSoftObjectPtr<UWorld>& MapRef) const;
 };

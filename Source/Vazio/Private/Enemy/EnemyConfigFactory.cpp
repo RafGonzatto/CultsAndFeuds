@@ -89,5 +89,51 @@ UEnemyConfig* UEnemyConfig::CreateDefaultConfig()
     GoldArchetype.Death = EOnDeathBehavior::Normal;
     Config->Archetypes.Add(TEXT("GoldEnemy"), GoldArchetype);
     
+    // === BOSS ARCHETYPES ===
+    
+    // BurrowerBoss archetype
+    FEnemyArchetype BurrowerBossArchetype;
+    BurrowerBossArchetype.BaseHP = 2000.f;
+    BurrowerBossArchetype.BaseDMG = 100.f;
+    BurrowerBossArchetype.BaseSpeed = 200.f;
+    BurrowerBossArchetype.BaseSize = 2.5f;
+    BurrowerBossArchetype.BaseXP = 100.f;
+    BurrowerBossArchetype.Drop = EDropProfile::Gold;
+    BurrowerBossArchetype.Death = EOnDeathBehavior::Normal;
+    Config->Archetypes.Add(TEXT("BurrowerBoss"), BurrowerBossArchetype);
+    
+    // VoidQueenBoss archetype
+    FEnemyArchetype VoidQueenBossArchetype;
+    VoidQueenBossArchetype.BaseHP = 2500.f;
+    VoidQueenBossArchetype.BaseDMG = 120.f;
+    VoidQueenBossArchetype.BaseSpeed = 150.f;
+    VoidQueenBossArchetype.BaseSize = 3.0f;
+    VoidQueenBossArchetype.BaseXP = 150.f;
+    VoidQueenBossArchetype.Drop = EDropProfile::Gold;
+    VoidQueenBossArchetype.Death = EOnDeathBehavior::Normal;
+    Config->Archetypes.Add(TEXT("VoidQueenBoss"), VoidQueenBossArchetype);
+    
+    // FallenWarlordBoss archetype
+    FEnemyArchetype FallenWarlordBossArchetype;
+    FallenWarlordBossArchetype.BaseHP = 3000.f;
+    FallenWarlordBossArchetype.BaseDMG = 150.f;
+    FallenWarlordBossArchetype.BaseSpeed = 180.f;
+    FallenWarlordBossArchetype.BaseSize = 2.8f;
+    FallenWarlordBossArchetype.BaseXP = 200.f;
+    FallenWarlordBossArchetype.Drop = EDropProfile::Gold;
+    FallenWarlordBossArchetype.Death = EOnDeathBehavior::Normal;
+    Config->Archetypes.Add(TEXT("FallenWarlordBoss"), FallenWarlordBossArchetype);
+    
+    // HybridDemonBoss archetype
+    FEnemyArchetype HybridDemonBossArchetype;
+    HybridDemonBossArchetype.BaseHP = 3500.f;
+    HybridDemonBossArchetype.BaseDMG = 180.f;
+    HybridDemonBossArchetype.BaseSpeed = 220.f;
+    HybridDemonBossArchetype.BaseSize = 3.2f;
+    HybridDemonBossArchetype.BaseXP = 250.f;
+    HybridDemonBossArchetype.Drop = EDropProfile::Gold;
+    HybridDemonBossArchetype.Death = EOnDeathBehavior::Normal;
+    Config->Archetypes.Add(TEXT("HybridDemonBoss"), HybridDemonBossArchetype);
+    
     return Config;
 }

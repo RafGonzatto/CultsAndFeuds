@@ -7,10 +7,11 @@
 #include "World/Commom/Interaction/InteractableComponent.h"
 #include "World/Common/Interaction/Interactable.h"
 #include "UI/Widgets/PlayerHUDWidget.h"
-#include "Swarm/Upgrades/SwarmUpgradeSystem.h"
+#include "Gameplay/Upgrades/UpgradeSystem.h"
 #include "UI/HUD/HUDSubsystem.h"
 #include "Engine/World.h"
 #include "Net/MatchFlowController.h"
+#include "Testing/BossAutoTestSubsystem.h"
 #include "Enemy/EnemySpawnerSubsystem.h"
 #include "Enemy/EnemySpawnHelper.h"
 #include "Enemy/EnemyBase.h"
@@ -20,6 +21,8 @@
 #include "Materials/MaterialInstanceDynamic.h"
 #include "World/Battle/BattleGameMode.h"
 #include "UI/Widgets/SPauseMenuSlate.h" // Added include for pause menu slate
+#include "World/Common/Player/PlayerHealthComponent.h"
+#include "World/Common/Player/XPComponent.h"
 
 #include "EnhancedInputSubsystems.h"
 #include "EnhancedInputComponent.h"
@@ -105,6 +108,22 @@ void AMyPlayerController::BeginPlay()
 	PauseAction = NewObject<UInputAction>(this, TEXT("IA_Pause"));
 	PauseAction->ValueType = EInputActionValueType::Boolean;
 
+	// Boss Testing Actions
+	BossTest1Action = NewObject<UInputAction>(this, TEXT("IA_BossTest1"));
+	BossTest1Action->ValueType = EInputActionValueType::Boolean;
+	BossTest2Action = NewObject<UInputAction>(this, TEXT("IA_BossTest2"));
+	BossTest2Action->ValueType = EInputActionValueType::Boolean;
+	BossTest3Action = NewObject<UInputAction>(this, TEXT("IA_BossTest3"));
+	BossTest3Action->ValueType = EInputActionValueType::Boolean;
+	BossTest4Action = NewObject<UInputAction>(this, TEXT("IA_BossTest4"));
+	BossTest4Action->ValueType = EInputActionValueType::Boolean;
+	BossTest5Action = NewObject<UInputAction>(this, TEXT("IA_BossTest5"));
+	BossTest5Action->ValueType = EInputActionValueType::Boolean;
+	BossTest0Action = NewObject<UInputAction>(this, TEXT("IA_BossTest0"));
+	BossTest0Action->ValueType = EInputActionValueType::Boolean;
+	BossTestToggleAction = NewObject<UInputAction>(this, TEXT("IA_BossTestToggle"));
+	BossTestToggleAction->ValueType = EInputActionValueType::Boolean;
+
 	Mapping->MapKey(MoveForwardAction, EKeys::W);
 	{
 		FEnhancedActionKeyMapping& S = Mapping->MapKey(MoveForwardAction, EKeys::S);
@@ -123,6 +142,16 @@ void AMyPlayerController::BeginPlay()
 	Mapping->MapKey(InteractAction, EKeys::E);
 	// Novo: mapear Pause no Enhanced Input
 	Mapping->MapKey(PauseAction, EKeys::Escape);
+
+	// Boss Testing Key Mappings - Using NumPad to avoid conflicts
+	Mapping->MapKey(BossTest1Action, EKeys::NumPadOne);    // NumPad1 - Burrower Boss
+	Mapping->MapKey(BossTest2Action, EKeys::NumPadTwo);    // NumPad2 - Void Queen Boss
+	Mapping->MapKey(BossTest3Action, EKeys::NumPadThree);  // NumPad3 - Fallen Warlord Boss
+	Mapping->MapKey(BossTest4Action, EKeys::NumPadFour);   // NumPad4 - Hybrid Demon Boss
+	Mapping->MapKey(BossTest5Action, EKeys::NumPadFive);   // NumPad5 - Spawn All Bosses
+	Mapping->MapKey(BossTest0Action, EKeys::NumPadZero);   // NumPad0 - Stop Boss Testing
+	// Mapping->MapKey(BossTestToggleAction, EKeys::F1);      // F1 - DISABLED due to AMD GPU crashes
+	Mapping->MapKey(BossTestToggleAction, EKeys::F12);     // F12 - Toggle Boss Test Mode (safer alternative)
 
 	Subsys->ClearAllMappings();
 	Subsys->AddMappingContext(Mapping, 100);
@@ -143,6 +172,15 @@ void AMyPlayerController::BeginPlay()
 		EIC->BindAction(InteractAction, ETriggerEvent::Started, this, &AMyPlayerController::OnInteract);
 		// Novo: binding Enhanced para Pause
 		EIC->BindAction(PauseAction, ETriggerEvent::Started, this, &AMyPlayerController::OnPauseAction);
+		
+		// Boss Testing Bindings
+		EIC->BindAction(BossTest1Action, ETriggerEvent::Started, this, &AMyPlayerController::OnBossTest1);
+		EIC->BindAction(BossTest2Action, ETriggerEvent::Started, this, &AMyPlayerController::OnBossTest2);
+		EIC->BindAction(BossTest3Action, ETriggerEvent::Started, this, &AMyPlayerController::OnBossTest3);
+		EIC->BindAction(BossTest4Action, ETriggerEvent::Started, this, &AMyPlayerController::OnBossTest4);
+		EIC->BindAction(BossTest5Action, ETriggerEvent::Started, this, &AMyPlayerController::OnBossTest5);
+		EIC->BindAction(BossTest0Action, ETriggerEvent::Started, this, &AMyPlayerController::OnBossTest0);
+		EIC->BindAction(BossTestToggleAction, ETriggerEvent::Started, this, &AMyPlayerController::OnBossTestToggle);
 	}
 
 	if (InputComponent)
@@ -165,6 +203,8 @@ void AMyPlayerController::BeginPlay()
 		if (bIsBattle)
 		{
 			InitializeHUD();
+			// Pawn pode ainda não estar possuído; tentamos bind se já existir
+			BindHUDToPlayerComponents();
 		}
 		else
 		{
@@ -172,6 +212,21 @@ void AMyPlayerController::BeginPlay()
 		}
 	}
 	InitializeSwarmSystems();
+	
+	// Only initialize boss testing in Battle_Main level
+	if (UWorld* W = GetWorld())
+	{
+		const FString MapName = W->GetMapName();
+		const bool bIsBattle = MapName.Contains(TEXT("Battle_Main"));
+		if (bIsBattle)
+		{
+			InitializeBossTestSystem();
+		}
+		else
+		{
+			UE_LOG(LogTemp, Verbose, TEXT("[BossTest] Skipping boss test initialization (not in Battle_Main)"));
+		}
+	}
 }
 
 void AMyPlayerController::InitializeHUD()
@@ -195,31 +250,24 @@ void AMyPlayerController::InitializeHUD()
 	// Show the Slate HUD
 	HUDSubsystem->ShowHUD();
 	UE_LOG(LogPlayerUI, Display, TEXT("[PC] HUD Slate inicializado com sucesso"));
+
+	// Vincular HUD à saúde/XP do player quando HUD existir
+	BindHUDToPlayerComponents();
 }
 
 void AMyPlayerController::SetupInputComponent()
 {
 	Super::SetupInputComponent();
 
-	// Bind F1 manually if not already bound (some legacy BP podia estar causando crash)
-	if (InputComponent)
-	{
-		InputComponent->BindKey(EKeys::F1, IE_Pressed, this, &AMyPlayerController::OnDebugF1);
-	}
+	// F12 is now handled by OnBossTestToggle via Input Actions (remove duplicate binding)
+	// InputComponent->BindKey(EKeys::F12, IE_Pressed, this, &AMyPlayerController::OnDebugF1);
 }
 
 void AMyPlayerController::OnDebugF1()
 {
-	// Executa versão segura do teste – evita qualquer chamada a sistemas potencialmente nulos
-	if (!IsValid(this) || !GetWorld())
-	{
-		UE_LOG(LogTemp, Warning, TEXT("[F1] PlayerController ou World inválido – ignorando"));
-		return;
-	}
-
-	UE_LOG(LogTemp, Warning, TEXT("[F1] Disparado – executando TestCompleteFixes seguro"));
-	// Chama a função Exec diretamente (não via console) para garantir mesma lógica
-	TestCompleteFixes();
+	// DEPRECATED: F1 is now handled by OnBossTestToggle (moved to F12)
+	// This method kept for legacy compatibility but should not be called
+	UE_LOG(LogTemp, Warning, TEXT("[F12] DEPRECATED: OnDebugF1 called - use OnBossTestToggle instead"));
 }
 
 void AMyPlayerController::OnInteract(const FInputActionValue& Value)
@@ -1139,22 +1187,47 @@ void AMyPlayerController::InitializeSwarmSystems()
     FString LevelName = GetWorld()->GetMapName();
     if (LevelName.Contains(TEXT("Battle_Main")))
     {
-        // Create and initialize upgrade system
-        SwarmUpgradeSystem = NewObject<USwarmUpgradeSystem>(this);
-        if (SwarmUpgradeSystem)
+        // Upgrade system is now handled by UUpgradeSubsystem (World Subsystem)
+        UE_LOG(LogTemp, Warning, TEXT("Upgrade System available via UUpgradeSubsystem for Battle_Main"));
+    }
+}
+
+void AMyPlayerController::InitializeBossTestSystem()
+{
+    if (!GetWorld())
+    {
+        UE_LOG(LogTemp, Error, TEXT("[BossTest] No world available for boss test initialization"));
+        return;
+    }
+    
+    FString LevelName = GetWorld()->GetMapName();
+    UE_LOG(LogTemp, Warning, TEXT("[BossTest] Initializing boss test system in level: %s"), *LevelName);
+    
+    // Only initialize boss testing in Battle_Main level
+    if (LevelName.Contains(TEXT("Battle_Main")))
+    {
+        BossTestSubsystem = GetWorld()->GetSubsystem<UBossAutoTestSubsystem>();
+        if (BossTestSubsystem)
         {
-            SwarmUpgradeSystem->Initialize(this);
-            UE_LOG(LogTemp, Warning, TEXT("Swarm Upgrade System initialized for Battle_Main"));
+            UE_LOG(LogTemp, Warning, TEXT("[BossTest] Boss test system initialized successfully!"));
+            UE_LOG(LogTemp, Warning, TEXT("[BossTest] Press F12 to activate/deactivate boss test mode"));
+            UE_LOG(LogTemp, Warning, TEXT("[BossTest] Controls: NumPad1=Burrower, NumPad2=VoidQueen, NumPad3=FallenWarlord, NumPad4=HybridDemon, NumPad5=All, NumPad0=Stop"));
         }
+        else
+        {
+            UE_LOG(LogTemp, Error, TEXT("[BossTest] Failed to get BossAutoTestSubsystem!"));
+        }
+    }
+    else
+    {
+        UE_LOG(LogTemp, Log, TEXT("[BossTest] Boss testing not available in this level (only Battle_Main)"));
     }
 }
 
 void AMyPlayerController::TriggerSwarmLevelUp()
 {
-    if (SwarmUpgradeSystem)
-    {
-        SwarmUpgradeSystem->TriggerLevelUp();
-    }
+    // Legacy function - Upgrade system now handled by MyCharacter's XPComponent
+    UE_LOG(LogTemp, Warning, TEXT("TriggerSwarmLevelUp called - upgrades now handled by MyCharacter"));
 }
 void AMyPlayerController::SetFocusedInteractable(UInteractableComponent* NewTarget)
 {
@@ -1190,6 +1263,8 @@ void AMyPlayerController::SetFocusedInteractable(UInteractableComponent* NewTarg
 void AMyPlayerController::OnPossess(APawn* InPawn)
 {
 	Super::OnPossess(InPawn);
+	// Assim que possuímos um pawn, garantimos que HUD esteja ouvindo os componentes
+	BindHUDToPlayerComponents();
 	
 	UE_LOG(LogTemp, Warning, TEXT("[PC] OnPossess: %s"), InPawn ? *InPawn->GetName() : TEXT("None"));
 	
@@ -1243,9 +1318,100 @@ void AMyPlayerController::AcknowledgePossession(APawn* P)
 	}
 }
 
+void AMyPlayerController::BindHUDToPlayerComponents()
+{
+	// Apenas em Battle_Main onde usamos HUD Slate
+	if (!GetWorld() || !GetWorld()->GetMapName().Contains(TEXT("Battle_Main"))) return;
+
+	APawn* LocalPawn = GetPawn();
+	if (!LocalPawn) return;
+
+	UPlayerHealthComponent* Health = LocalPawn->FindComponentByClass<UPlayerHealthComponent>();
+	UXPComponent* XP = LocalPawn->FindComponentByClass<UXPComponent>();
+
+	UGameInstance* GI = GetGameInstance();
+	if (!GI) return;
+	UHUDSubsystem* HUD = GI->GetSubsystem<UHUDSubsystem>();
+	if (!HUD) return;
+
+	// Desvincular anteriores
+	UnbindHUDFromPlayerComponents();
+
+	if (Health)
+	{
+		BoundHealthComp = Health;
+		// UPlayerHealthComponent expõe FOnHealthChanged (non-dynamic): use AddLambda/AddUObject
+		// Como precisamos remover depois, guardamos um handle
+		HealthChangedHandle = Health->OnHealthChanged.AddUObject(this, &AMyPlayerController::HandleHealthChanged);
+		// Atualização inicial
+		HUD->UpdateHealth(Health->GetCurrentHealth(), Health->GetMaxHealth());
+	}
+	if (XP)
+	{
+		BoundXPComp = XP;
+		XP->OnXPChanged.AddDynamic(this, &AMyPlayerController::HandleXPChanged);
+		XP->OnLevelChanged.AddDynamic(this, &AMyPlayerController::HandleLevelChanged);
+		// Atualização inicial
+		HUD->UpdateXP(XP->GetCurrentXP(), XP->GetXPToNextLevel());
+		HUD->UpdateLevel(XP->GetCurrentLevel());
+	}
+}
+
+void AMyPlayerController::UnbindHUDFromPlayerComponents()
+{
+	if (UPlayerHealthComponent* H = BoundHealthComp.Get())
+	{
+		if (HealthChangedHandle.IsValid())
+		{
+			H->OnHealthChanged.Remove(HealthChangedHandle);
+			HealthChangedHandle.Reset();
+		}
+	}
+	if (UXPComponent* X = BoundXPComp.Get())
+	{
+		X->OnXPChanged.RemoveDynamic(this, &AMyPlayerController::HandleXPChanged);
+		X->OnLevelChanged.RemoveDynamic(this, &AMyPlayerController::HandleLevelChanged);
+	}
+	BoundHealthComp.Reset();
+	BoundXPComp.Reset();
+}
+
+void AMyPlayerController::HandleHealthChanged(float Current, float Max)
+{
+	if (UGameInstance* GI = GetGameInstance())
+	{
+		if (UHUDSubsystem* HUD = GI->GetSubsystem<UHUDSubsystem>())
+		{
+			HUD->UpdateHealth(Current, Max);
+		}
+	}
+}
+
+void AMyPlayerController::HandleXPChanged(int32 CurrentXP, int32 XPToNextLevel)
+{
+	if (UGameInstance* GI = GetGameInstance())
+	{
+		if (UHUDSubsystem* HUD = GI->GetSubsystem<UHUDSubsystem>())
+		{
+			HUD->UpdateXP(CurrentXP, XPToNextLevel);
+		}
+	}
+}
+
+void AMyPlayerController::HandleLevelChanged(int32 NewLevel)
+{
+	if (UGameInstance* GI = GetGameInstance())
+	{
+		if (UHUDSubsystem* HUD = GI->GetSubsystem<UHUDSubsystem>())
+		{
+			HUD->UpdateLevel(NewLevel);
+		}
+	}
+}
+
 void AMyPlayerController::TestCompleteFixes()
 {
-	UE_LOG(LogTemp, Warning, TEXT("=== CRASH-SAFE ENEMY TEST STARTED ==="));
+	UE_LOG(LogTemp, Warning, TEXT("=== PSO-SAFE TEST (NO SPAWNING) ==="));
 	
 	UWorld* World = GetWorld();
 	if (!World || !IsValid(World))
@@ -1254,88 +1420,199 @@ void AMyPlayerController::TestCompleteFixes()
 		return;
 	}
 	
-	// IMMEDIATE TEST - No timers to avoid crashes
-	UE_LOG(LogTemp, Warning, TEXT("TESTING EXISTING ENEMIES..."));
+	// PSO-SAFE: Avoid all operations that might cause shader/PSO recreation
+	UE_LOG(LogTemp, Warning, TEXT("SKIPPING ALL SPAWNING OPERATIONS (PSO safety)"));
+	UE_LOG(LogTemp, Warning, TEXT("SKIPPING ACTOR ITERATION (PSO safety)"));
 	
-	int32 TotalEnemies = 0;
-	int32 ValidEnemies = 0;
-	int32 VisibleEnemies = 0;
-	int32 MovingEnemies = 0;
-	int32 TickingEnemies = 0;
+	// Only do basic validation that won't affect GPU state
+	UE_LOG(LogTemp, Warning, TEXT("World: %s"), *World->GetMapName());
 	
-	// SAFE iteration through enemies
-	for (TActorIterator<AEnemyBase> ActorItr(World); ActorItr; ++ActorItr)
+	if (AGameModeBase* GameMode = World->GetAuthGameMode())
 	{
-		AEnemyBase* Enemy = *ActorItr;
-		if (!Enemy)
-		{
-			continue;
-		}
-		
-		TotalEnemies++;
-		
-		// Test validity
-		if (IsValid(Enemy))
-		{
-			ValidEnemies++;
-			
-			// Test visibility (with null checks)
-			if (Enemy->VisualMesh && IsValid(Enemy->VisualMesh) && Enemy->VisualMesh->IsVisible())
-			{
-				VisibleEnemies++;
-			}
-			
-			// Test movement capability (with null checks)
-			UCharacterMovementComponent* MovementComp = Enemy->GetCharacterMovement();
-			if (MovementComp && IsValid(MovementComp) && MovementComp->MaxWalkSpeed > 0.0f)
-			{
-				MovingEnemies++;
-			}
-			
-			// Test tick capability
-			if (Enemy->IsActorTickEnabled())
-			{
-				TickingEnemies++;
-			}
-			
-			UE_LOG(LogTemp, Warning, TEXT("[SAFE] Enemy %s: Valid=%s, Visible=%s, CanMove=%s, Ticking=%s"), 
-				*Enemy->GetName(),
-				IsValid(Enemy) ? TEXT("YES") : TEXT("NO"),
-				(Enemy->VisualMesh && Enemy->VisualMesh->IsVisible()) ? TEXT("YES") : TEXT("NO"),
-				(MovementComp && MovementComp->MaxWalkSpeed > 0.0f) ? TEXT("YES") : TEXT("NO"),
-				Enemy->IsActorTickEnabled() ? TEXT("YES") : TEXT("NO"));
-		}
+		UE_LOG(LogTemp, Warning, TEXT("GameMode: %s"), *GameMode->GetClass()->GetName());
 	}
 	
-	UE_LOG(LogTemp, Warning, TEXT("=== SAFE TEST RESULTS ==="));
-	UE_LOG(LogTemp, Warning, TEXT("Total: %d, Valid: %d, Visible: %d, Moving: %d, Ticking: %d"), 
-		TotalEnemies, ValidEnemies, VisibleEnemies, MovingEnemies, TickingEnemies);
-	
-	// SPAWN NEW ENEMIES SAFELY
-	if (TotalEnemies == 0)
-	{
-		UE_LOG(LogTemp, Warning, TEXT("No enemies found, spawning test enemies..."));
-		TestCloseEnemySpawn();
-	}
-	
-	// Test player system safely
+	// Basic player validation without any transforms or component access
 	if (APawn* PlayerPawn = GetPawn())
 	{
 		if (IsValid(PlayerPawn))
 		{
-			UE_LOG(LogTemp, Warning, TEXT("Player: Valid and active at %s"), *PlayerPawn->GetActorLocation().ToString());
-			
-			if (AMyCharacter* MyChar = Cast<AMyCharacter>(PlayerPawn))
-			{
-				if (MyChar->GetHealthComponent())
-				{
-					float CurrentHP = MyChar->GetHealthComponent()->GetCurrentHealth();
-					float MaxHP = MyChar->GetHealthComponent()->GetMaxHealth();
-					UE_LOG(LogTemp, Warning, TEXT("Player Health: %.1f/%.1f HP"), CurrentHP, MaxHP);
-				}
-			}
+			UE_LOG(LogTemp, Warning, TEXT("Player: Valid pawn present"));
 		}
 	}
 	
-	UE_LOG(LogTemp, Warning, TEXT("=== CRASH-SAFE TEST COMPLETED ==="));
+	UE_LOG(LogTemp, Warning, TEXT("=== PSO-SAFE TEST COMPLETED (Use NumPad keys for boss spawning) ==="));
+}
+
+// ============================================================================
+// BOSS TESTING INPUT HANDLERS
+// ============================================================================
+
+// ============================================================================
+// BOSS TESTING HELPER FUNCTION
+// ============================================================================
+
+bool AMyPlayerController::IsBossTestingAvailable() const
+{
+	// Check if we're in a valid state
+	if (!IsValid(this) || !GetWorld())
+	{
+		return false;
+	}
+	
+	// Check if we're in Battle_Main level
+	FString LevelName = GetWorld()->GetMapName();
+	if (!LevelName.Contains(TEXT("Battle_Main")))
+	{
+		return false;
+	}
+	
+	// Check if boss test mode is active (F12 was pressed)
+	if (!bBossTestModeActive)
+	{
+		return false;
+	}
+	
+	// Check if subsystem is available (try to get it if not initialized)
+	if (!BossTestSubsystem)
+	{
+		// Try to get the subsystem
+		UBossAutoTestSubsystem* TempSubsystem = GetWorld()->GetSubsystem<UBossAutoTestSubsystem>();
+		return TempSubsystem != nullptr;
+	}
+	
+	return true;
+}
+
+bool AMyPlayerController::ValidateBossTestAction(const FInputActionValue& Value, const FString& ActionName)
+{
+	if (!Value.Get<bool>()) return false;
+	
+	// Check if Ctrl is being held (to avoid conflict with existing actions)
+	if (IsInputKeyDown(EKeys::LeftControl) || IsInputKeyDown(EKeys::RightControl)) return false;
+	
+	// Safety check - only work in Battle_Main with valid subsystem
+	if (!IsBossTestingAvailable())
+	{
+		UE_LOG(LogTemp, Warning, TEXT("[BossTest] Boss testing not available - press F12 first to activate boss test mode"));
+		return false;
+	}
+	
+	// Initialize subsystem if needed
+	if (!BossTestSubsystem)
+	{
+		BossTestSubsystem = GetWorld()->GetSubsystem<UBossAutoTestSubsystem>();
+	}
+	
+	if (!BossTestSubsystem)
+	{
+		UE_LOG(LogTemp, Error, TEXT("[BossTest] Failed to get BossAutoTestSubsystem"));
+		return false;
+	}
+	
+	return true;
+}
+
+void AMyPlayerController::OnBossTest1(const FInputActionValue& Value)
+{
+	if (!ValidateBossTestAction(Value, TEXT("NumPad1"))) return;
+	
+	UE_LOG(LogTemp, Warning, TEXT("[BossTest] NumPad1 pressed - Spawning Burrower Boss - "));
+	BossTestSubsystem->OnKey1Pressed();
+}
+
+
+void AMyPlayerController::OnBossTest2(const FInputActionValue& Value)
+{
+	if (!ValidateBossTestAction(Value, TEXT("NumPad2"))) return;
+	
+	UE_LOG(LogTemp, Warning, TEXT("[BossTest] NumPad2 pressed - Spawning Void Queen Boss"));
+	BossTestSubsystem->OnKey2Pressed();
+}
+
+void AMyPlayerController::OnBossTest3(const FInputActionValue& Value)
+{
+	if (!ValidateBossTestAction(Value, TEXT("NumPad3"))) return;
+	
+	UE_LOG(LogTemp, Warning, TEXT("[BossTest] NumPad3 pressed - Spawning Fallen Warlord Boss"));
+	BossTestSubsystem->OnKey3Pressed();
+}
+
+void AMyPlayerController::OnBossTest4(const FInputActionValue& Value)
+{
+	if (!ValidateBossTestAction(Value, TEXT("NumPad4"))) return;
+	
+	UE_LOG(LogTemp, Warning, TEXT("[BossTest] NumPad4 pressed - Spawning Hybrid Demon Boss"));
+	BossTestSubsystem->OnKey4Pressed();
+}
+
+void AMyPlayerController::OnBossTest5(const FInputActionValue& Value)
+{
+	if (!ValidateBossTestAction(Value, TEXT("NumPad5"))) return;
+	
+	UE_LOG(LogTemp, Warning, TEXT("[BossTest] NumPad5 pressed - Spawning All Bosses"));
+	BossTestSubsystem->OnKey5Pressed();
+}
+
+void AMyPlayerController::OnBossTest0(const FInputActionValue& Value)
+{
+	if (!ValidateBossTestAction(Value, TEXT("NumPad0"))) return;
+	
+	UE_LOG(LogTemp, Warning, TEXT("[BossTest] NumPad0 pressed - Stopping Boss Testing"));
+	BossTestSubsystem->OnKey0Pressed();
+}
+
+void AMyPlayerController::OnBossTestToggle(const FInputActionValue& Value)
+{
+	if (!Value.Get<bool>()) return;
+	
+	// Safety check - ensure we're in a valid state
+	if (!IsValid(this) || !GetWorld())
+	{
+		UE_LOG(LogTemp, Error, TEXT("[BossTest] Invalid state - PlayerController or World is null"));
+		return;
+	}
+	
+	// Check if we're in Battle_Main level - CRITICAL safety check
+	FString LevelName = GetWorld()->GetMapName();
+	if (!LevelName.Contains(TEXT("Battle_Main")))
+	{
+		UE_LOG(LogTemp, Warning, TEXT("[BossTest] F12 pressed in %s - Boss testing only available in Battle_Main level"), *LevelName);
+		return;
+	}
+	
+	// Initialize subsystem if not already done
+	if (!BossTestSubsystem)
+	{
+		UE_LOG(LogTemp, Warning, TEXT("[BossTest] BossTestSubsystem not initialized, attempting to get it now..."));
+		BossTestSubsystem = GetWorld()->GetSubsystem<UBossAutoTestSubsystem>();
+	}
+	
+	// Check if we successfully got the subsystem
+	if (!BossTestSubsystem)
+	{
+		UE_LOG(LogTemp, Error, TEXT("[BossTest] Failed to get BossAutoTestSubsystem - boss testing not available"));
+		return;
+	}
+	
+	// Toggle the mode safely
+	bBossTestModeActive = !bBossTestModeActive;
+	
+	if (bBossTestModeActive)
+	{
+		UE_LOG(LogTemp, Warning, TEXT("[BossTest] F12 pressed - BOSS TEST MODE ACTIVATED"));
+		UE_LOG(LogTemp, Warning, TEXT("[BossTest] Controls: NumPad1=Burrower, NumPad2=VoidQueen, NumPad3=FallenWarlord, NumPad4=HybridDemon, NumPad5=All, NumPad0=Stop"));
+		
+		// SAFE TEST: Only log, don't spawn to avoid PSO conflicts
+		UE_LOG(LogTemp, Warning, TEXT("[BossTest] Boss test mode active - use NumPad keys to spawn bosses"));
+		UE_LOG(LogTemp, Warning, TEXT("[BossTest] Skipping automatic enemy spawn to avoid GPU PSO conflicts"));
+	}
+	else
+	{
+		UE_LOG(LogTemp, Warning, TEXT("[BossTest] F12 pressed - Boss Test Mode Deactivated"));
+		if (IsValid(BossTestSubsystem))
+		{
+			BossTestSubsystem->OnKey0Pressed();
+		}
+	}
 }

@@ -34,6 +34,7 @@ public:
     // Upgrade APIs
     void SetMaxHealth(float NewMaxHealth);
     void Heal(float Amount);
+    void IncreaseMaxHealth(float Amount);
 
     // Native delegates (non-dynamic)
     FOnHealthChanged OnHealthChanged;

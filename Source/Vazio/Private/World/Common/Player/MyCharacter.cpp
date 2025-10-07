@@ -13,8 +13,10 @@
 #include "Net/UnrealNetwork.h"
 #include "CollisionQueryParams.h"
 #include "DrawDebugHelpers.h"
-#include "Swarm/Weapons/SwarmWeaponBase.h"
 #include "Engine/EngineTypes.h"
+#include "Gameplay/Upgrades/UpgradeSystem.h"
+#include "UI/LevelUp/SLevelUpModal.h"
+#include "Framework/Application/SlateApplication.h"
 
 DEFINE_LOG_CATEGORY_STATIC(LogPlayerHealth, Log, All);
 DEFINE_LOG_CATEGORY_STATIC(LogXP, Log, All);
@@ -114,98 +116,19 @@ void AMyCharacter::BeginPlay()
 	}
 
 	SpawnDefaultWeapons();
+	
+	// Connect XP Level Up delegate
+	if (XPComponent)
+	{
+		XPComponent->OnLevelChanged.AddDynamic(this, &AMyCharacter::OnPlayerLevelUp);
+		UE_LOG(LogXP, Log, TEXT("[MyCharacter] Connected to XPComponent OnLevelChanged delegate"));
+	}
 }
 
 void AMyCharacter::SpawnDefaultWeapons()
 {
-	if (!IsInSwarmBattleLevel())
-	{
-		return;
-	}
-
-	if (StartingWeapons.Num() == 0)
-	{
-		return;
-	}
-
-	EquippedWeapons.RemoveAll([](const TObjectPtr<ASwarmWeaponBase>& WeaponPtr)
-	{
-		return !IsValid(WeaponPtr.Get());
-	});
-
-	for (const TSubclassOf<ASwarmWeaponBase>& WeaponClass : StartingWeapons)
-	{
-		AddWeapon(WeaponClass);
-	}
-}
-
-ASwarmWeaponBase* AMyCharacter::AddWeapon(TSubclassOf<ASwarmWeaponBase> WeaponClass)
-{
-	if (!WeaponClass)
-	{
-		return nullptr;
-	}
-
-	if (!IsInSwarmBattleLevel())
-	{
-		return nullptr;
-	}
-
-	EquippedWeapons.RemoveAll([](const TObjectPtr<ASwarmWeaponBase>& WeaponPtr)
-	{
-		return !IsValid(WeaponPtr.Get());
-	});
-
-	if (ASwarmWeaponBase* ExistingWeapon = FindWeaponByClass(WeaponClass))
-	{
-		return ExistingWeapon;
-	}
-
-	UWorld* World = GetWorld();
-	if (!World)
-	{
-		return nullptr;
-	}
-
-	FActorSpawnParameters SpawnParams;
-	SpawnParams.Owner = this;
-	SpawnParams.Instigator = this;
-	SpawnParams.SpawnCollisionHandlingOverride = ESpawnActorCollisionHandlingMethod::AlwaysSpawn;
-
-	ASwarmWeaponBase* NewWeapon = World->SpawnActor<ASwarmWeaponBase>(WeaponClass, GetActorLocation(), GetActorRotation(), SpawnParams);
-	if (!IsValid(NewWeapon))
-	{
-		return nullptr;
-	}
-
-	NewWeapon->InitializeWeapon(this);
-	EquippedWeapons.Add(NewWeapon);
-
-	return NewWeapon;
-}
-
-ASwarmWeaponBase* AMyCharacter::FindWeaponByClass(TSubclassOf<ASwarmWeaponBase> WeaponClass) const
-{
-	if (!WeaponClass)
-	{
-		return nullptr;
-	}
-
-	for (const TObjectPtr<ASwarmWeaponBase>& WeaponPtr : EquippedWeapons)
-	{
-		ASwarmWeaponBase* Weapon = WeaponPtr.Get();
-		if (IsValid(Weapon) && Weapon->GetClass() == WeaponClass)
-		{
-			return Weapon;
-		}
-	}
-
-	return nullptr;
-}
-
-bool AMyCharacter::HasWeaponOfClass(TSubclassOf<ASwarmWeaponBase> WeaponClass) const
-{
-	return FindWeaponByClass(WeaponClass) != nullptr;
+	// Weapon system removed - was part of old Swarm system
+	// TODO: Implement new generic weapon system if needed
 }
 
 bool AMyCharacter::IsInSwarmBattleLevel() const
@@ -412,10 +335,16 @@ void AMyCharacter::OnOverlapBegin(UPrimitiveComponent* OverlappedComp, AActor* O
 {
 	if (!OtherActor || OtherActor == this) return;
 	
+	UE_LOG(LogPlayerHealth, Warning, TEXT("[PLAYER-OVERLAP] %s (%s) overlapped with %s (%s)"), 
+        *GetName(),
+        OverlappedComp ? *OverlappedComp->GetName() : TEXT("NULL"), 
+        *OtherActor->GetName(),
+        OtherComp ? *OtherComp->GetName() : TEXT("NULL"));
+	
 	// Check if it's an enemy
 	if (OtherActor->FindComponentByClass<UEnemyHealthComponent>())
 	{
-		UE_LOG(LogPlayerHealth, Display, TEXT("Enemy %s entered damage area"), *OtherActor->GetName());
+		UE_LOG(LogPlayerHealth, Warning, TEXT("[PLAYER-ENEMY-DETECTED] Enemy %s entered damage area"), *OtherActor->GetName());
 	}
 }
 
@@ -433,4 +362,159 @@ void AMyCharacter::OnOverlapEnd(UPrimitiveComponent* OverlappedComp, AActor* Oth
 void AMyCharacter::OnRep_Health()
 {
 	// Handle health replication if needed
+}
+
+// ============================================================================
+// LEVEL UP SYSTEM
+// ============================================================================
+
+void AMyCharacter::OnPlayerLevelUp(int32 NewLevel)
+{
+	UE_LOG(LogXP, Warning, TEXT("[MyCharacter] ⭐ LEVEL UP! New Level: %d"), NewLevel);
+	
+	// Get upgrade subsystem
+	UWorld* World = GetWorld();
+	if (!World)
+	{
+		UE_LOG(LogXP, Error, TEXT("[MyCharacter] Cannot show level up modal - World is null"));
+		return;
+	}
+	
+	UUpgradeSubsystem* UpgradeSS = World->GetSubsystem<UUpgradeSubsystem>();
+	if (!UpgradeSS)
+	{
+		UE_LOG(LogXP, Error, TEXT("[MyCharacter] Cannot show level up modal - UpgradeSubsystem not found"));
+		return;
+	}
+	
+	// Generate random upgrades
+	TArray<FUpgradeData> RandomUpgrades = UpgradeSS->GenerateRandomUpgrades(3);
+	if (RandomUpgrades.Num() == 0)
+	{
+		UE_LOG(LogXP, Warning, TEXT("[MyCharacter] No upgrades available!"));
+		return;
+	}
+	
+	UE_LOG(LogXP, Display, TEXT("[MyCharacter] Generated %d upgrade options:"), RandomUpgrades.Num());
+	for (const FUpgradeData& Upgrade : RandomUpgrades)
+	{
+		UE_LOG(LogXP, Display, TEXT("  - %s (Level %d/%d)"), 
+			*Upgrade.DisplayName.ToString(), 
+			Upgrade.CurrentLevel, 
+			Upgrade.MaxLevel);
+	}
+	
+	// Show level up modal
+	ShowLevelUpModal(RandomUpgrades);
+}
+
+void AMyCharacter::ShowLevelUpModal(const TArray<FUpgradeData>& Upgrades)
+{
+	APlayerController* PC = Cast<APlayerController>(GetController());
+	if (!PC)
+	{
+		UE_LOG(LogXP, Error, TEXT("[MyCharacter] Cannot show modal - PlayerController is null"));
+		return;
+	}
+	
+	// Close existing modal if any
+	if (ActiveLevelUpModal.IsValid())
+	{
+		CloseLevelUpModal();
+	}
+	
+	// Pause game
+	PC->SetPause(true);
+	UE_LOG(LogXP, Display, TEXT("[MyCharacter] Game paused for level up"));
+	
+	// Set input mode to UI only
+	FInputModeUIOnly InputMode;
+	InputMode.SetLockMouseToViewportBehavior(EMouseLockMode::DoNotLock);
+	PC->SetInputMode(InputMode);
+	PC->bShowMouseCursor = true;
+	
+	// Create Slate modal
+	ActiveLevelUpModal = SNew(SLevelUpModal)
+		.OnUpgradeChosen_Lambda([this](EUpgradeType ChosenType)
+		{
+			OnUpgradeChosen(ChosenType);
+		});
+	
+	// Setup upgrades
+	ActiveLevelUpModal->SetupUpgrades(Upgrades);
+	
+	// Add to viewport
+	if (GEngine && GEngine->GameViewport)
+	{
+		GEngine->GameViewport->AddViewportWidgetContent(
+			ActiveLevelUpModal.ToSharedRef(),
+			100 // High Z-order to be on top
+		);
+		
+		// Force focus to the modal
+		FSlateApplication::Get().SetKeyboardFocus(ActiveLevelUpModal);
+		
+		UE_LOG(LogXP, Display, TEXT("[MyCharacter] ✅ Level Up modal displayed!"));
+	}
+	else
+	{
+		UE_LOG(LogXP, Error, TEXT("[MyCharacter] Failed to add modal to viewport - GEngine or GameViewport is null"));
+		PC->SetPause(false); // Unpause if we failed
+	}
+}
+
+void AMyCharacter::OnUpgradeChosen(EUpgradeType ChosenType)
+{
+	UE_LOG(LogXP, Warning, TEXT("[MyCharacter] 🎯 Upgrade chosen: %d"), (int32)ChosenType);
+	
+	// Apply upgrade
+	if (UWorld* World = GetWorld())
+	{
+		if (UUpgradeSubsystem* UpgradeSS = World->GetSubsystem<UUpgradeSubsystem>())
+		{
+			UpgradeSS->ApplyUpgrade(ChosenType, this);
+			
+			// Get upgrade info for feedback
+			FUpgradeData UpgradeInfo = UpgradeSS->GetUpgradeDisplayData(ChosenType);
+			UE_LOG(LogXP, Display, TEXT("[MyCharacter] ✨ Applied upgrade: %s (Level %d)"), 
+				*UpgradeInfo.DisplayName.ToString(),
+				UpgradeSS->GetUpgradeLevel(ChosenType));
+		}
+	}
+	
+	// Close modal and resume game
+	CloseLevelUpModal();
+}
+
+void AMyCharacter::CloseLevelUpModal()
+{
+	if (!ActiveLevelUpModal.IsValid())
+	{
+		return;
+	}
+	
+	// Remove from viewport
+	if (GEngine && GEngine->GameViewport)
+	{
+		GEngine->GameViewport->RemoveViewportWidgetContent(ActiveLevelUpModal.ToSharedRef());
+		UE_LOG(LogXP, Display, TEXT("[MyCharacter] Level Up modal closed"));
+	}
+	
+	// Reset modal reference
+	ActiveLevelUpModal.Reset();
+	
+	// Unpause game and restore input mode
+	APlayerController* PC = Cast<APlayerController>(GetController());
+	if (PC)
+	{
+		PC->SetPause(false);
+		
+		FInputModeGameAndUI InputMode;
+		InputMode.SetHideCursorDuringCapture(false);
+		InputMode.SetLockMouseToViewportBehavior(EMouseLockMode::DoNotLock);
+		PC->SetInputMode(InputMode);
+		PC->bShowMouseCursor = true;
+		
+		UE_LOG(LogXP, Display, TEXT("[MyCharacter] Game resumed"));
+	}
 }

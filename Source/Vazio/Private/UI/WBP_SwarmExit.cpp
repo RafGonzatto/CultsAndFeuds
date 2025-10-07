@@ -1,15 +1,10 @@
 #include "UI/WBP_SwarmExit.h"
-#include "Swarm/SwarmGameFlow.h"
+// #include "Swarm/SwarmGameFlow.h" // Removed - Swarm system deleted
 #include "Kismet/GameplayStatics.h"
 
 void UWBP_SwarmExit::OnExitClicked()
 {
-    if (UGameInstance* GI = UGameplayStatics::GetGameInstance(this))
-    {
-        if (USwarmGameFlow* Flow = GI->GetSubsystem<USwarmGameFlow>())
-        {
-            Flow->ExitArena();
-        }
-    }
+    // TODO: SwarmGameFlow removed - implement generic exit logic
+    UE_LOG(LogTemp, Warning, TEXT("[WBP_SwarmExit] Exit clicked - SwarmGameFlow removed, no action taken"));
 }
 

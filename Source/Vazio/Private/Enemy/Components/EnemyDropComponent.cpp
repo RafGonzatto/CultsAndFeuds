@@ -1,18 +1,13 @@
 #include "Enemy/Components/EnemyDropComponent.h"
 #include "Enemy/EnemyBase.h"
-#include "Engine/World.h"
-#include "Kismet/GameplayStatics.h"
-#include "GameFramework/GameModeBase.h"
-#include "Economy/GameEconomyService.h"
+#include "Enemy/Types/BossEnemy.h"
 #include "World/Common/Collectables/XPOrb.h"
-#include "Enemy/EnemyTypes.h"
+#include "Economy/GameEconomyService.h"
+#include "Engine/World.h"
 
 UEnemyDropComponent::UEnemyDropComponent()
 {
     PrimaryComponentTick.bCanEverTick = false;
-    MaxXPOrbs = 5;
-    OrbSpreadRadius = 100.f;
-    DifficultyScaleXP = 1.f;
 }
 
 void UEnemyDropComponent::DropOnDeath(const AEnemyBase* Enemy, const FEnemyArchetype& Arch, const FEnemyInstanceModifiers& Mods, bool bIsParent)
@@ -24,150 +19,119 @@ void UEnemyDropComponent::DropOnDeath(const AEnemyBase* Enemy, const FEnemyArche
 
     FVector DropLocation = Enemy->GetActorLocation();
     
-    // Calculate drops
-    int32 XPAmount = CalculateXPDrop(Arch, Mods, bIsParent);
-    int32 GoldAmount = CalculateGoldDrop(Arch, Mods, bIsParent);
+    // Handle boss-specific rewards
+    if (const ABossEnemy* Boss = Cast<ABossEnemy>(Enemy))
+    {
+        HandleBossRewards(Boss);
+    }
     
-    // Spawn XP orbs if any XP to drop
+    // Calculate and spawn XP orbs
+    int32 XPAmount = CalculateXPDrop(Arch, Mods, bIsParent);
     if (XPAmount > 0)
     {
         SpawnXPOrbs(XPAmount, DropLocation);
     }
     
-    // Add gold if any to drop
+    // Calculate and spawn gold
+    int32 GoldAmount = CalculateGoldDrop(Arch, Mods, bIsParent);
     if (GoldAmount > 0)
     {
         SpawnGold(GoldAmount, DropLocation);
     }
-    
-    UE_LOG(LogEnemy, Log, TEXT("%s died (parent=%d) drops: XP=%d Gold=%d"), 
-           *Enemy->GetName(), bIsParent ? 1 : 0, XPAmount, GoldAmount);
-}
-
-int32 UEnemyDropComponent::CalculateXPDrop(const FEnemyArchetype& Arch, const FEnemyInstanceModifiers& Mods, bool bIsParent)
-{
-    // SplitterSlime parents drop 0 XP
-    if (bIsParent)
-    {
-        return 0;
-    }
-    
-    // Base XP calculation
-    float FinalXP = Arch.BaseXP * DifficultyScaleXP;
-    
-    // Apply big modifier (×10 XP)
-    if (Mods.bBig)
-    {
-        FinalXP *= 10.f;
-    }
-    
-    return FMath::RoundToInt(FinalXP);
-}
-
-int32 UEnemyDropComponent::CalculateGoldDrop(const FEnemyArchetype& Arch, const FEnemyInstanceModifiers& Mods, bool bIsParent)
-{
-    // SplitterSlime parents drop 0 Gold
-    if (bIsParent)
-    {
-        return 0;
-    }
-    
-    int32 GoldAmount = 0;
-    
-    switch (Arch.Drop)
-    {
-        case EDropProfile::Normal:
-            // NormalEnemy: 5% chance for +1 Gold
-            if (FMath::FRandRange(0.f, 1.f) <= 0.05f)
-            {
-                GoldAmount = 1;
-            }
-            break;
-            
-        case EDropProfile::Gold:
-            // GoldEnemy: 100% chance for +10 Gold
-            GoldAmount = 10;
-            break;
-            
-        case EDropProfile::XPOnly:
-        case EDropProfile::None:
-        default:
-            // No gold drop
-            GoldAmount = 0;
-            break;
-    }
-    
-    // Note: big modifier does NOT affect gold drops according to requirements
-    
-    return GoldAmount;
 }
 
 void UEnemyDropComponent::SpawnXPOrbs(int32 TotalXP, const FVector& Location)
 {
-    if (TotalXP <= 0)
+    if (TotalXP <= 0 || !GetWorld())
     {
         return;
     }
     
-    // Partition XP into multiple orbs (capped for performance)
-    int32 NumOrbs = FMath::Min(MaxXPOrbs, FMath::Max(1, TotalXP / 2));
-    int32 XPPerOrb = TotalXP / NumOrbs;
-    int32 ExtraXP = TotalXP % NumOrbs;
+    UE_LOG(LogTemp, Warning, TEXT("[XP-DROP] Spawning %d XP orbs at location %s"), TotalXP, *Location.ToString());
     
+    // Determine how many orbs to spawn based on total XP
+    int32 NumOrbs = 1;
+    int32 XPPerOrb = TotalXP;
+    
+    // Split XP into multiple orbs if amount is large
+    if (TotalXP > 50)
+    {
+        NumOrbs = FMath::Min(5, TotalXP / 10); // Max 5 orbs, min 10 XP per orb
+        XPPerOrb = TotalXP / NumOrbs;
+    }
+    
+    // Spawn the XP orbs in a small circle around the drop location
     for (int32 i = 0; i < NumOrbs; i++)
     {
-        // Calculate spawn position with radial dispersion
+        // Calculate spawn position in a circle
         float Angle = (2.0f * PI * i) / NumOrbs;
-        float RandomRadius = FMath::FRandRange(0.3f, 1.0f) * OrbSpreadRadius;
-        FVector Offset = FVector(FMath::Cos(Angle), FMath::Sin(Angle), 0.f) * RandomRadius;
-        FVector OrbLocation = Location + Offset;
+        float Radius = NumOrbs > 1 ? 50.0f : 0.0f; // Spread orbs in 50 unit radius if multiple
+        FVector SpawnLocation = Location + FVector(
+            FMath::Cos(Angle) * Radius,
+            FMath::Sin(Angle) * Radius,
+            10.0f // Slightly above ground
+        );
         
-        // Add extra XP to first orb
-        int32 ThisOrbXP = XPPerOrb + (i == 0 ? ExtraXP : 0);
-        
-        // Spawn XP orb
+        // Spawn the XP orb
         FActorSpawnParameters SpawnParams;
         SpawnParams.SpawnCollisionHandlingOverride = ESpawnActorCollisionHandlingMethod::AdjustIfPossibleButAlwaysSpawn;
         
-        if (AXPOrb* NewOrb = GetWorld()->SpawnActor<AXPOrb>(AXPOrb::StaticClass(), OrbLocation, FRotator::ZeroRotator, SpawnParams))
+        UE_LOG(LogTemp, Warning, TEXT("[XP-DROP] Attempting to spawn XPOrb at %s"), *SpawnLocation.ToString());
+        
+        AXPOrb* XPOrb = GetWorld()->SpawnActor<AXPOrb>(AXPOrb::StaticClass(), SpawnLocation, FRotator::ZeroRotator, SpawnParams);
+        if (XPOrb && IsValid(XPOrb))
         {
-            // Set XP value if the orb has such functionality
-            // This would depend on your XPOrb implementation
-            UE_LOG(LogEconomy, VeryVerbose, TEXT("Spawned XP orb with %d XP at %s"), ThisOrbXP, *OrbLocation.ToCompactString());
+            XPOrb->XPAmount = XPPerOrb + (i < (TotalXP % NumOrbs) ? 1 : 0); // Distribute remainder evenly
+            UE_LOG(LogTemp, Warning, TEXT("[XP-DROP] Successfully spawned XPOrb with %d XP at %s"), XPOrb->XPAmount, *SpawnLocation.ToString());
+        }
+        else
+        {
+            UE_LOG(LogTemp, Error, TEXT("[XP-DROP] Failed to spawn XPOrb at %s - XPOrb is null or invalid"), *SpawnLocation.ToString());
         }
     }
-    
-    UE_LOG(LogEconomy, Log, TEXT("Spawned %d XP orbs totaling %d XP"), NumOrbs, TotalXP);
 }
 
 void UEnemyDropComponent::SpawnGold(int32 GoldAmount, const FVector& Location)
 {
-    if (GoldAmount <= 0)
+    // TODO: Implement gold spawning logic
+    UE_LOG(LogTemp, Log, TEXT("Should spawn %d gold at location %s"), GoldAmount, *Location.ToString());
+}
+
+void UEnemyDropComponent::HandleBossRewards(const ABossEnemy* Boss)
+{
+    // TODO: Implement boss-specific reward logic
+    UE_LOG(LogTemp, Log, TEXT("Should handle boss rewards for boss"));
+}
+
+int32 UEnemyDropComponent::CalculateXPDrop(const FEnemyArchetype& Arch, const FEnemyInstanceModifiers& Mods, bool bIsParent)
+{
+    // Base XP calculation with meaningful values
+    int32 BaseXP = FMath::Max(Arch.BaseRewards.XPValue, 5); // Minimum 5 XP
+    
+    // Scale XP based on enemy HP (stronger enemies give more XP)
+    float HPMultiplier = FMath::Max(1.0f, Arch.BaseHP / 100.0f); // 1x at 100 HP, 2x at 200 HP, etc.
+    BaseXP = FMath::RoundToInt(BaseXP * HPMultiplier);
+    
+    // Parent enemies (those that split) give bonus XP
+    if (bIsParent)
     {
-        return;
+        BaseXP *= 2;
     }
     
-    // Try to find a game mode or player controller that implements IGameEconomyService
-    if (AGameModeBase* GameMode = UGameplayStatics::GetGameMode(GetWorld()))
-    {
-        if (IGameEconomyService* EconomyService = Cast<IGameEconomyService>(GameMode))
-        {
-            EconomyService->AddGold(GoldAmount);
-            UE_LOG(LogEconomy, Log, TEXT("Added %d gold to economy"), GoldAmount);
-            return;
-        }
-    }
+    // Apply modifiers (RewardMultiplier affects XP rewards)
+    BaseXP = FMath::RoundToInt(BaseXP * Mods.RewardMultiplier);
     
-    // Fallback: try player controller
-    if (APlayerController* PC = UGameplayStatics::GetPlayerController(GetWorld(), 0))
-    {
-        if (IGameEconomyService* EconomyService = Cast<IGameEconomyService>(PC))
-        {
-            EconomyService->AddGold(GoldAmount);
-            UE_LOG(LogEconomy, Log, TEXT("Added %d gold to player controller"), GoldAmount);
-            return;
-        }
-    }
+    // Ensure minimum viable XP drop
+    BaseXP = FMath::Max(BaseXP, 5);
     
-    UE_LOG(LogEconomy, Warning, TEXT("Could not find IGameEconomyService to add %d gold"), GoldAmount);
+    UE_LOG(LogTemp, Log, TEXT("[XP-CALC] Enemy XP: Base=%d, HP=%.0f, Parent=%s, Final=%d"), 
+        Arch.BaseRewards.XPValue, Arch.BaseHP, bIsParent ? TEXT("YES") : TEXT("NO"), BaseXP);
+    
+    return BaseXP;
+}
+
+int32 UEnemyDropComponent::CalculateGoldDrop(const FEnemyArchetype& Arch, const FEnemyInstanceModifiers& Mods, bool bIsParent)
+{
+    // TODO: Implement proper gold calculation
+    return Arch.BaseRewards.GoldValue * (bIsParent ? 2 : 1);
 }

@@ -1,81 +1,66 @@
 #include "UI/HUD/HUDSubsystem.h"
 #include "UI/HUD/SHUDRoot.h"
-#include "World/Common/Player/PlayerHealthComponent.h"
-#include "World/Common/Player/XPComponent.h"
-#include "Engine/World.h"
-#include "Engine/GameViewportClient.h"
+#include "Enemy/EnemySpawnerSubsystem.h"
+#include "Enemy/Types/BossEnemy.h"
 #include "Framework/Application/SlateApplication.h"
-#include "Kismet/GameplayStatics.h"
+#include "Widgets/SViewport.h"
+#include "Engine/GameViewportClient.h"
+#include "Engine/World.h"
 
 void UHUDSubsystem::Initialize(FSubsystemCollectionBase& Collection)
 {
     Super::Initialize(Collection);
     
-    UE_LOG(LogTemp, Log, TEXT("HUDSubsystem: Initialized"));
+    // Create the HUD widget
+    HUDWidget = SNew(SHUDRoot);
+    
+    SetupDelegateBindings();
 }
 
 void UHUDSubsystem::Deinitialize()
 {
-    HideHUD();
     CleanupDelegateBindings();
     
-    UE_LOG(LogTemp, Log, TEXT("HUDSubsystem: Deinitialized"));
+    if (HUDWidget.IsValid())
+    {
+        HUDWidget.Reset();
+    }
     
     Super::Deinitialize();
 }
 
 void UHUDSubsystem::ShowHUD()
 {
-    if (bIsHUDVisible || !FSlateApplication::IsInitialized())
+    if (!HUDWidget.IsValid())
     {
         return;
     }
 
-    UWorld* World = GetWorld();
-    if (!World || !World->GetGameViewport())
+    if (!bIsHUDVisible)
     {
-        UE_LOG(LogTemp, Warning, TEXT("HUDSubsystem: Cannot show HUD - no valid world or viewport"));
-        return;
-    }
-
-    // Create the HUD widget
-    HUDWidget = SNew(SHUDRoot);
-    
-    if (HUDWidget.IsValid())
-    {
-        // Add to viewport
-        World->GetGameViewport()->AddViewportWidgetContent(HUDWidget.ToSharedRef(), 100); // High Z-Order
-        bIsHUDVisible = true;
-        
-        // Setup delegate bindings to auto-update
-        SetupDelegateBindings();
-        
-        UE_LOG(LogTemp, Log, TEXT("HUDSubsystem: HUD shown successfully"));
-    }
-    else
-    {
-        UE_LOG(LogTemp, Error, TEXT("HUDSubsystem: Failed to create HUD widget"));
+        if (UGameViewportClient* ViewportClient = GetWorld()->GetGameViewport())
+        {
+            ViewportClient->AddViewportWidgetContent(HUDWidget.ToSharedRef(), 100);
+            bIsHUDVisible = true;
+        }
     }
 }
 
 void UHUDSubsystem::HideHUD()
 {
-    if (!bIsHUDVisible || !HUDWidget.IsValid())
+    if (!HUDWidget.IsValid())
     {
         return;
     }
 
-    UWorld* World = GetWorld();
-    if (World && World->GetGameViewport())
+    if (bIsHUDVisible)
     {
-        World->GetGameViewport()->RemoveViewportWidgetContent(HUDWidget.ToSharedRef());
+        if (UGameViewportClient* ViewportClient = GetWorld()->GetGameViewport())
+        {
+            ViewportClient->RemoveViewportWidgetContent(HUDWidget.ToSharedRef());
+            bIsHUDVisible = false;
+        }
     }
-    
-    CleanupDelegateBindings();
-    HUDWidget.Reset();
-    bIsHUDVisible = false;
-    
-    UE_LOG(LogTemp, Log, TEXT("HUDSubsystem: HUD hidden"));
 }
 
 void UHUDSubsystem::UpdateHealth(float CurrentHealth, float MaxHealth)
@@ -104,69 +89,50 @@ void UHUDSubsystem::UpdateLevel(int32 NewLevel)
 
 void UHUDSubsystem::SetupDelegateBindings()
 {
-    UWorld* World = GetWorld();
-    if (!World)
-    {
-        return;
-    }
-
-    // Find the player pawn and bind to its components
-    APawn* PlayerPawn = UGameplayStatics::GetPlayerPawn(World, 0);
-    if (!PlayerPawn)
-    {
-        UE_LOG(LogTemp, Warning, TEXT("HUDSubsystem: No player pawn found for delegate binding"));
-        return;
-    }
-
-    // Bind to Health Component
-    if (UPlayerHealthComponent* HealthComp = PlayerPawn->FindComponentByClass<UPlayerHealthComponent>())
-    {
-        HealthComp->OnHealthChanged.AddUObject(this, &UHUDSubsystem::UpdateHealth);
-        UE_LOG(LogTemp, Log, TEXT("HUDSubsystem: Bound to HealthComponent"));
-        
-        // Initial update
-        UpdateHealth(HealthComp->GetCurrentHealth(), HealthComp->GetMaxHealth());
-    }
-
-    // Bind to XP Component
-    if (UXPComponent* XPComp = PlayerPawn->FindComponentByClass<UXPComponent>())
-    {
-        XPComp->OnXPChanged.AddDynamic(this, &UHUDSubsystem::UpdateXP);
-        XPComp->OnLevelChanged.AddDynamic(this, &UHUDSubsystem::UpdateLevel);
-        UE_LOG(LogTemp, Log, TEXT("HUDSubsystem: Bound to XPComponent"));
-        
-        // Initial updates
-        UpdateXP(XPComp->GetCurrentXP(), XPComp->GetXPToNextLevel());
-        UpdateLevel(XPComp->GetCurrentLevel());
-    }
+    // TODO: Setup delegate bindings for enemy spawner events
 }
 
 void UHUDSubsystem::CleanupDelegateBindings()
 {
-    UWorld* World = GetWorld();
-    if (!World)
-    {
-        return;
-    }
+    // TODO: Cleanup delegate bindings
+}
 
-    APawn* PlayerPawn = UGameplayStatics::GetPlayerPawn(World, 0);
-    if (!PlayerPawn)
-    {
-        return;
-    }
+void UHUDSubsystem::BindBossDelegates(UEnemySpawnerSubsystem* Spawner)
+{
+    // TODO: Bind boss-related delegates
+}
 
-    // Cleanup Health Component bindings
-    if (UPlayerHealthComponent* HealthComp = PlayerPawn->FindComponentByClass<UPlayerHealthComponent>())
-    {
-        HealthComp->OnHealthChanged.RemoveAll(this);
-    }
+void UHUDSubsystem::UnbindBossDelegates()
+{
+    // TODO: Unbind boss-related delegates
+}
 
-    // Cleanup XP Component bindings
-    if (UXPComponent* XPComp = PlayerPawn->FindComponentByClass<UXPComponent>())
-    {
-        XPComp->OnXPChanged.RemoveAll(this);
-        XPComp->OnLevelChanged.RemoveAll(this);
-    }
-    
-    UE_LOG(LogTemp, Log, TEXT("HUDSubsystem: Delegate bindings cleaned up"));
+void UHUDSubsystem::HandleBossSpawned(ABossEnemy* Boss, const FBossSpawnEntry& Entry)
+{
+    // TODO: Handle boss spawned event
+}
+
+void UHUDSubsystem::HandleBossEnded()
+{
+    // TODO: Handle boss ended event
+}
+
+void UHUDSubsystem::HandleBossHealthChanged(float NormalizedHealth, ABossEnemy* Boss)
+{
+    // TODO: Handle boss health changed event
+}
+
+void UHUDSubsystem::HandleBossPhaseChanged(int32 PhaseIndex, const FBossPhaseDefinition& PhaseDefinition)
+{
+    // TODO: Handle boss phase changed event
+}
+
+void UHUDSubsystem::HandleBossWarning(const FBossSpawnEntry& Entry)
+{
+    // TODO: Handle boss warning event
+}
+
+void UHUDSubsystem::HandleBossTelegraph(const FBossAttackPattern& Pattern)
+{
+    // TODO: Handle boss telegraph event
 }

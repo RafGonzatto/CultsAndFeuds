@@ -1,0 +1,40 @@
+{
+  "name": "Boss Test Wave",
+  "description": "Arquivo de teste para spawnar todos os bosses rapidamente",
+  "spawns": [],
+  "bosses": [
+    {
+      "time": 10.0,
+      "bossType": "BurrowerBoss",
+      "warningDuration": 3.0,
+      "announcement": "Teste: Burrower Boss spawnou!",
+      "pauseRegularSpawns": true,
+      "resumeDelay": 2.0
+    },
+    {
+      "time": 45.0,
+      "bossType": "VoidQueenBoss",
+      "warningDuration": 3.0,
+      "announcement": "Teste: Void Queen Boss spawnou!",
+      "pauseRegularSpawns": true,
+      "resumeDelay": 2.0
+    },
+    {
+      "time": 80.0,
+      "bossType": "FallenWarlordBoss",
+      "warningDuration": 3.0,
+      "announcement": "Teste: Fallen Warlord Boss spawnou!",
+      "pauseRegularSpawns": true,
+      "resumeDelay": 2.0
+    },
+    {
+      "time": 115.0,
+      "bossType": "HybridDemonBoss",
+      "warningDuration": 3.0,
+      "announcement": "Teste: Hybrid Demon Boss spawnou!",
+      "pauseRegularSpawns": true,
+      "resumeDelay": 2.0,
+      "finalEncounter": true
+    }
+  ]
+}

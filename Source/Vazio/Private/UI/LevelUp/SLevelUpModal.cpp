@@ -1,5 +1,6 @@
 #include "UI/LevelUp/SLevelUpModal.h"
 #include "UI/LevelUp/SUpgradeCard.h"
+#include "Gameplay/Upgrades/UpgradeSystem.h"
 #include "SlateOptMacros.h"
 
 BEGIN_SLATE_FUNCTION_BUILD_OPTIMIZATION
@@ -67,7 +68,7 @@ void SLevelUpModal::Construct(const FArguments& InArgs)
     UE_LOG(LogTemp, Warning, TEXT("LevelUp:UI:SlateModalConstructed"));
 }
 
-void SLevelUpModal::SetupUpgrades(const TArray<FSwarmUpgrade>& Upgrades)
+void SLevelUpModal::SetupUpgrades(const TArray<FUpgradeData>& Upgrades)
 {
     CurrentUpgrades = Upgrades;
     UpgradeCards.Empty();
@@ -123,7 +124,7 @@ void SLevelUpModal::ConfirmSelection()
 {
     if (SelectedIndex >= 0 && SelectedIndex < CurrentUpgrades.Num())
     {
-        ESwarmUpgradeType SelectedType = CurrentUpgrades[SelectedIndex].Type;
+        EUpgradeType SelectedType = CurrentUpgrades[SelectedIndex].Type;
         UE_LOG(LogTemp, Warning, TEXT("LevelUp:UI:ConfirmSelection Type=%d"), (int32)SelectedType);
         
         if (OnUpgradeChosen.IsBound())

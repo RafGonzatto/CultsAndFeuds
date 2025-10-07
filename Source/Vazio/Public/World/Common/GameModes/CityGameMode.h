@@ -1,3 +1,4 @@
+// CityGameMode.h
 #pragma once
 
 #include "CoreMinimal.h"
@@ -5,7 +6,7 @@
 #include "CityGameMode.generated.h"
 
 class UStaticMesh;
-class UMaterial;
+class UMaterialInterface;
 
 UCLASS()
 class VAZIO_API ACityGameMode : public AGameModeBase
@@ -17,45 +18,28 @@ public:
 
 protected:
 	virtual void BeginPlay() override;
-	
-	// Override para escolher PlayerStart correto
 	virtual AActor* ChoosePlayerStart_Implementation(AController* Player) override;
-
-	// Criar PlayerStart se não existir
-	UFUNCTION()
-	void CreatePlayerStartIfNeeded();
-	
-	// Criar ambiente com delay
-	UFUNCTION()
-	void CreateEnvironmentDelayed();
-	
-	// Criar o chão da cidade
-	UFUNCTION()
-	void CreateCityGround();
-	
-	// Criar cubos de referência coloridos
-	UFUNCTION()
-	void CreateReferenceCubes();
-	
-	// Criar iluminação básica
-	UFUNCTION()
-	void CreateBasicLighting();
-	
-	// Criar limites da cidade (paredes invisíveis) - desabilitado por enquanto
-	UFUNCTION()
-	void CreateCityBounds();
-	
-	// Helper para criar uma parede limite
-	void CreateBoundaryWall(FVector Location, FVector Scale);
+	virtual void InitGame(const FString& MapName, const FString& Options, FString& ErrorMessage) override;
 
 private:
-	// Assets carregados no constructor
-	UPROPERTY()
-	UStaticMesh* CubeMesh = nullptr;
-	
-	UPROPERTY()
-	UMaterial* BasicMaterial = nullptr;
-	
-	// Timer para delay na criação do ambiente
-	FTimerHandle SpawnDelayTimer;
+	// === Setup / Ambiente ===
+	UFUNCTION() void CreatePlayerStartIfNeeded();
+	UFUNCTION() void CreateEnvironmentNextTick();
+	UFUNCTION() void CreateCityGround();
+	UFUNCTION() void CreateReferenceCubes();
+	UFUNCTION() void CreateBasicLighting();
+	UFUNCTION() void CreateCityBounds();         // (mantido desabilitado)
+	void CreateBoundaryWall(FVector Location, FVector Scale);
+
+	// === Helpers ===
+	class AStaticMeshActor* SpawnMeshActor(const FVector& Loc, const FRotator& Rot, const FVector& Scale) const;
+	void ApplyColorMID(UPrimitiveComponent* Comp, const FLinearColor& Color) const;
+
+private:
+	// Assets carregados no construtor
+	UPROPERTY() UStaticMesh* CubeMesh = nullptr;
+	UPROPERTY() UMaterialInterface* BasicMaterial = nullptr;
+
+	// Identificador do nosso spawn
+	static FName GetCitySpawnTag() { return TEXT("CitySpawn"); }
 };

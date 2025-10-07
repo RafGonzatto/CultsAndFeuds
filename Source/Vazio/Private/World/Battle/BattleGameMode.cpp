@@ -21,9 +21,6 @@
 #include "Enemy/EnemyConfig.h"
 #include "Enemy/EnemySpawnHelper.h"
 
-// Old Swarm System (for disabling)
-#include "Swarm/SwarmSubsystem.h"
-
 ABattleGameMode::ABattleGameMode()
 {
     DefaultPawnClass = AMyCharacter::StaticClass();
@@ -65,9 +62,8 @@ void ABattleGameMode::BeginPlay()
         UE_LOG(LogTemp, Display, TEXT("[BattleGM] Requested NavMesh rebuild"));
     }
 
-    // Initialize new enemy system and disable old swarm system
+    // Initialize enemy system
     InitializeEnemySystem();
-    DisableOldSwarmSystem();
     
     // Auto-start the first wave after a small delay to ensure everything is initialized
     FTimerHandle AutoStartTimer;
@@ -229,42 +225,7 @@ void ABattleGameMode::InitializeEnemySystem()
     }
 
     SpawnerSubsystem->SetEnemyConfig(DefaultEnemyConfig);
-    UE_LOG(LogTemp, Warning, TEXT("[BattleGM] Enemy system initialized - old swarm system disabled"));
-}
-
-void ABattleGameMode::DisableOldSwarmSystem()
-{
-    UWorld* World = GetWorld();
-    if (!World) return;
-
-    // AGGRESSIVE SHUTDOWN: Find and destroy SwarmManager actors
-    TArray<AActor*> ActorsToDestroy;
-    for (TActorIterator<AActor> It(World); It; ++It)
-    {
-        AActor* Actor = *It;
-        if (Actor && (Actor->GetClass()->GetName().Contains(TEXT("SwarmManager")) || 
-                      Actor->GetClass()->GetName().Contains(TEXT("BP_SwarmManager"))))
-        {
-            ActorsToDestroy.Add(Actor);
-            UE_LOG(LogTemp, Warning, TEXT("[BattleGM] Marked SwarmManager for destruction: %s"), *Actor->GetName());
-        }
-    }
-    
-    // Destroy all SwarmManager actors
-    for (AActor* Actor : ActorsToDestroy)
-    {
-        Actor->SetActorTickEnabled(false);
-        Actor->SetActorHiddenInGame(true);
-        Actor->Destroy();
-        UE_LOG(LogTemp, Warning, TEXT("[BattleGM] DESTROYED SwarmManager: %s"), *Actor->GetName());
-    }
-    
-    // Also disable SwarmSubsystem directly (without deinitializing engine-managed subsystem)
-    if (USwarmSubsystem* SwarmSS = World->GetSubsystem<USwarmSubsystem>())
-    {
-        SwarmSS->Disable();
-        UE_LOG(LogTemp, Warning, TEXT("[BattleGM] DISABLED SwarmSubsystem (soft)"));
-    }
+    UE_LOG(LogTemp, Warning, TEXT("[BattleGM] Enemy system initialized"));
 }
 
 void ABattleGameMode::StartEnemyWave(const FString& JSONWaveData, int32 Seed)
@@ -281,7 +242,7 @@ void ABattleGameMode::StartDefaultWave()
 
 void ABattleGameMode::StartTestWave()
 {
-    // CORRECT JSON FORMAT for SpawnTimeline system
+    // CORRECT JSON FORMAT for SpawnTimeline system with BOTH regular enemies AND bosses
     FString TestWaveJSON = TEXT(R"({
         "spawnEvents": [
             {
@@ -289,30 +250,43 @@ void ABattleGameMode::StartTestWave()
                 "spawns": {
                     "NormalEnemy": {
                         "count": 3,
-                        "big": true
-                    },
-                    "circle": [
-                        {
-                            "type": "HeavyEnemy",
-                            "count": 2,
-                            "radius": 400
-                        }
-                    ]
+                        "big": false
+                    }
                 }
             },
             {
                 "time": 5.0,
                 "spawns": {
-                    "RangedEnemy": 5,
-                    "DashEnemy": {
-                        "count": 2,
-                        "big": false
-                    }
+                    "HeavyEnemy": 2,
+                    "RangedEnemy": 2
                 }
+            },
+            {
+                "time": 15.0,
+                "spawns": {
+                    "DashEnemy": 1,
+                    "circle": [
+                        {
+                            "type": "NormalEnemy",
+                            "count": 3,
+                            "radius": 200
+                        }
+                    ]
+                }
+            }
+        ],
+        "bosses": [
+            {
+                "time": 30.0,
+                "bossType": "BurrowerBoss",
+                "warningDuration": 3.0,
+                "announcement": "Test: Burrower Boss spawned!",
+                "pauseRegularSpawns": true,
+                "resumeDelay": 2.0
             }
         ]
     })");
 
     StartEnemyWave(TestWaveJSON, FMath::Rand());
-    UE_LOG(LogTemp, Warning, TEXT("[BattleGM] Started test wave from JSON"));
+    UE_LOG(LogTemp, Warning, TEXT("[BattleGM] Started test wave from JSON with bosses"));
 }

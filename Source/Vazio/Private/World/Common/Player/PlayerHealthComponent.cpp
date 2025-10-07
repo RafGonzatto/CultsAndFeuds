@@ -42,3 +42,12 @@ void UPlayerHealthComponent::Heal(float Amount)
     OnHealthChanged.Broadcast(CurrentHealth, MaxHealth);
     OnDamaged.Broadcast(CurrentHealth);
 }
+
+void UPlayerHealthComponent::IncreaseMaxHealth(float Amount)
+{
+    if (Amount <= 0.f) return;
+    MaxHealth += Amount;
+    CurrentHealth += Amount; // Also increase current health by the same amount
+    OnHealthChanged.Broadcast(CurrentHealth, MaxHealth);
+    OnDamaged.Broadcast(CurrentHealth);
+}

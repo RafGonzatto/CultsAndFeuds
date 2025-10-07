@@ -2,9 +2,9 @@
 
 #include "CoreMinimal.h"
 #include "Widgets/SCompoundWidget.h"
-#include "Swarm/Upgrades/SwarmUpgradeSystem.h"
+#include "Gameplay/Upgrades/UpgradeSystem.h"
 
-DECLARE_DELEGATE_OneParam(FOnUpgradeChosen, ESwarmUpgradeType);
+DECLARE_DELEGATE_OneParam(FOnUpgradeChosen, EUpgradeType);
 
 class VAZIO_API SLevelUpModal : public SCompoundWidget
 {
@@ -14,7 +14,7 @@ public:
     SLATE_END_ARGS()
 
     void Construct(const FArguments& InArgs);
-    void SetupUpgrades(const TArray<FSwarmUpgrade>& Upgrades);
+    void SetupUpgrades(const TArray<FUpgradeData>& Upgrades);
 
     // SWidget interface
     virtual bool SupportsKeyboardFocus() const override { return true; }
@@ -23,7 +23,7 @@ public:
 
 private:
     FOnUpgradeChosen OnUpgradeChosen;
-    TArray<FSwarmUpgrade> CurrentUpgrades;
+    TArray<FUpgradeData> CurrentUpgrades;
     int32 SelectedIndex = 0;
     TArray<TSharedPtr<class SUpgradeCard>> UpgradeCards;
     TSharedPtr<class SHorizontalBox> CardsContainer;

@@ -1,108 +1,107 @@
 #include "UI/Widgets/MainMenuWidget.h"
-#include "Blueprint/WidgetTree.h"
-#include "Components/Overlay.h"
-#include "Components/OverlaySlot.h"
-#include "Components/VerticalBox.h"
-#include "Components/VerticalBoxSlot.h"
-#include "Components/Button.h"
-#include "Components/TextBlock.h"
-#include "Components/Border.h"
-#include "Components/SizeBox.h"
-#include "Styling/CoreStyle.h"
-
 #include "Core/Flow/FlowSubsystem.h"
-#include "Engine/GameInstance.h"
+#include "Components/OverlaySlot.h"
+#include "Components/VerticalBoxSlot.h"
 
-void UMainMenuWidget::NativeConstruct()
+UMainMenuWidget::UMainMenuWidget(const FObjectInitializer& ObjectInitializer)
+    : Super(ObjectInitializer)
 {
-    Super::NativeConstruct();
+    SetIsFocusable(true); // Allow the UUserWidget to receive keyboard focus
+}
 
-    // Root SizeBox (fixed size for simplicity)
-    USizeBox* RootSizeBox = WidgetTree->ConstructWidget<USizeBox>(USizeBox::StaticClass(), TEXT("RootSizeBox"));
-    RootSizeBox->SetWidthOverride(1920.0f);
-    RootSizeBox->SetHeightOverride(1080.0f);
-    WidgetTree->RootWidget = RootSizeBox;
+TSharedRef<SWidget> UMainMenuWidget::RebuildWidget()
+{
+    if (!WidgetTree)
+    {
+        WidgetTree = NewObject<UWidgetTree>(this, UWidgetTree::StaticClass(), NAME_None, RF_Transactional);
+    }
 
-    // Overlay
-    UOverlay* MainOverlay = WidgetTree->ConstructWidget<UOverlay>(UOverlay::StaticClass(), TEXT("MainOverlay"));
-    RootSizeBox->AddChild(MainOverlay);
+    RootOverlay = WidgetTree->ConstructWidget<UOverlay>(UOverlay::StaticClass(), TEXT("RootOverlay"));
+    RootOverlay->SetVisibility(ESlateVisibility::Visible);
+    RootOverlay->SetIsEnabled(true);
+    WidgetTree->RootWidget = RootOverlay;
 
-    // Fullscreen background
-    UBorder* FullScreenBorder = WidgetTree->ConstructWidget<UBorder>(UBorder::StaticClass(), TEXT("FullScreenBorder"));
-    FullScreenBorder->SetBrushColor(FLinearColor(0.1f, 0.1f, 0.2f, 0.9f));
-    if (UOverlaySlot* BgSlot = MainOverlay->AddChildToOverlay(FullScreenBorder))
+    UBorder* FullScreenBG = WidgetTree->ConstructWidget<UBorder>(UBorder::StaticClass(), TEXT("BG"));
+    FullScreenBG->SetBrushColor(FLinearColor(0.05f, 0.05f, 0.1f, 0.85f));
+    UOverlaySlot* BgSlot = Cast<UOverlaySlot>(RootOverlay->AddChildToOverlay(FullScreenBG));
+    if (BgSlot)
     {
         BgSlot->SetHorizontalAlignment(HAlign_Fill);
         BgSlot->SetVerticalAlignment(VAlign_Fill);
     }
 
-    // Title text
-    UTextBlock* TitleText = WidgetTree->ConstructWidget<UTextBlock>(UTextBlock::StaticClass(), TEXT("TitleText"));
-    TitleText->SetText(FText::FromString(TEXT("MAIN MENU")));
-    FSlateFontInfo TitleFont = FCoreStyle::GetDefaultFontStyle("Bold", 48);
-    TitleText->SetFont(TitleFont);
-    TitleText->SetColorAndOpacity(FSlateColor(FLinearColor::White));
-    TitleText->SetJustification(ETextJustify::Center);
-    if (UOverlaySlot* TextSlot = MainOverlay->AddChildToOverlay(TitleText))
+    UTextBlock* Title = WidgetTree->ConstructWidget<UTextBlock>(UTextBlock::StaticClass(), TEXT("Title"));
+    Title->SetText(FText::FromString(TEXT("MAIN MENU")));
+    Title->SetJustification(ETextJustify::Center);
+    Title->SetFont(FCoreStyle::GetDefaultFontStyle("Bold", 48));
+    UOverlaySlot* TitleSlot = Cast<UOverlaySlot>(RootOverlay->AddChildToOverlay(Title));
+    if (TitleSlot)
     {
-        TextSlot->SetHorizontalAlignment(HAlign_Center);
-        TextSlot->SetVerticalAlignment(VAlign_Top);
-        TextSlot->SetPadding(FMargin(0.0f, 100.0f, 0.0f, 0.0f));
+        TitleSlot->SetHorizontalAlignment(HAlign_Center);
+        TitleSlot->SetVerticalAlignment(VAlign_Top);
+        TitleSlot->SetPadding(FMargin(0, 80, 0, 0));
     }
 
-    // Menu box
     MenuBox = WidgetTree->ConstructWidget<UVerticalBox>(UVerticalBox::StaticClass(), TEXT("MenuBox"));
-    if (UOverlaySlot* MenuSlot = MainOverlay->AddChildToOverlay(MenuBox))
+    UOverlaySlot* MenuSlot = Cast<UOverlaySlot>(RootOverlay->AddChildToOverlay(MenuBox));
+    if (MenuSlot)
     {
         MenuSlot->SetHorizontalAlignment(HAlign_Center);
         MenuSlot->SetVerticalAlignment(VAlign_Center);
     }
 
-    // Play button
-    CreatePlayButton();
+    PlayButton = CreatePlayButton();
 
-    // Force visibility
-    this->SetVisibility(ESlateVisibility::Visible);
-    RootSizeBox->SetVisibility(ESlateVisibility::Visible);
-    MainOverlay->SetVisibility(ESlateVisibility::Visible);
-    FullScreenBorder->SetVisibility(ESlateVisibility::Visible);
+    return Super::RebuildWidget();
+}
 
-    UE_LOG(LogTemp, Warning, TEXT("[MainMenuWidget] Widget criado"));
+void UMainMenuWidget::NativeConstruct()
+{
+    Super::NativeConstruct();
+    if (PlayButton)
+    {
+        PlayButton->SetKeyboardFocus();
+    }
+}
+
+UWidget* UMainMenuWidget::GetInitialFocusTarget() const
+{
+    return const_cast<UMainMenuWidget*>(this);
 }
 
 UButton* UMainMenuWidget::CreatePlayButton()
 {
-    USizeBox* ButtonSizeBox = WidgetTree->ConstructWidget<USizeBox>(USizeBox::StaticClass(), TEXT("ButtonSizeBox"));
-    ButtonSizeBox->SetWidthOverride(300.0f);
-    ButtonSizeBox->SetHeightOverride(80.0f);
+    USizeBox* SB = WidgetTree->ConstructWidget<USizeBox>(USizeBox::StaticClass(), TEXT("PlaySize"));
+    SB->SetWidthOverride(320.f);
+    SB->SetHeightOverride(90.f);
 
-    UBorder* ButtonBorder = WidgetTree->ConstructWidget<UBorder>(UBorder::StaticClass(), TEXT("ButtonBorder"));
-    ButtonBorder->SetBrushColor(FLinearColor(0.2f, 0.6f, 0.2f, 1.0f));
-    ButtonBorder->SetPadding(FMargin(10.0f));
-    ButtonSizeBox->AddChild(ButtonBorder);
+    UBorder* B = WidgetTree->ConstructWidget<UBorder>(UBorder::StaticClass(), TEXT("PlayBorder"));
+    B->SetBrushColor(FLinearColor(0.20f, 0.60f, 0.20f, 1.0f));
+    B->SetPadding(FMargin(8.f));
+    SB->AddChild(B);
 
-    UButton* PlayBtn = WidgetTree->ConstructWidget<UButton>(UButton::StaticClass(), TEXT("PlayButton"));
-    ButtonBorder->SetContent(PlayBtn);
+    UButton* Btn = WidgetTree->ConstructWidget<UButton>(UButton::StaticClass(), TEXT("PlayButton"));
+    Btn->SetIsEnabled(true);
+    B->SetContent(Btn);
 
-    UTextBlock* PlayTxt = WidgetTree->ConstructWidget<UTextBlock>(UTextBlock::StaticClass(), TEXT("PlayText"));
-    PlayTxt->SetText(FText::FromString(TEXT("PLAY GAME")));
-    FSlateFontInfo ButtonFont = FCoreStyle::GetDefaultFontStyle("Regular", 24);
-    PlayTxt->SetFont(ButtonFont);
-    PlayTxt->SetColorAndOpacity(FSlateColor(FLinearColor::White));
-    PlayTxt->SetJustification(ETextJustify::Center);
-    PlayBtn->SetContent(PlayTxt);
+    UTextBlock* Txt = WidgetTree->ConstructWidget<UTextBlock>(UTextBlock::StaticClass(), TEXT("PlayText"));
+    Txt->SetText(FText::FromString(TEXT("PLAY")));
+    Txt->SetJustification(ETextJustify::Center);
+    Txt->SetFont(FCoreStyle::GetDefaultFontStyle("Regular", 28));
+    Btn->SetContent(Txt);
 
-    if (UVerticalBoxSlot* VBSlot = MenuBox->AddChildToVerticalBox(ButtonSizeBox))
+    UVerticalBoxSlot* MenuItemSlot = Cast<UVerticalBoxSlot>(MenuBox->AddChildToVerticalBox(SB));
+    if (MenuItemSlot)
     {
-        VBSlot->SetPadding(FMargin(0.0f, 20.0f, 0.0f, 0.0f));
-        VBSlot->SetHorizontalAlignment(HAlign_Center);
-        VBSlot->SetVerticalAlignment(VAlign_Center);
+        MenuItemSlot->SetPadding(FMargin(0, 16, 0, 0));
+        MenuItemSlot->SetHorizontalAlignment(HAlign_Center);
+        MenuItemSlot->SetVerticalAlignment(VAlign_Center);
     }
 
-    PlayBtn->OnClicked.AddDynamic(this, &UMainMenuWidget::HandlePlay);
-    UE_LOG(LogTemp, Warning, TEXT("[MainMenuWidget] Botao Play criado"));
-    return PlayBtn;
+    Btn->OnClicked.AddDynamic(this, &UMainMenuWidget::HandlePlay);
+    return Btn;
 }
+
 
 void UMainMenuWidget::HandlePlay()
 {

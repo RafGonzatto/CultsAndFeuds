@@ -29,13 +29,11 @@ void UXPComponent::AddXP(int32 Amount)
         CurrentXP -= XPToNextLevel;
         CurrentLevel++;
         XPToNextLevel = CalculateXPForNextLevel();
-        OnLevelChanged.Broadcast(CurrentLevel);
         bLeveled = true;
-
-        if (AMyPlayerController* PC = Cast<AMyPlayerController>(GetOwner()->GetInstigatorController()))
-        {
-            PC->TriggerSwarmLevelUp();
-        }
+        
+        // Broadcast level up - MyCharacter will handle showing upgrade modal
+        OnLevelChanged.Broadcast(CurrentLevel);
+        UE_LOG(LogTemp, Warning, TEXT("[XPComponent] 🎉 Level Up! New Level: %d"), CurrentLevel);
     }
 
     OnXPChanged.Broadcast(CurrentXP, XPToNextLevel);

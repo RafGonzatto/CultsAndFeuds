@@ -4,6 +4,7 @@
 #include "GameFramework/Character.h"
 #include "World/Common/Player/PlayerHealthComponent.h"
 #include "World/Common/Player/XPComponent.h"
+#include "Gameplay/Upgrades/UpgradeSystem.h"
 #include "MyCharacter.generated.h"
 
 class USpringArmComponent;
@@ -12,7 +13,7 @@ class UAnimMontage;
 class USkeletalMesh;
 class UAnimInstance;
 class USphereComponent;
-class ASwarmWeaponBase;
+class SLevelUpModal;
 
 UCLASS()
 class VAZIO_API AMyCharacter : public ACharacter
@@ -71,23 +72,26 @@ protected:
 	UPROPERTY(VisibleAnywhere, BlueprintReadOnly, Category = "Combat")
 	USphereComponent* DamageSphere;
 
-	UPROPERTY(EditDefaultsOnly, Category = "Weapons")
-	TArray<TSubclassOf<ASwarmWeaponBase>> StartingWeapons;
+	// Weapon system removed - was part of old Swarm system
+	// TODO: Implement new generic weapon system if needed
 
-	UPROPERTY(VisibleInstanceOnly, Category = "Weapons")
-	TArray<TObjectPtr<ASwarmWeaponBase>> EquippedWeapons;
+private:
+	void SpawnDefaultWeapons();
 
 public:
 	// Input handling
 	virtual void SetupPlayerInputComponent(class UInputComponent* PlayerInputComponent) override;
 
-	// Weapon management
-	void SpawnDefaultWeapons();
-	ASwarmWeaponBase* AddWeapon(TSubclassOf<ASwarmWeaponBase> WeaponClass);
-	ASwarmWeaponBase* FindWeaponByClass(TSubclassOf<ASwarmWeaponBase> WeaponClass) const;
-	bool HasWeaponOfClass(TSubclassOf<ASwarmWeaponBase> WeaponClass) const;
+	// Weapon management - TODO: Implement new weapon system
 	bool IsInSwarmBattleLevel() const;
-	const TArray<TObjectPtr<ASwarmWeaponBase>>& GetEquippedWeapons() const { return EquippedWeapons; }
+
+	// Level Up System
+	UFUNCTION()
+	void OnPlayerLevelUp(int32 NewLevel);
+	
+	void ShowLevelUpModal(const TArray<FUpgradeData>& Upgrades);
+	void OnUpgradeChosen(EUpgradeType ChosenType);
+	void CloseLevelUpModal();
 
 	// Movement input functions
 	void MoveForward(float Value);
@@ -129,6 +133,9 @@ public:
 private:
 	bool bIsAttacking = false;
 	FTimerHandle AttackTimerHandle;
+	
+	// Level Up UI
+	TSharedPtr<SLevelUpModal> ActiveLevelUpModal;
 
 	// Network replication
 	UPROPERTY(ReplicatedUsing = OnRep_Health)

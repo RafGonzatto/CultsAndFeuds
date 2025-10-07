@@ -10,8 +10,12 @@ class UInputAction;
 class UInteractableComponent;
 class AMyCharacter;
 class UPlayerHUDWidget;
-class USwarmUpgradeSystem;
+class USpringArmComponent;
+class UCameraComponent;
 class UHUDSubsystem;
+class UBossAutoTestSubsystem;
+class UPlayerHealthComponent;
+class UXPComponent;
 
 #include "MyPlayerController.generated.h"
 
@@ -42,11 +46,17 @@ protected:
 	/** ------------- NEW: HUD (Slate) ------------- */
 	void InitializeHUD();
 
-	// NEW: Swarm Upgrade System
-	UPROPERTY()
-	USwarmUpgradeSystem* SwarmUpgradeSystem;
+	// Upgrade system now handled by UUpgradeSubsystem (World Subsystem)
+	// Access via: GetWorld()->GetSubsystem<UUpgradeSubsystem>()
 	
 	void InitializeSwarmSystems();
+
+	/** ------------- BOSS TESTING SYSTEM ------------- */
+	UPROPERTY()
+	UBossAutoTestSubsystem* BossTestSubsystem;
+	
+	void InitializeBossTestSystem();
+	bool bBossTestModeActive = false;
 
 private:
 	// Enhanced Input Context e Actions
@@ -59,6 +69,15 @@ private:
 	UPROPERTY() UInputAction* SprintAction = nullptr;
 	UPROPERTY() UInputAction* InteractAction = nullptr; // Enhanced Input: Interact
 	UPROPERTY() UInputAction* PauseAction = nullptr; // Enhanced Input: Pause (ESC)
+	
+	// Boss Testing Actions
+	UPROPERTY() UInputAction* BossTest1Action = nullptr; // Burrower
+	UPROPERTY() UInputAction* BossTest2Action = nullptr; // Void Queen
+	UPROPERTY() UInputAction* BossTest3Action = nullptr; // Fallen Warlord
+	UPROPERTY() UInputAction* BossTest4Action = nullptr; // Hybrid Demon
+	UPROPERTY() UInputAction* BossTest5Action = nullptr; // All Bosses
+	UPROPERTY() UInputAction* BossTest0Action = nullptr; // Stop
+	UPROPERTY() UInputAction* BossTestToggleAction = nullptr; // F12 - Toggle
 
 	// Input Handlers WASD - SISTEMA SIMPLIFICADO
 	void OnMoveForward(const FInputActionValue& Value);
@@ -90,6 +109,29 @@ private:
 	// Pause Menu - SISTEMA DE PAUSA
 	UFUNCTION() void OnPauseAction(const FInputActionValue& Value);
 	void TogglePauseMenu();
+
+	// Boss Testing Input Handlers
+	UFUNCTION() void OnBossTest1(const FInputActionValue& Value);
+	UFUNCTION() void OnBossTest2(const FInputActionValue& Value);
+	UFUNCTION() void OnBossTest3(const FInputActionValue& Value);
+	UFUNCTION() void OnBossTest4(const FInputActionValue& Value);
+	UFUNCTION() void OnBossTest5(const FInputActionValue& Value);
+	UFUNCTION() void OnBossTest0(const FInputActionValue& Value);
+	UFUNCTION() void OnBossTestToggle(const FInputActionValue& Value);
+	
+	// Boss Testing Helper
+
+	// -------- HUD bindings to player components --------
+	void BindHUDToPlayerComponents();
+	void UnbindHUDFromPlayerComponents();
+	UFUNCTION() void HandleHealthChanged(float Current, float Max);
+	UFUNCTION() void HandleXPChanged(int32 CurrentXP, int32 XPToNextLevel);
+	UFUNCTION() void HandleLevelChanged(int32 NewLevel);
+
+	TWeakObjectPtr<UPlayerHealthComponent> BoundHealthComp;
+	TWeakObjectPtr<UXPComponent> BoundXPComp;
+	FDelegateHandle HealthChangedHandle;
+	bool IsBossTestingAvailable() const;
 
 	// Debug
 	UFUNCTION() void IncreaseWalkSpeed();
@@ -171,6 +213,10 @@ private:
 	UFUNCTION(Exec, CallInEditor, Category="Debug")
 	void TestCompleteFixes();
 
-	// Consome a tecla F1 (evitar crash vindo de Blueprints antigos) e executa teste seguro
+	// Consome a tecla F1 (evitar crash vindo de Blueprints antigos) - DEPRECATED, agora usa F12
 	void OnDebugF1();
+
+private:
+	// Helper method for boss test validation
+	bool ValidateBossTestAction(const FInputActionValue& Value, const FString& ActionName);
 };
