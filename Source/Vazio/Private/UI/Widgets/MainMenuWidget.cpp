@@ -2,6 +2,7 @@
 #include "Core/Flow/FlowSubsystem.h"
 #include "Components/OverlaySlot.h"
 #include "Components/VerticalBoxSlot.h"
+#include "Logging/VazioLogFacade.h"
 
 UMainMenuWidget::UMainMenuWidget(const FObjectInitializer& ObjectInitializer)
     : Super(ObjectInitializer)
@@ -58,9 +59,11 @@ TSharedRef<SWidget> UMainMenuWidget::RebuildWidget()
 void UMainMenuWidget::NativeConstruct()
 {
     Super::NativeConstruct();
+    LOG_UI(Info, TEXT("[MainMenuWidget] Constructed"));
     if (PlayButton)
     {
         PlayButton->SetKeyboardFocus();
+    LOG_UI(Debug, TEXT("[MainMenuWidget] Play button focused"));
     }
 }
 
@@ -105,23 +108,23 @@ UButton* UMainMenuWidget::CreatePlayButton()
 
 void UMainMenuWidget::HandlePlay()
 {
-    UE_LOG(LogTemp, Warning, TEXT("[MainMenuWidget] Botao PLAY clicado"));
+    LOG_UI(Info, TEXT("[MainMenuWidget] Botao PLAY clicado"));
 
     UGameInstance* GI = GetGameInstance();
     if (!GI)
     {
-        UE_LOG(LogTemp, Error, TEXT("[MainMenuWidget] GameInstance e NULL!"));
+    LOG_UI(Error, TEXT("[MainMenuWidget] GameInstance e NULL!"));
         return;
     }
 
     UFlowSubsystem* Flow = GI->GetSubsystem<UFlowSubsystem>();
     if (!Flow)
     {
-        UE_LOG(LogTemp, Error, TEXT("[MainMenuWidget] FlowSubsystem NAO ENCONTRADO!"));
+    LOG_UI(Error, TEXT("[MainMenuWidget] FlowSubsystem NAO ENCONTRADO!"));
         return;
     }
 
-    UE_LOG(LogTemp, Warning, TEXT("[MainMenuWidget] Chamando OpenCity()..."));
+    LOG_UI(Info, TEXT("[MainMenuWidget] Chamando OpenCity()..."));
     Flow->OpenCity();
 }
 

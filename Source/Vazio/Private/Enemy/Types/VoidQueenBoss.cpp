@@ -2,6 +2,7 @@
 #include "Kismet/GameplayStatics.h"
 #include "GameFramework/CharacterMovementComponent.h"
 #include "Engine/World.h"
+#include "Logging/VazioLogFacade.h"
 
 AVoidQueenBoss::AVoidQueenBoss()
 {
@@ -107,18 +108,18 @@ void AVoidQueenBoss::PerformMovementPattern(float DeltaTime)
 void AVoidQueenBoss::PerformTentacleSlam()
 {
     UGameplayStatics::ApplyRadialDamage(GetWorld(), SlamDamage, GetActorLocation(), SlamRadius, nullptr, TArray<AActor*>(), this);
-    UE_LOG(LogBoss, Log, TEXT("%s performed Tentacle Slam"), *GetName());
+    LOG_ENEMIES(Info, TEXT("%s performed Tentacle Slam"), *GetName());
 }
 
 void AVoidQueenBoss::PerformVoidDash()
 {
     DashTowardsPlayer(DashDistance, MovementHeightOffset);
-    UE_LOG(LogBoss, Log, TEXT("%s performed Void Dash"), *GetName());
+    LOG_ENEMIES(Info, TEXT("%s performed Void Dash"), *GetName());
 }
 
 void AVoidQueenBoss::PerformBroodSummon()
 {
-    UE_LOG(LogBoss, Log, TEXT("%s calls forth brood minions"), *GetName());
+    LOG_ENEMIES(Info, TEXT("%s calls forth brood minions"), *GetName());
 }
 
 void AVoidQueenBoss::DashTowardsPlayer(float Distance, float HeightOffset)

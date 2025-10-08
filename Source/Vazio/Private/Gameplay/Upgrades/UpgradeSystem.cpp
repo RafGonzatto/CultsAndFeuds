@@ -4,12 +4,13 @@
 #include "World/Common/Player/XPComponent.h"
 #include "GameFramework/CharacterMovementComponent.h"
 #include "Engine/World.h"
+#include "Logging/VazioLogFacade.h"
 
 void UUpgradeSubsystem::Initialize(FSubsystemCollectionBase& Collection)
 {
     Super::Initialize(Collection);
     InitializeUpgrades();
-    UE_LOG(LogTemp, Log, TEXT("[UpgradeSubsystem] Initialized"));
+    LOG_UPGRADES(Info, TEXT("[UpgradeSubsystem] Initialized"));
 }
 
 void UUpgradeSubsystem::Deinitialize()
@@ -127,7 +128,7 @@ void UUpgradeSubsystem::InitializeUpgrades()
         AvailableUpgrades.Add(Pickup);
     }
 
-    UE_LOG(LogTemp, Log, TEXT("[UpgradeSubsystem] Initialized %d upgrade types"), AvailableUpgrades.Num());
+    LOG_UPGRADES(Info, TEXT("[UpgradeSubsystem] Initialized %d upgrade types"), AvailableUpgrades.Num());
 }
 
 TArray<FUpgradeData> UUpgradeSubsystem::GenerateRandomUpgrades(int32 Count)
@@ -146,7 +147,7 @@ TArray<FUpgradeData> UUpgradeSubsystem::GenerateRandomUpgrades(int32 Count)
 
     if (EligibleUpgrades.Num() == 0)
     {
-        UE_LOG(LogTemp, Warning, TEXT("[UpgradeSubsystem] No eligible upgrades available!"));
+        LOG_UPGRADES(Warning, TEXT("[UpgradeSubsystem] No eligible upgrades available!"));
         return Result;
     }
 
@@ -165,7 +166,7 @@ TArray<FUpgradeData> UUpgradeSubsystem::GenerateRandomUpgrades(int32 Count)
         EligibleUpgrades.RemoveAt(RandomIndex); // Avoid duplicates
     }
 
-    UE_LOG(LogTemp, Display, TEXT("[UpgradeSubsystem] Generated %d random upgrades"), Result.Num());
+    LOG_UPGRADES(Display, TEXT("[UpgradeSubsystem] Generated %d random upgrades"), Result.Num());
     return Result;
 }
 
@@ -173,7 +174,7 @@ void UUpgradeSubsystem::ApplyUpgrade(EUpgradeType Type, AMyCharacter* Player)
 {
     if (!Player)
     {
-        UE_LOG(LogTemp, Error, TEXT("[UpgradeSubsystem] Cannot apply upgrade: Player is null"));
+        LOG_UPGRADES(Error, TEXT("[UpgradeSubsystem] Cannot apply upgrade: Player is null"));
         return;
     }
 
@@ -181,7 +182,7 @@ void UUpgradeSubsystem::ApplyUpgrade(EUpgradeType Type, AMyCharacter* Player)
     int32& Level = UpgradeLevels.FindOrAdd(Type, 0);
     Level++;
 
-    UE_LOG(LogTemp, Display, TEXT("[UpgradeSubsystem] Applying upgrade %d (Level %d)"), (int32)Type, Level);
+    LOG_UPGRADES(Display, TEXT("[UpgradeSubsystem] Applying upgrade %d (Level %d)"), (int32)Type, Level);
 
     // Apply based on category
     switch (Type)
@@ -209,7 +210,7 @@ void UUpgradeSubsystem::ApplyUpgrade(EUpgradeType Type, AMyCharacter* Player)
             break;
 
         default:
-            UE_LOG(LogTemp, Warning, TEXT("[UpgradeSubsystem] Unknown upgrade type: %d"), (int32)Type);
+            LOG_UPGRADES(Warning, TEXT("[UpgradeSubsystem] Unknown upgrade type: %d"), (int32)Type);
             break;
     }
 }
@@ -223,15 +224,15 @@ void UUpgradeSubsystem::ApplyWeaponUpgrade(EUpgradeType Type, AMyCharacter* Play
         case EUpgradeType::WeaponDamage:
             // Apply to all equipped weapons
             // TODO: Implement weapon system upgrade application
-            UE_LOG(LogTemp, Display, TEXT("[UpgradeSubsystem] Weapon Damage increased by %.1f"), Value);
+            LOG_UPGRADES(Display, TEXT("[UpgradeSubsystem] Weapon Damage increased by %.1f"), Value);
             break;
 
         case EUpgradeType::WeaponFireRate:
-            UE_LOG(LogTemp, Display, TEXT("[UpgradeSubsystem] Fire Rate increased by %.1f%%"), Value);
+            LOG_UPGRADES(Display, TEXT("[UpgradeSubsystem] Fire Rate increased by %.1f%%"), Value);
             break;
 
         case EUpgradeType::WeaponRange:
-            UE_LOG(LogTemp, Display, TEXT("[UpgradeSubsystem] Attack Range increased by %.1f"), Value);
+            LOG_UPGRADES(Display, TEXT("[UpgradeSubsystem] Attack Range increased by %.1f"), Value);
             break;
 
         default:
@@ -249,7 +250,7 @@ void UUpgradeSubsystem::ApplyStatUpgrade(EUpgradeType Type, AMyCharacter* Player
             if (UCharacterMovementComponent* Movement = Player->GetCharacterMovement())
             {
                 Movement->MaxWalkSpeed += Value;
-                UE_LOG(LogTemp, Display, TEXT("[UpgradeSubsystem] Movement Speed increased to %.1f"), Movement->MaxWalkSpeed);
+                LOG_UPGRADES(Display, TEXT("[UpgradeSubsystem] Movement Speed increased to %.1f"), Movement->MaxWalkSpeed);
             }
             break;
 
@@ -257,13 +258,13 @@ void UUpgradeSubsystem::ApplyStatUpgrade(EUpgradeType Type, AMyCharacter* Player
             if (UPlayerHealthComponent* HealthComp = Player->FindComponentByClass<UPlayerHealthComponent>())
             {
                 HealthComp->IncreaseMaxHealth(Value);
-                UE_LOG(LogTemp, Display, TEXT("[UpgradeSubsystem] Max Health increased by %.1f"), Value);
+                LOG_UPGRADES(Display, TEXT("[UpgradeSubsystem] Max Health increased by %.1f"), Value);
             }
             break;
 
         case EUpgradeType::HealthRegen:
             // TODO: Implement health regeneration system
-            UE_LOG(LogTemp, Display, TEXT("[UpgradeSubsystem] Health Regen increased by %.1f HP/s"), Value);
+            LOG_UPGRADES(Display, TEXT("[UpgradeSubsystem] Health Regen increased by %.1f HP/s"), Value);
             break;
 
         default:
@@ -283,22 +284,22 @@ void UUpgradeSubsystem::ApplyUtilityUpgrade(EUpgradeType Type, AMyCharacter* Pla
                 // Convert percentage to multiplier (10% = 0.1)
                 float MultiplierToAdd = Value / 100.0f;
                 XPComp->AddXPMultiplier(MultiplierToAdd);
-                UE_LOG(LogTemp, Display, TEXT("[UpgradeSubsystem] XP Gain increased by %.1f%% (multiplier: %.2f)"), 
+                LOG_UPGRADES(Display, TEXT("[UpgradeSubsystem] XP Gain increased by %.1f%% (multiplier: %.2f)"), 
                     Value, XPComp->GetCurrentXPMultiplier());
             }
             break;
 
         case EUpgradeType::PickupRange:
             // TODO: Increase pickup sphere radius
-            UE_LOG(LogTemp, Display, TEXT("[UpgradeSubsystem] Pickup Range increased by %.1f"), Value);
+            LOG_UPGRADES(Display, TEXT("[UpgradeSubsystem] Pickup Range increased by %.1f"), Value);
             break;
 
         case EUpgradeType::CriticalChance:
-            UE_LOG(LogTemp, Display, TEXT("[UpgradeSubsystem] Critical Chance increased by %.1f%%"), Value);
+            LOG_UPGRADES(Display, TEXT("[UpgradeSubsystem] Critical Chance increased by %.1f%%"), Value);
             break;
 
         case EUpgradeType::CriticalDamage:
-            UE_LOG(LogTemp, Display, TEXT("[UpgradeSubsystem] Critical Damage increased by %.1f%%"), Value);
+            LOG_UPGRADES(Display, TEXT("[UpgradeSubsystem] Critical Damage increased by %.1f%%"), Value);
             break;
 
         default:
@@ -344,7 +345,7 @@ bool UUpgradeSubsystem::IsUpgradeMaxed(EUpgradeType Type) const
 void UUpgradeSubsystem::ResetAllUpgrades()
 {
     UpgradeLevels.Empty();
-    UE_LOG(LogTemp, Display, TEXT("[UpgradeSubsystem] All upgrades reset"));
+    LOG_UPGRADES(Display, TEXT("[UpgradeSubsystem] All upgrades reset"));
 }
 
 FUpgradeData UUpgradeSubsystem::GetUpgradeDisplayData(EUpgradeType Type) const

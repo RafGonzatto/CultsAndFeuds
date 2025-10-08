@@ -23,6 +23,7 @@
 #include "UI/Widgets/SPauseMenuSlate.h" // Added include for pause menu slate
 #include "World/Common/Player/PlayerHealthComponent.h"
 #include "World/Common/Player/XPComponent.h"
+#include "Logging/VazioLogFacade.h"
 
 #include "EnhancedInputSubsystems.h"
 #include "EnhancedInputComponent.h"
@@ -54,8 +55,6 @@ static void MovePawnDirect(APawn* Pawn, const FVector& Goal)
     }
 }
 
-DEFINE_LOG_CATEGORY_STATIC(LogPlayerUI, Log, All);
-
 AMyPlayerController::AMyPlayerController()
 {
 	PrimaryActorTick.bCanEverTick = true;
@@ -65,7 +64,7 @@ AMyPlayerController::AMyPlayerController()
 	
 	// HUD will be managed by HUDSubsystem instead of Blueprint Widget
 	{
-		UE_LOG(LogPlayerUI, Warning, TEXT("Não foi possível encontrar /Game/UI/WBP_PlayerHUD no construtor"));
+		LOG_UI(Warning, TEXT("Não foi possível encontrar /Game/UI/WBP_PlayerHUD no construtor"));
 	}
 }
 
@@ -192,14 +191,14 @@ void AMyPlayerController::BeginPlay()
 		InputComponent->BindAction("Interact", IE_Pressed, this, &AMyPlayerController::HandleInteract);
 	}
 
-	UE_LOG(LogTemp, Warning, TEXT("[PC] PlayerController inicializado - sistema unificado ativo"));
+	LOG_UI(Warning, TEXT("[PC] PlayerController inicializado - sistema unificado ativo"));
 	
 	// Criar HUD apenas se estivermos no level de batalha (Battle_Main)
 	if (UWorld* W = GetWorld())
 	{
 		const FString MapName = W->GetMapName(); // Pode vir como UEDPIE_0_Battle_Main em PIE
 		const bool bIsBattle = MapName.Contains(TEXT("Battle_Main"));
-		UE_LOG(LogPlayerUI, Log, TEXT("[PC] BeginPlay Map=%s IsBattle=%d"), *MapName, bIsBattle ? 1 : 0);
+		LOG_UI(Info, TEXT("[PC] BeginPlay Map=%s IsBattle=%d"), *MapName, bIsBattle ? 1 : 0);
 		if (bIsBattle)
 		{
 			InitializeHUD();
@@ -208,7 +207,7 @@ void AMyPlayerController::BeginPlay()
 		}
 		else
 		{
-			UE_LOG(LogPlayerUI, Verbose, TEXT("[PC] HUD NAO criado (level nao eh Battle_Main)"));
+			LOG_UI(Verbose, TEXT("[PC] HUD NAO criado (level nao eh Battle_Main)"));
 		}
 	}
 	InitializeSwarmSystems();
@@ -224,32 +223,32 @@ void AMyPlayerController::BeginPlay()
 		}
 		else
 		{
-			UE_LOG(LogTemp, Verbose, TEXT("[BossTest] Skipping boss test initialization (not in Battle_Main)"));
+			LOG_ENEMIES(Verbose, TEXT("[BossTest] Skipping boss test initialization (not in Battle_Main)"));
 		}
 	}
 }
 
 void AMyPlayerController::InitializeHUD()
 {
-	UE_LOG(LogPlayerUI, Display, TEXT("[PC] Inicializando HUD Slate via HUDSubsystem"));
+	LOG_UI(Display, TEXT("[PC] Inicializando HUD Slate via HUDSubsystem"));
 	
 	UGameInstance* GameInstance = GetGameInstance();
 	if (!GameInstance)
 	{
-		UE_LOG(LogPlayerUI, Error, TEXT("[PC] GameInstance é null, não é possível obter HUDSubsystem"));
+		LOG_UI(Error, TEXT("[PC] GameInstance é null, não é possível obter HUDSubsystem"));
 		return;
 	}
 	
 	UHUDSubsystem* HUDSubsystem = GameInstance->GetSubsystem<UHUDSubsystem>();
 	if (!HUDSubsystem)
 	{
-		UE_LOG(LogPlayerUI, Error, TEXT("[PC] HUDSubsystem não encontrado"));
+		LOG_UI(Error, TEXT("[PC] HUDSubsystem não encontrado"));
 		return;
 	}
 	
 	// Show the Slate HUD
 	HUDSubsystem->ShowHUD();
-	UE_LOG(LogPlayerUI, Display, TEXT("[PC] HUD Slate inicializado com sucesso"));
+	LOG_UI(Display, TEXT("[PC] HUD Slate inicializado com sucesso"));
 
 	// Vincular HUD à saúde/XP do player quando HUD existir
 	BindHUDToPlayerComponents();
@@ -267,7 +266,7 @@ void AMyPlayerController::OnDebugF1()
 {
 	// DEPRECATED: F1 is now handled by OnBossTestToggle (moved to F12)
 	// This method kept for legacy compatibility but should not be called
-	UE_LOG(LogTemp, Warning, TEXT("[F12] DEPRECATED: OnDebugF1 called - use OnBossTestToggle instead"));
+	LOG_ENEMIES(Warning, TEXT("[F12] DEPRECATED: OnDebugF1 called - use OnBossTestToggle instead"));
 }
 
 void AMyPlayerController::OnInteract(const FInputActionValue& Value)
@@ -282,7 +281,7 @@ void AMyPlayerController::OnInteract(const FInputActionValue& Value)
 	}
 	if (bIsBattle)
 	{
-		UE_LOG(LogTemp, Log, TEXT("Area attack requested"));
+		LOG_WEAPONS(Info, TEXT("Area attack requested"));
 		
 		// Execute area attack through the character
 		if (AMyCharacter* MyChar = Cast<AMyCharacter>(GetPawn()))
@@ -292,7 +291,7 @@ void AMyPlayerController::OnInteract(const FInputActionValue& Value)
 	}
 	else
 	{
-		UE_LOG(LogTemp, Verbose, TEXT("[PC] Tecla E ignorada (fora de Battle_Main)"));
+		LOG_UI(Verbose, TEXT("[PC] Tecla E ignorada (fora de Battle_Main)"));
 	}
 }
 
@@ -331,7 +330,7 @@ void AMyPlayerController::OnMoveForward(const FInputActionValue& Value)
         if (bIsMovingToTarget)
         {
             bIsMovingToTarget = false;
-            UE_LOG(LogTemp, Log, TEXT("[PC] Click-to-move cancelado - input forward"));
+			LOG_UI(Info, TEXT("[PC] Click-to-move cancelado - input forward"));
         }
         // Stop any nav path following when player takes manual control
         StopMovement();
@@ -348,7 +347,7 @@ void AMyPlayerController::OnMoveRight(const FInputActionValue& Value)
         if (bIsMovingToTarget)
         {
             bIsMovingToTarget = false;
-            UE_LOG(LogTemp, Log, TEXT("[PC] Click-to-move cancelado - input right"));
+			LOG_UI(Info, TEXT("[PC] Click-to-move cancelado - input right"));
         }
         // Stop any nav path following when player takes manual control
         StopMovement();
@@ -370,14 +369,14 @@ void AMyPlayerController::OnSprintStart(const FInputActionValue& Value)
 	if (Value.Get<bool>())
 	{
 		bIsSprinting = true;
-		UE_LOG(LogTemp, Log, TEXT("[PC] ? Sprint ATIVO"));
+		LOG_UI(Info, TEXT("[PC] ? Sprint ATIVO"));
 	}
 }
 
 void AMyPlayerController::OnSprintEnd(const FInputActionValue& Value)
 {
 	bIsSprinting = false;
-	UE_LOG(LogTemp, Log, TEXT("[PC] ? Sprint DESATIVO"));
+	LOG_UI(Info, TEXT("[PC] ? Sprint DESATIVO"));
 }
 
 void AMyPlayerController::ProcessMovement(float DeltaTime)
@@ -395,8 +394,8 @@ void AMyPlayerController::ProcessMovement(float DeltaTime)
 		if (Distance > 500.0f && Distance < 10000.0f)
 		{
 			TeleportDetectionCount++;
-			UE_LOG(LogTemp, Error, TEXT("?? TELEPORT DETECTADO #%d - Distancia: %.1f"), TeleportDetectionCount, Distance);
-			UE_LOG(LogTemp, Error, TEXT("?? De: %s Para: %s"), *LastKnownPosition.ToString(), *CurrentPosition.ToString());
+			LOG_SYSTEMS(Error, TEXT("?? TELEPORT DETECTADO #%d - Distancia: %.1f"), TeleportDetectionCount, Distance);
+			LOG_SYSTEMS(Error, TEXT("?? De: %s Para: %s"), *LastKnownPosition.ToString(), *CurrentPosition.ToString());
 		}
 	}
 	LastKnownPosition = CurrentPosition;
@@ -426,7 +425,7 @@ void AMyPlayerController::ProcessMovement(float DeltaTime)
 		
 		if (bDebugMovementEnabled)
 		{
-			UE_LOG(LogTemp, Warning, TEXT("[DEBUG] WASD Input - F:%.2f R:%.2f | Dir:%s | Strength:%.2f"), 
+			LOG_SYSTEMS(Warning, TEXT("[DEBUG] WASD Input - F:%.2f R:%.2f | Dir:%s | Strength:%.2f"), 
 				ForwardInput, RightInput, *MovementDirection.ToString(), Strength);
 		}
 	}
@@ -517,7 +516,7 @@ void AMyPlayerController::OnEnhancedClick(const FInputActionValue& Value)
 			{
 				if (World->GetTimeSeconds() < IgnoreClickUntilTime)
 				{
-					UE_LOG(LogTemp, Verbose, TEXT("[PC] Ignorando click inicial (guard)"));
+					LOG_UI(Verbose, TEXT("[PC] Ignorando click inicial (guard)"));
 					return;
 				}
 			}
@@ -534,7 +533,7 @@ void AMyPlayerController::OnLeftMouseClick()
 	{
 		if (GetWorld()->GetTimeSeconds() < IgnoreClickUntilTime)
 		{
-			UE_LOG(LogTemp, Warning, TEXT("[PC] Clique ignorado pelo guardião de clique"));
+			LOG_UI(Warning, TEXT("[PC] Clique ignorado pelo guardião de clique"));
 			return;
 		}
 		else
@@ -547,7 +546,7 @@ void AMyPlayerController::OnLeftMouseClick()
 	if (GetHitResultUnderCursor(ECC_Visibility, false, Hit) && Hit.bBlockingHit)
 	{
 		const FVector Target = Hit.Location;
-		UE_LOG(LogTemp, Log, TEXT("[PC] Click-to-move para: %s"), *Target.ToString());
+		LOG_UI(Info, TEXT("[PC] Click-to-move para: %s"), *Target.ToString());
 		
 		// Spawn visual indicator
 		if (APawn* MyPawn = GetPawn(); MyPawn && GetWorld())
@@ -627,7 +626,7 @@ void AMyPlayerController::OnAnim1Action(const FInputActionValue& Value)
 	
 	if (AMyCharacter* MyChar = Cast<AMyCharacter>(GetPawn()))
 	{
-		UE_LOG(LogTemp, Warning, TEXT("[PC] Executando Ctrl+1 - Debug Animation"));
+		LOG_UI(Warning, TEXT("[PC] Executando Ctrl+1 - Debug Animation"));
 		// Animation debug function removed
 	}
 }
@@ -639,7 +638,7 @@ void AMyPlayerController::OnAnim2Action(const FInputActionValue& Value)
 	
 	if (AMyCharacter* MyChar = Cast<AMyCharacter>(GetPawn()))
 	{
-		UE_LOG(LogTemp, Warning, TEXT("[PC] Executando Ctrl+2 - Debug Animation"));
+		LOG_UI(Warning, TEXT("[PC] Executando Ctrl+2 - Debug Animation"));
 		// Animation debug function removed
 	}
 }
@@ -652,7 +651,7 @@ void AMyPlayerController::OnPauseAction(const FInputActionValue& Value)
 {
 	if (!Value.Get<bool>()) return;
 	
-	UE_LOG(LogTemp, Log, TEXT("[PC] ESC pressed - Toggling pause menu"));
+	LOG_UI(Info, TEXT("[PC] ESC pressed - Toggling pause menu"));
 	TogglePauseMenu();
 }
 
@@ -661,19 +660,19 @@ void AMyPlayerController::TogglePauseMenu()
 	UWorld* World = GetWorld();
 	if (!World)
 	{
-		UE_LOG(LogTemp, Error, TEXT("[PC] TogglePauseMenu: No valid world"));
+		LOG_UI(Error, TEXT("[PC] TogglePauseMenu: No valid world"));
 		return;
 	}
 
 	// Check if pause menu is already visible
 	if (SPauseMenuSlate::IsPauseMenuVisible(World))
 	{
-		UE_LOG(LogTemp, Log, TEXT("[PC] Hiding pause menu"));
+		LOG_UI(Info, TEXT("[PC] Hiding pause menu"));
 		SPauseMenuSlate::HidePauseMenu(World);
 	}
 	else
 	{
-		UE_LOG(LogTemp, Log, TEXT("[PC] Showing pause menu"));
+		LOG_UI(Info, TEXT("[PC] Showing pause menu"));
 		SPauseMenuSlate::ShowPauseMenu(World);
 	}
 }
@@ -684,25 +683,25 @@ void AMyPlayerController::TogglePauseMenu()
 
 void AMyPlayerController::DebugMovement()
 {
-	UE_LOG(LogTemp, Warning, TEXT("=== MOVIMENTO DEBUG ==="));
-	UE_LOG(LogTemp, Warning, TEXT("ForwardInput: %.3f"), ForwardInput);
-	UE_LOG(LogTemp, Warning, TEXT("RightInput: %.3f"), RightInput);
-	UE_LOG(LogTemp, Warning, TEXT("bIsSprinting: %s"), bIsSprinting ? TEXT("true") : TEXT("false"));
-	UE_LOG(LogTemp, Warning, TEXT("bIsMovingToTarget: %s"), bIsMovingToTarget ? TEXT("true") : TEXT("false"));
-	UE_LOG(LogTemp, Warning, TEXT("TeleportDetections: %d"), TeleportDetectionCount);
+	LOG_SYSTEMS(Warning, TEXT("=== MOVIMENTO DEBUG ==="));
+	LOG_SYSTEMS(Warning, TEXT("ForwardInput: %.3f"), ForwardInput);
+	LOG_SYSTEMS(Warning, TEXT("RightInput: %.3f"), RightInput);
+	LOG_SYSTEMS(Warning, TEXT("bIsSprinting: %s"), bIsSprinting ? TEXT("true") : TEXT("false"));
+	LOG_SYSTEMS(Warning, TEXT("bIsMovingToTarget: %s"), bIsMovingToTarget ? TEXT("true") : TEXT("false"));
+	LOG_SYSTEMS(Warning, TEXT("TeleportDetections: %d"), TeleportDetectionCount);
 }
 
 void AMyPlayerController::DebugAnimations()
 {
-	UE_LOG(LogTemp, Warning, TEXT("=== ANIMAÇÕES DEBUG ==="));
+	LOG_SYSTEMS(Warning, TEXT("=== ANIMAÇÕES DEBUG ==="));
 	
 	if (APawn* MyPawn = GetPawn())
 	{
 		if (USkeletalMeshComponent* MeshComp = MyPawn->GetComponentByClass<USkeletalMeshComponent>())
 		{
-			UE_LOG(LogTemp, Warning, TEXT("SkeletalMesh: %s"), 
+			LOG_SYSTEMS(Warning, TEXT("SkeletalMesh: %s"), 
 				MeshComp->GetSkeletalMeshAsset() ? *MeshComp->GetSkeletalMeshAsset()->GetName() : TEXT("NULL"));
-			UE_LOG(LogTemp, Warning, TEXT("AnimClass: %s"), 
+			LOG_SYSTEMS(Warning, TEXT("AnimClass: %s"), 
 				MeshComp->GetAnimClass() ? *MeshComp->GetAnimClass()->GetName() : TEXT("NULL"));
 		}
 	}
@@ -710,17 +709,17 @@ void AMyPlayerController::DebugAnimations()
 
 void AMyPlayerController::DebugPositions()
 {
-	UE_LOG(LogTemp, Warning, TEXT("=== POSIÇÕES DEBUG ==="));
+	LOG_SYSTEMS(Warning, TEXT("=== POSIÇÕES DEBUG ==="));
 	
 	if (APawn* MyPawn = GetPawn())
 	{
 		FVector ActorLocation = MyPawn->GetActorLocation();
-		UE_LOG(LogTemp, Warning, TEXT("Actor Position: %s"), *ActorLocation.ToString());
+		LOG_SYSTEMS(Warning, TEXT("Actor Position: %s"), *ActorLocation.ToString());
 		
 		if (USkeletalMeshComponent* MeshComp = MyPawn->GetComponentByClass<USkeletalMeshComponent>())
 		{
-			UE_LOG(LogTemp, Warning, TEXT("Mesh Relative: %s"), *MeshComp->GetRelativeLocation().ToString());
-			UE_LOG(LogTemp, Warning, TEXT("Mesh World: %s"), *MeshComp->GetComponentLocation().ToString());
+			LOG_SYSTEMS(Warning, TEXT("Mesh Relative: %s"), *MeshComp->GetRelativeLocation().ToString());
+			LOG_SYSTEMS(Warning, TEXT("Mesh World: %s"), *MeshComp->GetComponentLocation().ToString());
 		}
 	}
 }
@@ -728,16 +727,16 @@ void AMyPlayerController::DebugPositions()
 void AMyPlayerController::ToggleMovementDebug()
 {
 	bDebugMovementEnabled = !bDebugMovementEnabled;
-	UE_LOG(LogTemp, Warning, TEXT("Debug Movement: %s"), bDebugMovementEnabled ? TEXT("ENABLED") : TEXT("DISABLED"));
+	LOG_SYSTEMS(Warning, TEXT("Debug Movement: %s"), bDebugMovementEnabled ? TEXT("ENABLED") : TEXT("DISABLED"));
 }
 
 void AMyPlayerController::TestEnemySpawn()
 {
-	UE_LOG(LogTemp, Warning, TEXT("=== TESTING ENEMY SPAWN ==="));
+	LOG_ENEMIES(Warning, TEXT("=== TESTING ENEMY SPAWN ==="));
 	
 	if (!GetWorld())
 	{
-		UE_LOG(LogTemp, Error, TEXT("No world found"));
+		LOG_ENEMIES(Error, TEXT("No world found"));
 		return;
 	}
 
@@ -745,7 +744,7 @@ void AMyPlayerController::TestEnemySpawn()
 	FString MapName = GetWorld()->GetMapName();
 	if (!MapName.Contains(TEXT("Battle_Main")))
 	{
-		UE_LOG(LogTemp, Warning, TEXT("Not in Battle_Main level, spawning test enemies anyway"));
+		LOG_ENEMIES(Warning, TEXT("Not in Battle_Main level, spawning test enemies anyway"));
 	}
 
 	// Test JSON for quick spawn - TESTING WITH DELAY to avoid timer issues
@@ -778,16 +777,16 @@ void AMyPlayerController::TestEnemySpawn()
 
 	// Use the helper function to spawn enemies
 	UEnemySpawnHelper::QuickSpawnEnemies(this, TestJSON, FMath::Rand());
-	UE_LOG(LogTemp, Warning, TEXT("Started enemy spawn timeline using QuickSpawnEnemies"));
+	LOG_ENEMIES(Warning, TEXT("Started enemy spawn timeline using QuickSpawnEnemies"));
 }
 
 void AMyPlayerController::StartTestWave()
 {
-	UE_LOG(LogTemp, Warning, TEXT("=== STARTING TEST WAVE VIA GAMEMODE ==="));
+	LOG_ENEMIES(Warning, TEXT("=== STARTING TEST WAVE VIA GAMEMODE ==="));
 	
 	if (!GetWorld())
 	{
-		UE_LOG(LogTemp, Error, TEXT("No world found"));
+		LOG_ENEMIES(Error, TEXT("No world found"));
 		return;
 	}
 
@@ -795,23 +794,23 @@ void AMyPlayerController::StartTestWave()
 	if (ABattleGameMode* BattleGM = Cast<ABattleGameMode>(GetWorld()->GetAuthGameMode()))
 	{
 		BattleGM->StartTestWave();
-		UE_LOG(LogTemp, Warning, TEXT("Started test wave via BattleGameMode"));
+		LOG_ENEMIES(Warning, TEXT("Started test wave via BattleGameMode"));
 	}
 	else
 	{
-		UE_LOG(LogTemp, Warning, TEXT("Not using BattleGameMode, falling back to direct spawn"));
+		LOG_ENEMIES(Warning, TEXT("Not using BattleGameMode, falling back to direct spawn"));
 		TestEnemySpawn();
 	}
 }
 
 void AMyPlayerController::DebugEnemyCount()
 {
-	UE_LOG(LogTemp, Warning, TEXT("=== DEBUGGING ENEMY COUNT ==="));
+	LOG_ENEMIES(Warning, TEXT("=== DEBUGGING ENEMY COUNT ==="));
 	
 	UWorld* World = GetWorld();
 	if (!World)
 	{
-		UE_LOG(LogTemp, Error, TEXT("No world found"));
+		LOG_ENEMIES(Error, TEXT("No world found"));
 		return;
 	}
 	
@@ -832,7 +831,7 @@ void AMyPlayerController::DebugEnemyCount()
 			
 			if (bIsVisible) VisibleEnemies++;
 			
-			UE_LOG(LogTemp, Warning, TEXT("[DEBUG] Enemy %s at location %s - VisualMesh=%s, Visible=%s"), 
+			LOG_ENEMIES(Warning, TEXT("[DEBUG] Enemy %s at location %s - VisualMesh=%s, Visible=%s"), 
 				*Enemy->GetName(),
 				*Location.ToString(),
 				bHasVisualMesh ? TEXT("YES") : TEXT("NO"),
@@ -843,24 +842,24 @@ void AMyPlayerController::DebugEnemyCount()
 	// Set TotalEnemies to same as EnemyBaseCount for now
 	TotalEnemies = EnemyBaseCount;
 	
-	UE_LOG(LogTemp, Warning, TEXT("[DEBUG] SUMMARY: EnemyBase=%d, Visible=%d, TotalCharacters=%d"), 
+	LOG_ENEMIES(Warning, TEXT("[DEBUG] SUMMARY: EnemyBase=%d, Visible=%d, TotalCharacters=%d"), 
 		EnemyBaseCount, VisibleEnemies, TotalEnemies);
 		
 	// Also check player location for reference
 	if (APawn* PlayerPawn = GetPawn())
 	{
-		UE_LOG(LogTemp, Warning, TEXT("[DEBUG] Player location: %s"), *PlayerPawn->GetActorLocation().ToString());
+		LOG_ENEMIES(Warning, TEXT("[DEBUG] Player location: %s"), *PlayerPawn->GetActorLocation().ToString());
 	}
 }
 
 void AMyPlayerController::ForceEnemyVisibility()
 {
-	UE_LOG(LogTemp, Warning, TEXT("=== ENSURING ENEMY VISIBILITY (NORMAL SIZE) ==="));
+	LOG_ENEMIES(Warning, TEXT("=== ENSURING ENEMY VISIBILITY (NORMAL SIZE) ==="));
 	
 	UWorld* World = GetWorld();
 	if (!World)
 	{
-		UE_LOG(LogTemp, Error, TEXT("No world found"));
+		LOG_ENEMIES(Error, TEXT("No world found"));
 		return;
 	}
 	
@@ -913,7 +912,7 @@ void AMyPlayerController::ForceEnemyVisibility()
 					Enemy->SetActorLocation(FVector(CurrentLoc.X, CurrentLoc.Y, 90.0f)); // Ground level
 				}
 				
-				UE_LOG(LogTemp, Warning, TEXT("[NORMAL] Enemy %s: Location=%s, Scale=%s, Visible=%s"), 
+				LOG_ENEMIES(Warning, TEXT("[NORMAL] Enemy %s: Location=%s, Scale=%s, Visible=%s"), 
 					*Enemy->GetName(),
 					*Enemy->GetActorLocation().ToString(),
 					*Enemy->VisualMesh->GetComponentScale().ToString(),
@@ -921,17 +920,17 @@ void AMyPlayerController::ForceEnemyVisibility()
 			}
 			else
 			{
-				UE_LOG(LogTemp, Error, TEXT("[NORMAL] Enemy %s has NO VisualMesh!"), *Enemy->GetName());
+				LOG_ENEMIES(Error, TEXT("[NORMAL] Enemy %s has NO VisualMesh!"), *Enemy->GetName());
 			}
 		}
 	}
 	
-	UE_LOG(LogTemp, Warning, TEXT("[NORMAL] Processed %d enemies - Look for NORMAL-SIZED colored cubes at ground level!"), ProcessedEnemies);
+	LOG_ENEMIES(Warning, TEXT("[NORMAL] Processed %d enemies - Look for NORMAL-SIZED colored cubes at ground level!"), ProcessedEnemies);
 }
 
 void AMyPlayerController::TestSpawnAndCount()
 {
-	UE_LOG(LogTemp, Warning, TEXT("=== TEST SPAWN AND IMMEDIATE COUNT WITH AUTO-TELEPORT ==="));
+	LOG_ENEMIES(Warning, TEXT("=== TEST SPAWN AND IMMEDIATE COUNT WITH AUTO-TELEPORT ==="));
 	
 	// First, do the spawn
 	TestEnemySpawn();
@@ -971,12 +970,12 @@ void AMyPlayerController::TestSpawnAndCount()
 
 void AMyPlayerController::TeleportToEnemies()
 {
-	UE_LOG(LogTemp, Warning, TEXT("=== TELEPORTING TO ENEMIES ==="));
+	LOG_ENEMIES(Warning, TEXT("=== TELEPORTING TO ENEMIES ==="));
 	
 	UWorld* World = GetWorld();
 	if (!World)
 	{
-		UE_LOG(LogTemp, Error, TEXT("No world found"));
+		LOG_ENEMIES(Error, TEXT("No world found"));
 		return;
 	}
 	
@@ -992,23 +991,23 @@ void AMyPlayerController::TeleportToEnemies()
 			if (APawn* PlayerPawn = GetPawn())
 			{
 				PlayerPawn->SetActorLocation(TeleportLocation);
-				UE_LOG(LogTemp, Warning, TEXT("[TELEPORT] Moved player to %s (near %s)"), 
+				LOG_ENEMIES(Warning, TEXT("[TELEPORT] Moved player to %s (near %s)"), 
 					*TeleportLocation.ToString(), *Enemy->GetName());
 				return;
 			}
 		}
 	}
 	
-	UE_LOG(LogTemp, Warning, TEXT("[TELEPORT] No enemies found to teleport to"));
+	LOG_ENEMIES(Warning, TEXT("[TELEPORT] No enemies found to teleport to"));
 }
 
 void AMyPlayerController::TestCloseEnemySpawn()
 {
-	UE_LOG(LogTemp, Warning, TEXT("=== TESTING NORMAL-SIZED ENEMY SPAWN ==="));
+	LOG_ENEMIES(Warning, TEXT("=== TESTING NORMAL-SIZED ENEMY SPAWN ==="));
 	
 	if (!GetWorld())
 	{
-		UE_LOG(LogTemp, Error, TEXT("No world found"));
+		LOG_ENEMIES(Error, TEXT("No world found"));
 		return;
 	}
 
@@ -1034,17 +1033,17 @@ void AMyPlayerController::TestCloseEnemySpawn()
 
 	// Use the helper function to spawn enemies
 	UEnemySpawnHelper::QuickSpawnEnemies(this, TestJSON, FMath::Rand());
-	UE_LOG(LogTemp, Warning, TEXT("Started NORMAL-SIZED enemy spawn - player-sized enemies with performance optimization!"));
+	LOG_ENEMIES(Warning, TEXT("Started NORMAL-SIZED enemy spawn - player-sized enemies with performance optimization!"));
 }
 
 void AMyPlayerController::TestAllEnemyFixes()
 {
-	UE_LOG(LogTemp, Warning, TEXT("=== TESTING ALL 3 ENEMY FIXES ==="));
+	LOG_ENEMIES(Warning, TEXT("=== TESTING ALL 3 ENEMY FIXES ==="));
 	
 	UWorld* World = GetWorld();
 	if (!World)
 	{
-		UE_LOG(LogTemp, Error, TEXT("No world found"));
+		LOG_ENEMIES(Error, TEXT("No world found"));
 		return;
 	}
 	
@@ -1076,11 +1075,11 @@ void AMyPlayerController::TestAllEnemyFixes()
 					if (Enemy->VisualMesh && Enemy->VisualMesh->GetMaterial(0))
 					{
 						ColoredEnemies++;
-						UE_LOG(LogTemp, Warning, TEXT("[FIX1-COLOR] %s has colored material"), *Enemy->GetName());
+						LOG_ENEMIES(Warning, TEXT("[FIX1-COLOR] %s has colored material"), *Enemy->GetName());
 					}
 					else
 					{
-						UE_LOG(LogTemp, Error, TEXT("[FIX1-COLOR] %s missing colored material!"), *Enemy->GetName());
+						LOG_ENEMIES(Error, TEXT("[FIX1-COLOR] %s missing colored material!"), *Enemy->GetName());
 					}
 					
 					// Test 2: Check movement capability
@@ -1089,11 +1088,11 @@ void AMyPlayerController::TestAllEnemyFixes()
 						if (MovementComp->MaxWalkSpeed > 0.0f)
 						{
 							MovingEnemies++;
-							UE_LOG(LogTemp, Warning, TEXT("[FIX2-CHASE] %s can move (Speed: %.1f)"), *Enemy->GetName(), MovementComp->MaxWalkSpeed);
+							LOG_ENEMIES(Warning, TEXT("[FIX2-CHASE] %s can move (Speed: %.1f)"), *Enemy->GetName(), MovementComp->MaxWalkSpeed);
 						}
 						else
 						{
-							UE_LOG(LogTemp, Error, TEXT("[FIX2-CHASE] %s cannot move!"), *Enemy->GetName());
+							LOG_ENEMIES(Error, TEXT("[FIX2-CHASE] %s cannot move!"), *Enemy->GetName());
 						}
 					}
 					
@@ -1101,20 +1100,20 @@ void AMyPlayerController::TestAllEnemyFixes()
 					if (Enemy->GetCapsuleComponent()->GetGenerateOverlapEvents())
 					{
 						DamageReadyEnemies++;
-						UE_LOG(LogTemp, Warning, TEXT("[FIX3-DAMAGE] %s ready to deal damage"), *Enemy->GetName());
+						LOG_ENEMIES(Warning, TEXT("[FIX3-DAMAGE] %s ready to deal damage"), *Enemy->GetName());
 					}
 					else
 					{
-						UE_LOG(LogTemp, Error, TEXT("[FIX3-DAMAGE] %s cannot deal damage!"), *Enemy->GetName());
+						LOG_ENEMIES(Error, TEXT("[FIX3-DAMAGE] %s cannot deal damage!"), *Enemy->GetName());
 					}
 				}
 			}
 			
-			UE_LOG(LogTemp, Warning, TEXT("=== ENEMY FIXES SUMMARY ==="));
-			UE_LOG(LogTemp, Warning, TEXT("Total Enemies: %d"), TotalEnemies);
-			UE_LOG(LogTemp, Warning, TEXT("FIX 1 (Colors): %d/%d working"), ColoredEnemies, TotalEnemies);
-			UE_LOG(LogTemp, Warning, TEXT("FIX 2 (Chase): %d/%d working"), MovingEnemies, TotalEnemies);
-			UE_LOG(LogTemp, Warning, TEXT("FIX 3 (Damage): %d/%d working"), DamageReadyEnemies, TotalEnemies);
+			LOG_ENEMIES(Warning, TEXT("=== ENEMY FIXES SUMMARY ==="));
+			LOG_ENEMIES(Warning, TEXT("Total Enemies: %d"), TotalEnemies);
+			LOG_ENEMIES(Warning, TEXT("FIX 1 (Colors): %d/%d working"), ColoredEnemies, TotalEnemies);
+			LOG_ENEMIES(Warning, TEXT("FIX 2 (Chase): %d/%d working"), MovingEnemies, TotalEnemies);
+			LOG_ENEMIES(Warning, TEXT("FIX 3 (Damage): %d/%d working"), DamageReadyEnemies, TotalEnemies);
 		},
 		1.0f,
 		false
@@ -1128,13 +1127,13 @@ void AMyPlayerController::TestAllEnemyFixes()
 void AMyPlayerController::IncreaseWalkSpeed()
 {
 	BaseWalkSpeed += 50.f;
-	UE_LOG(LogTemp, Warning, TEXT("[PC] BaseWalkSpeed=%.1f"), BaseWalkSpeed);
+	LOG_SYSTEMS(Warning, TEXT("[PC] BaseWalkSpeed=%.1f"), BaseWalkSpeed);
 }
 
 void AMyPlayerController::DecreaseWalkSpeed()
 {
 	BaseWalkSpeed = FMath::Max(100.f, BaseWalkSpeed - 50.f);
-	UE_LOG(LogTemp, Warning, TEXT("[PC] BaseWalkSpeed=%.1f"), BaseWalkSpeed);
+	LOG_SYSTEMS(Warning, TEXT("[PC] BaseWalkSpeed=%.1f"), BaseWalkSpeed);
 }
 
 void AMyPlayerController::UpdateInteraction(float DeltaTime)
@@ -1188,7 +1187,7 @@ void AMyPlayerController::InitializeSwarmSystems()
     if (LevelName.Contains(TEXT("Battle_Main")))
     {
         // Upgrade system is now handled by UUpgradeSubsystem (World Subsystem)
-        UE_LOG(LogTemp, Warning, TEXT("Upgrade System available via UUpgradeSubsystem for Battle_Main"));
+		LOG_UPGRADES(Warning, TEXT("Upgrade System available via UUpgradeSubsystem for Battle_Main"));
     }
 }
 
@@ -1196,12 +1195,12 @@ void AMyPlayerController::InitializeBossTestSystem()
 {
     if (!GetWorld())
     {
-        UE_LOG(LogTemp, Error, TEXT("[BossTest] No world available for boss test initialization"));
+		LOG_ENEMIES(Error, TEXT("[BossTest] No world available for boss test initialization"));
         return;
     }
     
     FString LevelName = GetWorld()->GetMapName();
-    UE_LOG(LogTemp, Warning, TEXT("[BossTest] Initializing boss test system in level: %s"), *LevelName);
+	LOG_ENEMIES(Warning, TEXT("[BossTest] Initializing boss test system in level: %s"), *LevelName);
     
     // Only initialize boss testing in Battle_Main level
     if (LevelName.Contains(TEXT("Battle_Main")))
@@ -1209,25 +1208,25 @@ void AMyPlayerController::InitializeBossTestSystem()
         BossTestSubsystem = GetWorld()->GetSubsystem<UBossAutoTestSubsystem>();
         if (BossTestSubsystem)
         {
-            UE_LOG(LogTemp, Warning, TEXT("[BossTest] Boss test system initialized successfully!"));
-            UE_LOG(LogTemp, Warning, TEXT("[BossTest] Press F12 to activate/deactivate boss test mode"));
-            UE_LOG(LogTemp, Warning, TEXT("[BossTest] Controls: NumPad1=Burrower, NumPad2=VoidQueen, NumPad3=FallenWarlord, NumPad4=HybridDemon, NumPad5=All, NumPad0=Stop"));
+			LOG_ENEMIES(Warning, TEXT("[BossTest] Boss test system initialized successfully!"));
+			LOG_ENEMIES(Warning, TEXT("[BossTest] Press F12 to activate/deactivate boss test mode"));
+			LOG_ENEMIES(Warning, TEXT("[BossTest] Controls: NumPad1=Burrower, NumPad2=VoidQueen, NumPad3=FallenWarlord, NumPad4=HybridDemon, NumPad5=All, NumPad0=Stop"));
         }
         else
         {
-            UE_LOG(LogTemp, Error, TEXT("[BossTest] Failed to get BossAutoTestSubsystem!"));
+			LOG_ENEMIES(Error, TEXT("[BossTest] Failed to get BossAutoTestSubsystem!"));
         }
     }
     else
     {
-        UE_LOG(LogTemp, Log, TEXT("[BossTest] Boss testing not available in this level (only Battle_Main)"));
+		LOG_ENEMIES(Info, TEXT("[BossTest] Boss testing not available in this level (only Battle_Main)"));
     }
 }
 
 void AMyPlayerController::TriggerSwarmLevelUp()
 {
     // Legacy function - Upgrade system now handled by MyCharacter's XPComponent
-    UE_LOG(LogTemp, Warning, TEXT("TriggerSwarmLevelUp called - upgrades now handled by MyCharacter"));
+	LOG_UPGRADES(Warning, TEXT("TriggerSwarmLevelUp called - upgrades now handled by MyCharacter"));
 }
 void AMyPlayerController::SetFocusedInteractable(UInteractableComponent* NewTarget)
 {
@@ -1240,7 +1239,7 @@ void AMyPlayerController::SetFocusedInteractable(UInteractableComponent* NewTarg
 		Old->ShowPrompt(false);
 	}
 
-	UE_LOG(LogTemp, Warning, TEXT("[PC][Interact] Focus change: %s -> %s"), Old ? *Old->GetOwner()->GetName() : TEXT("None"), NewTarget ? *NewTarget->GetOwner()->GetName() : TEXT("None"));
+	LOG_UI(Warning, TEXT("[PC][Interact] Focus change: %s -> %s"), Old ? *Old->GetOwner()->GetName() : TEXT("None"), NewTarget ? *NewTarget->GetOwner()->GetName() : TEXT("None"));
 	FocusedInteractable = NewTarget;
 
 	// Mostrar prompt do novo e ocultar os demais para evitar ruído visual
@@ -1266,7 +1265,7 @@ void AMyPlayerController::OnPossess(APawn* InPawn)
 	// Assim que possuímos um pawn, garantimos que HUD esteja ouvindo os componentes
 	BindHUDToPlayerComponents();
 	
-	UE_LOG(LogTemp, Warning, TEXT("[PC] OnPossess: %s"), InPawn ? *InPawn->GetName() : TEXT("None"));
+	LOG_SYSTEMS(Warning, TEXT("[PC] OnPossess: %s"), InPawn ? *InPawn->GetName() : TEXT("None"));
 	
 	// If we're the host and this is Battle_Main, transition to InMatchHost
 	if (HasAuthority() && GetWorld())
@@ -1294,7 +1293,7 @@ void AMyPlayerController::AcknowledgePossession(APawn* P)
 {
 	Super::AcknowledgePossession(P);
 	
-	UE_LOG(LogTemp, Warning, TEXT("[PC] AcknowledgePossession: %s"), P ? *P->GetName() : TEXT("None"));
+	LOG_SYSTEMS(Warning, TEXT("[PC] AcknowledgePossession: %s"), P ? *P->GetName() : TEXT("None"));
 	
 	// If we're a client and acknowledged pawn in Battle_Main, hide loading screen
 	if (!HasAuthority() && GetWorld())
@@ -1411,25 +1410,25 @@ void AMyPlayerController::HandleLevelChanged(int32 NewLevel)
 
 void AMyPlayerController::TestCompleteFixes()
 {
-	UE_LOG(LogTemp, Warning, TEXT("=== PSO-SAFE TEST (NO SPAWNING) ==="));
+	LOG_ENEMIES(Warning, TEXT("=== PSO-SAFE TEST (NO SPAWNING) ==="));
 	
 	UWorld* World = GetWorld();
 	if (!World || !IsValid(World))
 	{
-		UE_LOG(LogTemp, Error, TEXT("No valid world found"));
+		LOG_ENEMIES(Error, TEXT("No valid world found"));
 		return;
 	}
 	
 	// PSO-SAFE: Avoid all operations that might cause shader/PSO recreation
-	UE_LOG(LogTemp, Warning, TEXT("SKIPPING ALL SPAWNING OPERATIONS (PSO safety)"));
-	UE_LOG(LogTemp, Warning, TEXT("SKIPPING ACTOR ITERATION (PSO safety)"));
+	LOG_ENEMIES(Warning, TEXT("SKIPPING ALL SPAWNING OPERATIONS (PSO safety)"));
+	LOG_ENEMIES(Warning, TEXT("SKIPPING ACTOR ITERATION (PSO safety)"));
 	
 	// Only do basic validation that won't affect GPU state
-	UE_LOG(LogTemp, Warning, TEXT("World: %s"), *World->GetMapName());
+	LOG_ENEMIES(Warning, TEXT("World: %s"), *World->GetMapName());
 	
 	if (AGameModeBase* GameMode = World->GetAuthGameMode())
 	{
-		UE_LOG(LogTemp, Warning, TEXT("GameMode: %s"), *GameMode->GetClass()->GetName());
+		LOG_ENEMIES(Warning, TEXT("GameMode: %s"), *GameMode->GetClass()->GetName());
 	}
 	
 	// Basic player validation without any transforms or component access
@@ -1437,11 +1436,11 @@ void AMyPlayerController::TestCompleteFixes()
 	{
 		if (IsValid(PlayerPawn))
 		{
-			UE_LOG(LogTemp, Warning, TEXT("Player: Valid pawn present"));
+			LOG_ENEMIES(Warning, TEXT("Player: Valid pawn present"));
 		}
 	}
 	
-	UE_LOG(LogTemp, Warning, TEXT("=== PSO-SAFE TEST COMPLETED (Use NumPad keys for boss spawning) ==="));
+	LOG_ENEMIES(Warning, TEXT("=== PSO-SAFE TEST COMPLETED (Use NumPad keys for boss spawning) ==="));
 }
 
 // ============================================================================
@@ -1494,7 +1493,7 @@ bool AMyPlayerController::ValidateBossTestAction(const FInputActionValue& Value,
 	// Safety check - only work in Battle_Main with valid subsystem
 	if (!IsBossTestingAvailable())
 	{
-		UE_LOG(LogTemp, Warning, TEXT("[BossTest] Boss testing not available - press F12 first to activate boss test mode"));
+		LOG_ENEMIES(Warning, TEXT("[BossTest] Boss testing not available - press F12 first to activate boss test mode"));
 		return false;
 	}
 	
@@ -1506,7 +1505,7 @@ bool AMyPlayerController::ValidateBossTestAction(const FInputActionValue& Value,
 	
 	if (!BossTestSubsystem)
 	{
-		UE_LOG(LogTemp, Error, TEXT("[BossTest] Failed to get BossAutoTestSubsystem"));
+		LOG_ENEMIES(Error, TEXT("[BossTest] Failed to get BossAutoTestSubsystem"));
 		return false;
 	}
 	
@@ -1517,7 +1516,7 @@ void AMyPlayerController::OnBossTest1(const FInputActionValue& Value)
 {
 	if (!ValidateBossTestAction(Value, TEXT("NumPad1"))) return;
 	
-	UE_LOG(LogTemp, Warning, TEXT("[BossTest] NumPad1 pressed - Spawning Burrower Boss - "));
+	LOG_ENEMIES(Warning, TEXT("[BossTest] NumPad1 pressed - Spawning Burrower Boss - "));
 	BossTestSubsystem->OnKey1Pressed();
 }
 
@@ -1526,7 +1525,7 @@ void AMyPlayerController::OnBossTest2(const FInputActionValue& Value)
 {
 	if (!ValidateBossTestAction(Value, TEXT("NumPad2"))) return;
 	
-	UE_LOG(LogTemp, Warning, TEXT("[BossTest] NumPad2 pressed - Spawning Void Queen Boss"));
+	LOG_ENEMIES(Warning, TEXT("[BossTest] NumPad2 pressed - Spawning Void Queen Boss"));
 	BossTestSubsystem->OnKey2Pressed();
 }
 
@@ -1534,7 +1533,7 @@ void AMyPlayerController::OnBossTest3(const FInputActionValue& Value)
 {
 	if (!ValidateBossTestAction(Value, TEXT("NumPad3"))) return;
 	
-	UE_LOG(LogTemp, Warning, TEXT("[BossTest] NumPad3 pressed - Spawning Fallen Warlord Boss"));
+	LOG_ENEMIES(Warning, TEXT("[BossTest] NumPad3 pressed - Spawning Fallen Warlord Boss"));
 	BossTestSubsystem->OnKey3Pressed();
 }
 
@@ -1542,7 +1541,7 @@ void AMyPlayerController::OnBossTest4(const FInputActionValue& Value)
 {
 	if (!ValidateBossTestAction(Value, TEXT("NumPad4"))) return;
 	
-	UE_LOG(LogTemp, Warning, TEXT("[BossTest] NumPad4 pressed - Spawning Hybrid Demon Boss"));
+	LOG_ENEMIES(Warning, TEXT("[BossTest] NumPad4 pressed - Spawning Hybrid Demon Boss"));
 	BossTestSubsystem->OnKey4Pressed();
 }
 
@@ -1550,7 +1549,7 @@ void AMyPlayerController::OnBossTest5(const FInputActionValue& Value)
 {
 	if (!ValidateBossTestAction(Value, TEXT("NumPad5"))) return;
 	
-	UE_LOG(LogTemp, Warning, TEXT("[BossTest] NumPad5 pressed - Spawning All Bosses"));
+	LOG_ENEMIES(Warning, TEXT("[BossTest] NumPad5 pressed - Spawning All Bosses"));
 	BossTestSubsystem->OnKey5Pressed();
 }
 
@@ -1558,7 +1557,7 @@ void AMyPlayerController::OnBossTest0(const FInputActionValue& Value)
 {
 	if (!ValidateBossTestAction(Value, TEXT("NumPad0"))) return;
 	
-	UE_LOG(LogTemp, Warning, TEXT("[BossTest] NumPad0 pressed - Stopping Boss Testing"));
+	LOG_ENEMIES(Warning, TEXT("[BossTest] NumPad0 pressed - Stopping Boss Testing"));
 	BossTestSubsystem->OnKey0Pressed();
 }
 
@@ -1569,7 +1568,7 @@ void AMyPlayerController::OnBossTestToggle(const FInputActionValue& Value)
 	// Safety check - ensure we're in a valid state
 	if (!IsValid(this) || !GetWorld())
 	{
-		UE_LOG(LogTemp, Error, TEXT("[BossTest] Invalid state - PlayerController or World is null"));
+		LOG_ENEMIES(Error, TEXT("[BossTest] Invalid state - PlayerController or World is null"));
 		return;
 	}
 	
@@ -1577,21 +1576,21 @@ void AMyPlayerController::OnBossTestToggle(const FInputActionValue& Value)
 	FString LevelName = GetWorld()->GetMapName();
 	if (!LevelName.Contains(TEXT("Battle_Main")))
 	{
-		UE_LOG(LogTemp, Warning, TEXT("[BossTest] F12 pressed in %s - Boss testing only available in Battle_Main level"), *LevelName);
+		LOG_ENEMIES(Warning, TEXT("[BossTest] F12 pressed in %s - Boss testing only available in Battle_Main level"), *LevelName);
 		return;
 	}
 	
 	// Initialize subsystem if not already done
 	if (!BossTestSubsystem)
 	{
-		UE_LOG(LogTemp, Warning, TEXT("[BossTest] BossTestSubsystem not initialized, attempting to get it now..."));
+		LOG_ENEMIES(Warning, TEXT("[BossTest] BossTestSubsystem not initialized, attempting to get it now..."));
 		BossTestSubsystem = GetWorld()->GetSubsystem<UBossAutoTestSubsystem>();
 	}
 	
 	// Check if we successfully got the subsystem
 	if (!BossTestSubsystem)
 	{
-		UE_LOG(LogTemp, Error, TEXT("[BossTest] Failed to get BossAutoTestSubsystem - boss testing not available"));
+		LOG_ENEMIES(Error, TEXT("[BossTest] Failed to get BossAutoTestSubsystem - boss testing not available"));
 		return;
 	}
 	
@@ -1600,16 +1599,16 @@ void AMyPlayerController::OnBossTestToggle(const FInputActionValue& Value)
 	
 	if (bBossTestModeActive)
 	{
-		UE_LOG(LogTemp, Warning, TEXT("[BossTest] F12 pressed - BOSS TEST MODE ACTIVATED"));
-		UE_LOG(LogTemp, Warning, TEXT("[BossTest] Controls: NumPad1=Burrower, NumPad2=VoidQueen, NumPad3=FallenWarlord, NumPad4=HybridDemon, NumPad5=All, NumPad0=Stop"));
+		LOG_ENEMIES(Warning, TEXT("[BossTest] F12 pressed - BOSS TEST MODE ACTIVATED"));
+		LOG_ENEMIES(Warning, TEXT("[BossTest] Controls: NumPad1=Burrower, NumPad2=VoidQueen, NumPad3=FallenWarlord, NumPad4=HybridDemon, NumPad5=All, NumPad0=Stop"));
 		
 		// SAFE TEST: Only log, don't spawn to avoid PSO conflicts
-		UE_LOG(LogTemp, Warning, TEXT("[BossTest] Boss test mode active - use NumPad keys to spawn bosses"));
-		UE_LOG(LogTemp, Warning, TEXT("[BossTest] Skipping automatic enemy spawn to avoid GPU PSO conflicts"));
+		LOG_ENEMIES(Warning, TEXT("[BossTest] Boss test mode active - use NumPad keys to spawn bosses"));
+		LOG_ENEMIES(Warning, TEXT("[BossTest] Skipping automatic enemy spawn to avoid GPU PSO conflicts"));
 	}
 	else
 	{
-		UE_LOG(LogTemp, Warning, TEXT("[BossTest] F12 pressed - Boss Test Mode Deactivated"));
+		LOG_ENEMIES(Warning, TEXT("[BossTest] F12 pressed - Boss Test Mode Deactivated"));
 		if (IsValid(BossTestSubsystem))
 		{
 			BossTestSubsystem->OnKey0Pressed();

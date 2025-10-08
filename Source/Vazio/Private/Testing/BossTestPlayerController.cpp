@@ -3,6 +3,7 @@
 #include "Engine/World.h"
 #include "Components/InputComponent.h"
 #include "Engine/Engine.h"
+#include "Logging/VazioLogFacade.h"
 
 ABossTestPlayerController::ABossTestPlayerController()
 {
@@ -21,7 +22,7 @@ void ABossTestPlayerController::BeginPlay()
             TEXT("Boss Test Controller Active - Press F12 to enable boss testing mode"));
     }
     
-    UE_LOG(LogTemp, Log, TEXT("BossTestPlayerController ready - F12 to activate"));
+    LOG_ENEMIES(Info, TEXT("BossTestPlayerController ready - F12 to activate"));
 }
 
 void ABossTestPlayerController::SetupInputComponent()
@@ -41,7 +42,7 @@ void ABossTestPlayerController::SetupInputComponent()
         // F12 para ativar/desativar modo teste (changed from F1 due to AMD GPU crashes)
         InputComponent->BindKey(FKey("F12"), IE_Pressed, this, &ABossTestPlayerController::OnTestKeyF1);
         
-        UE_LOG(LogTemp, Log, TEXT("Boss test input bindings setup complete"));
+    LOG_ENEMIES(Info, TEXT("Boss test input bindings setup complete"));
     }
 }
 
@@ -116,7 +117,7 @@ void ABossTestPlayerController::GetBossTestSubsystem()
         BossTestSubsystem = GetWorld()->GetSubsystem<UBossAutoTestSubsystem>();
         if (!BossTestSubsystem)
         {
-            UE_LOG(LogTemp, Error, TEXT("Could not find BossAutoTestSubsystem"));
+            LOG_ENEMIES(Error, TEXT("Could not find BossAutoTestSubsystem"));
         }
     }
 }

@@ -5,6 +5,7 @@
 #include "Kismet/GameplayStatics.h"
 #include "Engine/World.h"
 #include "UObject/ConstructorHelpers.h"
+#include "Systems/EnemyMassSystem.h"
 
 ARangedProjectile::ARangedProjectile()
 {
@@ -80,7 +81,25 @@ void ARangedProjectile::OnHit(UPrimitiveComponent* HitComp, AActor* OtherActor, 
         // Optionally apply damage
         if (Damage > 0.f)
         {
-            UGameplayStatics::ApplyPointDamage(OtherActor, Damage, GetVelocity().GetSafeNormal(), Hit, GetInstigatorController(), this, nullptr);
+            bool bAppliedMassDamage = false;
+            if (UWorld* World = GetWorld())
+            {
+                if (UEnemyMassSystem* MassSystem = World->GetSubsystem<UEnemyMassSystem>())
+                {
+                    FVector DamageOrigin = FVector(Hit.ImpactPoint);
+                    if (DamageOrigin.IsNearlyZero())
+                    {
+                        DamageOrigin = GetActorLocation();
+                    }
+                    MassSystem->ApplyRadialDamageMass(DamageOrigin, MassDamageRadius, Damage);
+                    bAppliedMassDamage = true;
+                }
+            }
+
+            if (!bAppliedMassDamage)
+            {
+                UGameplayStatics::ApplyPointDamage(OtherActor, Damage, GetVelocity().GetSafeNormal(), Hit, GetInstigatorController(), this, nullptr);
+            }
         }
         Destroy();
     }
@@ -96,8 +115,30 @@ void ARangedProjectile::OnBeginOverlap(UPrimitiveComponent* OverlappedComp, AAct
         }
         if (Damage > 0.f)
         {
-            const FVector Dir = GetVelocity().GetSafeNormal();
-            UGameplayStatics::ApplyPointDamage(OtherActor, Damage, Dir, SweepResult, GetInstigatorController(), this, nullptr);
+            bool bAppliedMassDamage = false;
+            if (UWorld* World = GetWorld())
+            {
+                if (UEnemyMassSystem* MassSystem = World->GetSubsystem<UEnemyMassSystem>())
+                {
+                    FVector DamageOrigin = FVector(SweepResult.ImpactPoint);
+                    if (DamageOrigin.IsNearlyZero())
+                    {
+                        DamageOrigin = FVector(SweepResult.Location);
+                    }
+                    if (DamageOrigin.IsNearlyZero())
+                    {
+                        DamageOrigin = GetActorLocation();
+                    }
+                    MassSystem->ApplyRadialDamageMass(DamageOrigin, MassDamageRadius, Damage);
+                    bAppliedMassDamage = true;
+                }
+            }
+
+            if (!bAppliedMassDamage)
+            {
+                const FVector Dir = GetVelocity().GetSafeNormal();
+                UGameplayStatics::ApplyPointDamage(OtherActor, Damage, Dir, SweepResult, GetInstigatorController(), this, nullptr);
+            }
         }
         Destroy();
     }

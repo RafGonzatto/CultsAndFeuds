@@ -1,4 +1,5 @@
 #include "World/Common/Game/MyGameInstance.h"
+#include "Logging/VazioLogFacade.h"
 #include "OnlineSubsystem.h"
 #include "Interfaces/OnlineIdentityInterface.h"
 #include "Net/MatchFlowController.h"
@@ -14,7 +15,7 @@ void UMyGameInstance::Init()
 {
 	Super::Init();
 	
-	UE_LOG(LogTemp, Warning, TEXT("[MyGameInstance] Initializing..."));
+	LOG_SYSTEMS(Warn, TEXT("[MyGameInstance] Initializing..."));
 	
 	// Initialize Steam login
 	InitializeSteamLogin();
@@ -38,7 +39,7 @@ void UMyGameInstance::LoadComplete(const float LoadTime, const FString& MapName)
 {
 	Super::LoadComplete(LoadTime, MapName);
 	
-	UE_LOG(LogTemp, Warning, TEXT("[MyGameInstance] Load complete: %s (%.2fs)"), *MapName, LoadTime);
+	LOG_SYSTEMS(Warn, TEXT("[MyGameInstance] Load complete: %s (%.2fs)"), *MapName, LoadTime);
 	
 	// Hide loading screen when we reach Battle_Main
 	if (MapName.Contains(TEXT("Battle_Main")))
@@ -60,52 +61,52 @@ void UMyGameInstance::InitializeSteamLogin()
 {
 	// Check if we're in the editor - if so, skip Steam initialization to prevent crashes
 #if WITH_EDITOR
-	UE_LOG(LogTemp, Warning, TEXT("[MyGameInstance] Running in Editor - Steam initialization skipped"));
+	LOG_NETWORK(Warn, TEXT("[MyGameInstance] Running in Editor - Steam initialization skipped"));
 	return;
 #endif
 
 	// Initialize Steam API first
-	UE_LOG(LogTemp, Warning, TEXT("[MyGameInstance] Attempting Steam API initialization..."));
+	LOG_NETWORK(Warn, TEXT("[MyGameInstance] Attempting Steam API initialization..."));
 	if (!SteamAPIWrapper::Initialize())
 	{
-		UE_LOG(LogTemp, Warning, TEXT("[MyGameInstance] Steam API initialization failed - continuing without Steam"));
+	LOG_NETWORK(Warn, TEXT("[MyGameInstance] Steam API initialization failed - continuing without Steam"));
 		return;
 	}
 	
-	UE_LOG(LogTemp, Warning, TEXT("[MyGameInstance] Steam API initialized successfully"));
+	LOG_NETWORK(Warn, TEXT("[MyGameInstance] Steam API initialized successfully"));
 	
 	IOnlineSubsystem* OnlineSubsystem = IOnlineSubsystem::Get();
 	if (!OnlineSubsystem)
 	{
-		UE_LOG(LogTemp, Error, TEXT("[MyGameInstance] No online subsystem found"));
+	LOG_NETWORK(Error, TEXT("[MyGameInstance] No online subsystem found"));
 		return;
 	}
 	
-	UE_LOG(LogTemp, Warning, TEXT("[MyGameInstance] Online subsystem: %s"), *OnlineSubsystem->GetSubsystemName().ToString());
+	LOG_NETWORK(Warn, TEXT("[MyGameInstance] Online subsystem: %s"), *OnlineSubsystem->GetSubsystemName().ToString());
 	
 	IOnlineIdentityPtr IdentityInterface = OnlineSubsystem->GetIdentityInterface();
 	if (!IdentityInterface.IsValid())
 	{
-		UE_LOG(LogTemp, Error, TEXT("[MyGameInstance] Identity interface not available"));
+	LOG_NETWORK(Error, TEXT("[MyGameInstance] Identity interface not available"));
 		return;
 	}
 	
 	// Check Steam API login status
 	if (SteamAPIWrapper::IsLoggedIn())
 	{
-		UE_LOG(LogTemp, Warning, TEXT("[MyGameInstance] Logged in to Steam as: %s"), *SteamAPIWrapper::GetPlayerName());
+	LOG_NETWORK(Warn, TEXT("[MyGameInstance] Logged in to Steam as: %s"), *SteamAPIWrapper::GetPlayerName());
 	}
 	
 	// Check if already logged in to online subsystem
 	ELoginStatus::Type LoginStatus = IdentityInterface->GetLoginStatus(0);
 	if (LoginStatus == ELoginStatus::LoggedIn)
 	{
-		UE_LOG(LogTemp, Warning, TEXT("[MyGameInstance] Already logged in to Steam"));
+	LOG_NETWORK(Warn, TEXT("[MyGameInstance] Already logged in to Steam"));
 		return;
 	}
 	
 	// Start automatic login process
-	UE_LOG(LogTemp, Warning, TEXT("[MyGameInstance] Starting Steam auto-login..."));
+	LOG_NETWORK(Warn, TEXT("[MyGameInstance] Starting Steam auto-login..."));
 	
 	FOnlineAccountCredentials Credentials;
 	Credentials.Id = FString();
@@ -139,7 +140,7 @@ void UMyGameInstance::CheckSteamLoginStatus()
 	if (LoginStatus == ELoginStatus::LoggedIn)
 	{
 		FString PlayerName = IdentityInterface->GetPlayerNickname(0);
-		UE_LOG(LogTemp, Warning, TEXT("[MyGameInstance] Steam login successful: %s"), *PlayerName);
+	LOG_NETWORK(Warn, TEXT("[MyGameInstance] Steam login successful: %s"), *PlayerName);
 		
 		// Clear timer
 		GetWorld()->GetTimerManager().ClearTimer(SteamLoginTimer);
@@ -152,7 +153,7 @@ void UMyGameInstance::CheckSteamLoginStatus()
 		
 		if (LoginAttempts > 10) // 10 seconds timeout
 		{
-			UE_LOG(LogTemp, Error, TEXT("[MyGameInstance] Steam login failed after %d attempts"), LoginAttempts);
+			LOG_NETWORK(Error, TEXT("[MyGameInstance] Steam login failed after %d attempts"), LoginAttempts);
 			GetWorld()->GetTimerManager().ClearTimer(SteamLoginTimer);
 		}
 	}

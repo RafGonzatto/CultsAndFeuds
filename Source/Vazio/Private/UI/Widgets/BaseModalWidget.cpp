@@ -5,6 +5,7 @@
 #include "Widgets/Text/STextBlock.h"
 #include "Framework/Application/SlateApplication.h"
 #include "Engine/Engine.h"
+#include "Logging/VazioLogFacade.h"
 
 UBaseModalWidget::UBaseModalWidget(const FObjectInitializer& ObjectInitializer)
 	: Super(ObjectInitializer)
@@ -40,7 +41,7 @@ TSharedRef<SWidget> UBaseModalWidget::RebuildWidget()
                 .VAlign(VAlign_Center)
                 .OnClicked_Lambda([this]()
                 {
-                    UE_LOG(LogTemp, Warning, TEXT("[Modal] CloseButton clicked -> HandleClose()"));
+                    LOG_UI(Debug, TEXT("[Modal] CloseButton clicked -> HandleClose()"));
                     HandleClose();
                     return FReply::Handled();
                 })
@@ -56,13 +57,13 @@ TSharedRef<SWidget> UBaseModalWidget::RebuildWidget()
 void UBaseModalWidget::NativeConstruct()
 {
     Super::NativeConstruct();
-    UE_LOG(LogTemp, Warning, TEXT("[Modal] NativeConstruct -> FocusFirstWidget"));
+    LOG_UI(Info, TEXT("[Modal] NativeConstruct -> FocusFirstWidget"));
     FocusFirstWidget();
 }
 
 FReply UBaseModalWidget::NativeOnKeyDown(const FGeometry& InGeometry, const FKeyEvent& InKeyEvent)
 {
-    UE_LOG(LogTemp, Warning, TEXT("[Modal] NativeOnKeyDown key=%s"), *InKeyEvent.GetKey().ToString());
+    LOG_UI(Debug, TEXT("[Modal] NativeOnKeyDown key=%s"), *InKeyEvent.GetKey().ToString());
     if (InKeyEvent.GetKey() == EKeys::E || InKeyEvent.GetKey() == EKeys::Escape)
     {
         HandleClose();
@@ -73,7 +74,7 @@ FReply UBaseModalWidget::NativeOnKeyDown(const FGeometry& InGeometry, const FKey
 
 FReply UBaseModalWidget::NativeOnPreviewKeyDown(const FGeometry& InGeometry, const FKeyEvent& InKeyEvent)
 {
-    UE_LOG(LogTemp, Warning, TEXT("[Modal] NativeOnPreviewKeyDown key=%s"), *InKeyEvent.GetKey().ToString());
+    LOG_UI(Debug, TEXT("[Modal] NativeOnPreviewKeyDown key=%s"), *InKeyEvent.GetKey().ToString());
     if (InKeyEvent.GetKey() == EKeys::E || InKeyEvent.GetKey() == EKeys::Escape)
     {
         HandleClose();
@@ -84,7 +85,7 @@ FReply UBaseModalWidget::NativeOnPreviewKeyDown(const FGeometry& InGeometry, con
 
 void UBaseModalWidget::HandleClose()
 {
-    UE_LOG(LogTemp, Warning, TEXT("[Modal] HandleClose -> RemoveFromParent + Broadcast"));
+    LOG_UI(Info, TEXT("[Modal] HandleClose -> RemoveFromParent + Broadcast"));
     RemoveFromParent();
     OnModalClosed.Broadcast();
 }
@@ -97,7 +98,7 @@ void UBaseModalWidget::FocusFirstWidget()
     // Se o botao for focavel, tente focar tambem
     if (CloseButton.IsValid())
     {
-        UE_LOG(LogTemp, Warning, TEXT("[Modal] FocusFirstWidget -> focusing CloseButton"));
+        LOG_UI(Debug, TEXT("[Modal] FocusFirstWidget -> focusing CloseButton"));
         FSlateApplication::Get().SetKeyboardFocus(CloseButton);
     }
 }

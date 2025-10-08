@@ -4,15 +4,14 @@
 #include "World/Common/Player/PlayerHealthComponent.h"
 #include "World/Common/Player/XPComponent.h"
 #include "Kismet/GameplayStatics.h"
-
-DEFINE_LOG_CATEGORY_STATIC(LogUI, Log, All);
+#include "Logging/VazioLogFacade.h"
 
 void UPlayerHUDWidget::NativeConstruct()
 {
     Super::NativeConstruct();
     
     // Log inicial para ajudar debug de criação duplicada
-    UE_LOG(LogUI, Log, TEXT("HUD: NativeConstruct iniciado (Addr=%p)"), this);
+    LOG_UI(Info, TEXT("HUD: NativeConstruct iniciado (Addr=%p)"), this);
     // Tenta encontrar os componentes do player logo na construção
     BindToPlayerComponents();
 }
@@ -69,7 +68,7 @@ void UPlayerHUDWidget::UpdateHealthBar(float NewHealth)
         HealthText->SetText(FText::FromString(FString::Printf(TEXT("%d / %d"), CurrentHP, MaxHP)));
     }
     
-    UE_LOG(LogUI, Verbose, TEXT("HUD: Health atualizado: %.1f/%.1f (%.1f%%)"), HealthComponent->GetCurrentHealth(), HealthComponent->GetMaxHealth(), HealthPercent * 100.f);
+    LOG_UI(Debug, TEXT("HUD: Health atualizado: %.1f/%.1f (%.1f%%)"), HealthComponent->GetCurrentHealth(), HealthComponent->GetMaxHealth(), HealthPercent * 100.f);
 }
 
 void UPlayerHUDWidget::UpdateXPBar(int32 CurrentXP, int32 XPToNextLevel)
@@ -90,7 +89,7 @@ void UPlayerHUDWidget::UpdateLevel(int32 NewLevel)
         LevelText->SetText(FText::FromString(FString::Printf(TEXT("Nível %d"), NewLevel)));
     }
     
-    UE_LOG(LogUI, Log, TEXT("HUD: Level atualizado para %d"), NewLevel);
+    LOG_UI(Info, TEXT("HUD: Level atualizado para %d"), NewLevel);
 }
 
 // Nota: O posicionamento (ficar centralizado na parte inferior) deve ser ajustado no Blueprint

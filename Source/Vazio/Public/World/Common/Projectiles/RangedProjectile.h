@@ -30,6 +30,9 @@ public:
     float Damage = 10.f;
 
     UPROPERTY(EditAnywhere, BlueprintReadWrite, Category = "Combat")
+    float MassDamageRadius = 100.f;
+
+    UPROPERTY(EditAnywhere, BlueprintReadWrite, Category = "Combat")
     float LifeSeconds = 5.f;
 
     UFUNCTION(BlueprintCallable)

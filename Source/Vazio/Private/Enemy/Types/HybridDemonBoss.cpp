@@ -2,6 +2,7 @@
 #include "Kismet/GameplayStatics.h"
 #include "GameFramework/CharacterMovementComponent.h"
 #include "Engine/World.h"
+#include "Logging/VazioLogFacade.h"
 
 AHybridDemonBoss::AHybridDemonBoss()
 {
@@ -119,7 +120,7 @@ void AHybridDemonBoss::PerformMovementPattern(float DeltaTime)
 void AHybridDemonBoss::PerformInfernoRain()
 {
     UGameplayStatics::ApplyRadialDamage(GetWorld(), InfernoDamage, GetActorLocation(), InfernoRadius, nullptr, TArray<AActor*>(), this);
-    UE_LOG(LogBoss, Log, TEXT("%s cast Inferno Rain"), *GetName());
+    LOG_ENEMIES(Info, TEXT("%s cast Inferno Rain"), *GetName());
 }
 
 void AHybridDemonBoss::PerformShadowDash()
@@ -143,7 +144,7 @@ void AHybridDemonBoss::PerformShadowDash()
     SetActorLocation(TargetLocation);
     SetActorRotation((PlayerPawn->GetActorLocation() - TargetLocation).Rotation());
 
-    UE_LOG(LogBoss, Log, TEXT("%s executed Shadow Dash"), *GetName());
+    LOG_ENEMIES(Info, TEXT("%s executed Shadow Dash"), *GetName());
 }
 
 void AHybridDemonBoss::PerformOblivionProjectiles()
@@ -162,7 +163,7 @@ void AHybridDemonBoss::PerformOblivionProjectiles()
         UGameplayStatics::ApplyRadialDamage(GetWorld(), InfernoDamage * 0.75f, ImpactLocation, 280.f, nullptr, TArray<AActor*>(), this);
     }
 
-    UE_LOG(LogBoss, Log, TEXT("%s released Oblivion projectiles"), *GetName());
+    LOG_ENEMIES(Info, TEXT("%s released Oblivion projectiles"), *GetName());
 }
 
 void AHybridDemonBoss::PerformCataclysm()
@@ -170,6 +171,6 @@ void AHybridDemonBoss::PerformCataclysm()
     FVector Origin = GetActorLocation();
     UGameplayStatics::ApplyRadialDamage(GetWorld(), CataclysmDamage, Origin, InfernoRadius * 1.2f, nullptr, TArray<AActor*>(), this);
     SpawnSummonedMinions(TEXT("GoldEnemy"), 2, InfernoRadius, FEnemyInstanceModifiers());
-    UE_LOG(LogBoss, Log, TEXT("%s unleashed Cataclysm"), *GetName());
+    LOG_ENEMIES(Info, TEXT("%s unleashed Cataclysm"), *GetName());
 }
 

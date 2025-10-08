@@ -4,6 +4,9 @@
 #include "Kismet/GameplayStatics.h"
 #include "Enemy/EnemySpawnerSubsystem.h"
 #include "Enemy/EnemyTypes.h"
+#include "Systems/EnemyMassSpawnerSubsystem.h"
+#include "Systems/EnemyImplementationCVars.h"
+#include "Logging/VazioLogFacade.h"
 
 ASplitterSlime::ASplitterSlime()
 {
@@ -68,10 +71,44 @@ void ASplitterSlime::PursuePlayer(float DeltaTime)
 
 void ASplitterSlime::CreateChildren()
 {
+    if (GetEnemyImpl() == 1)
+    {
+        if (UWorld* World = GetWorld())
+        {
+            if (UEnemyMassSpawnerSubsystem* MassSpawner = World->GetSubsystem<UEnemyMassSpawnerSubsystem>())
+            {
+                const FVector ParentLocation = GetActorLocation();
+
+                FEnemyInstanceModifiers ChildMods = CurrentModifiers;
+                ChildMods.HealthMultiplier *= ChildrenHPMultiplier;
+                ChildMods.DamageMultiplier *= ChildrenDMGMultiplier;
+                ChildMods.ScaleMultiplier *= 0.8f;
+
+                TArray<FTransform> SpawnTransforms;
+                SpawnTransforms.Reserve(ChildrenCount);
+
+                for (int32 Index = 0; Index < ChildrenCount; ++Index)
+                {
+                    const float Angle = (2.0f * PI * Index) / FMath::Max(1, ChildrenCount);
+                    const FVector Offset = FVector(FMath::Cos(Angle), FMath::Sin(Angle), 0.f) * ChildrenSpawnRadius;
+                    const FVector ChildLocation = ParentLocation + Offset;
+                    SpawnTransforms.Emplace(GetActorQuat(), ChildLocation, GetActorScale3D() * 0.8f);
+                }
+
+                MassSpawner->SpawnEnemiesAtTransforms(TEXT("SplitterSlime"), SpawnTransforms, ChildMods);
+                LOG_ENEMIES(Info, TEXT("SplitterSlime parent created %d children via Mass"), ChildrenCount);
+                return;
+            }
+        }
+
+    LOG_ENEMIES(Warn, TEXT("SplitterSlime: Mass spawner unavailable, skipping child creation"));
+        return;
+    }
+
     UEnemySpawnerSubsystem* SpawnerSubsystem = GetWorld()->GetSubsystem<UEnemySpawnerSubsystem>();
     if (!SpawnerSubsystem)
     {
-        UE_LOG(LogEnemy, Warning, TEXT("SplitterSlime: Could not find EnemySpawnerSubsystem"));
+    LOG_ENEMIES(Warn, TEXT("SplitterSlime: Could not find EnemySpawnerSubsystem"));
         return;
     }
 
@@ -106,9 +143,9 @@ void ASplitterSlime::CreateChildren()
             Child->bIsParent = false; // Children don't split
             Child->ApplyArchetypeAndModifiers(ChildArchetype, ChildMods);
             
-            UE_LOG(LogEnemy, Log, TEXT("SplitterSlime parent created child %d at %s"), i, *ChildLocation.ToCompactString());
+            LOG_ENEMIES(Info, TEXT("SplitterSlime parent created child %d at %s"), i, *ChildLocation.ToCompactString());
         }
     }
     
-    UE_LOG(LogEnemy, Log, TEXT("SplitterSlime parent created %d children"), ChildrenCount);
+    LOG_ENEMIES(Info, TEXT("SplitterSlime parent created %d children"), ChildrenCount);
 }

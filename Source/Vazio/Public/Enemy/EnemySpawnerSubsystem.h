@@ -4,11 +4,13 @@
 #include "Subsystems/WorldSubsystem.h"
 #include "Enemy/EnemyTypes.h"
 #include "Enemy/Types/BossEnemy.h"
+#include "Systems/EnemyMassSpawnerSubsystem.h"
 #include "EnemySpawnerSubsystem.generated.h"
 
 class UEnemyConfig;
 class USpawnTimeline;
 class AEnemyBase;
+class UEnemyMassSpawnerSubsystem;
 
 DECLARE_MULTICAST_DELEGATE_OneParam(FSpawnerBossWarningSignature, const FBossSpawnEntry&);
 DECLARE_MULTICAST_DELEGATE_TwoParams(FSpawnerBossSpawnSignature, ABossEnemy*, const FBossSpawnEntry&);
@@ -82,6 +84,9 @@ private:
     void HandleActiveBossTelegraph(const FBossAttackPattern& Pattern);
     UFUNCTION()
     void HandleActiveBossAttack(const FBossAttackPattern& Pattern);
+    void HandleMassBossSpawned(const FBossMassHandle& BossHandle, const FTransform& SpawnTransform);
+    void HandleMassBossHealthChanged(const FBossMassHandle& BossHandle, float NormalizedHealth);
+    void HandleMassBossDefeated(const FBossMassHandle& BossHandle);
     void ResumeDeferredEvents();
     void PauseRegularSpawns();
     void ResumeRegularSpawns(float DelaySeconds);
@@ -112,6 +117,7 @@ private:
 
     TWeakObjectPtr<ABossEnemy> ActiveBoss;
     FBossSpawnEntry ActiveBossEntry;
+    FBossMassHandle ActiveMassBossHandle;
 
     FTimerHandle BossResumeHandle;
 
@@ -140,5 +146,12 @@ private:
 
     void InitializeEnemyClasses();
     APawn* GetPlayerPawn() const;
+
+    /** Cached Mass-based spawner bridge. */
+    TWeakObjectPtr<UEnemyMassSpawnerSubsystem> MassSpawner;
+
+    bool bMassBossEncounter = false;
+
+    bool ShouldUseMassSpawning() const;
 };
 

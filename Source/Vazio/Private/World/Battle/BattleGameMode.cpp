@@ -1,8 +1,10 @@
 #include "World/Battle/BattleGameMode.h"
+#include "Logging/VazioLogFacade.h"
 #include "World/Common/Player/MyCharacter.h"
 #include "World/Common/Player/MyPlayerController.h"
 
 #include "Engine/World.h"
+#include "HAL/IConsoleManager.h"
 #include "GameFramework/PlayerStart.h"
 #include "EngineUtils.h"
 
@@ -20,6 +22,26 @@
 #include "Enemy/EnemySpawnerSubsystem.h"
 #include "Enemy/EnemyConfig.h"
 #include "Enemy/EnemySpawnHelper.h"
+#include "Systems/EnemyMassSystem.h"
+#include "Systems/EnemyMassSpawnerSubsystem.h"
+
+static void ExecSpawnTestWave(const TArray<FString>& Args, UWorld* World)
+{
+    if (!World)
+    {
+        return;
+    }
+
+    if (ABattleGameMode* BattleGameMode = World->GetAuthGameMode<ABattleGameMode>())
+    {
+        BattleGameMode->StartTestWave();
+    }
+}
+
+static FAutoConsoleCommandWithWorldAndArgs GSpawnTestWaveCommand(
+    TEXT("SpawnTestWave"),
+    TEXT("Spawns the Mass-based enemy test wave"),
+    FConsoleCommandWithWorldAndArgsDelegate::CreateStatic(ExecSpawnTestWave));
 
 ABattleGameMode::ABattleGameMode()
 {
@@ -58,8 +80,8 @@ void ABattleGameMode::BeginPlay()
     // Trigger NavMesh rebuild so spawned ground contributes immediately
     if (UNavigationSystemV1* Nav = FNavigationSystem::GetCurrent<UNavigationSystemV1>(GetWorld()))
     {
-        Nav->Build();
-        UE_LOG(LogTemp, Display, TEXT("[BattleGM] Requested NavMesh rebuild"));
+    Nav->Build();
+    LOG_ENEMIES(Info, TEXT("[BattleGM] Requested NavMesh rebuild"));
     }
 
     // Initialize enemy system
@@ -74,7 +96,7 @@ void ABattleGameMode::BeginPlay()
         2.0f, // 2 second delay
         false
     );
-    UE_LOG(LogTemp, Warning, TEXT("[BattleGM] Auto-starting first wave in 2 seconds..."));
+    LOG_ENEMIES(Warn, TEXT("[BattleGM] Auto-starting first wave in 2 seconds..."));
 }
 
 void ABattleGameMode::CreatePlayerStartIfNeeded()
@@ -84,7 +106,7 @@ void ABattleGameMode::CreatePlayerStartIfNeeded()
 
     for (TActorIterator<APlayerStart> It(World); It; ++It)
     {
-        UE_LOG(LogTemp, Verbose, TEXT("[BattleGM] PlayerStart already present: %s"), *It->GetName());
+    LOG_ENEMIES(Debug, TEXT("[BattleGM] PlayerStart already present: %s"), *It->GetName());
         return; // already present
     }
 
@@ -94,7 +116,7 @@ void ABattleGameMode::CreatePlayerStartIfNeeded()
 #if WITH_EDITOR
         PS->SetActorLabel(TEXT("BattlePlayerStart"));
 #endif
-        UE_LOG(LogTemp, Display, TEXT("[BattleGM] PlayerStart created at (0,0,150)"));
+    LOG_ENEMIES(Info, TEXT("[BattleGM] PlayerStart created at (0,0,150)"));
     }
 }
 
@@ -105,7 +127,7 @@ AActor* ABattleGameMode::ChoosePlayerStart_Implementation(AController* Player)
     {
         for (TActorIterator<APlayerStart> It(World); It; ++It)
         {
-            UE_LOG(LogTemp, Verbose, TEXT("[BattleGM] ChoosePlayerStart -> %s"), *It->GetName());
+            LOG_ENEMIES(Debug, TEXT("[BattleGM] ChoosePlayerStart -> %s"), *It->GetName());
             return *It;
         }
     }
@@ -116,7 +138,7 @@ AActor* ABattleGameMode::ChoosePlayerStart_Implementation(AController* Player)
     {
         for (TActorIterator<APlayerStart> It(World); It; ++It)
         {
-            UE_LOG(LogTemp, Verbose, TEXT("[BattleGM] ChoosePlayerStart (after create) -> %s"), *It->GetName());
+            LOG_ENEMIES(Debug, TEXT("[BattleGM] ChoosePlayerStart (after create) -> %s"), *It->GetName());
             return *It;
         }
     }
@@ -132,14 +154,14 @@ void ABattleGameMode::CreateBattleGround()
     {
         if (It->GetName().Contains(TEXT("BattleGround")) || It->ActorHasTag(TEXT("BattleGround")))
         {
-            UE_LOG(LogTemp, Verbose, TEXT("[BattleGM] Existing BattleGround detected: %s"), *It->GetName());
+            LOG_ENEMIES(Debug, TEXT("[BattleGM] Existing BattleGround detected: %s"), *It->GetName());
             return;
         }
     }
     // Use assets cached in constructor; do NOT use FObjectFinder here
     if (!CachedCubeMesh)
     {
-        UE_LOG(LogTemp, Warning, TEXT("[BattleGM] CachedCubeMesh is null; skipping ground creation"));
+    LOG_ENEMIES(Warn, TEXT("[BattleGM] CachedCubeMesh is null; skipping ground creation"));
         return;
     }
 
@@ -167,7 +189,7 @@ void ABattleGameMode::CreateBattleGround()
 #if WITH_EDITOR
     Ground->SetActorLabel(TEXT("BattleGround"));
 #endif
-    UE_LOG(LogTemp, Display, TEXT("[BattleGM] Battle ground created"));
+    LOG_ENEMIES(Info, TEXT("[BattleGM] Battle ground created"));
 }
 
 void ABattleGameMode::CreateBasicLighting()
@@ -179,7 +201,7 @@ void ABattleGameMode::CreateBasicLighting()
     // If any directional light already exists in the map, keep it
     for (TActorIterator<ADirectionalLight> It(World); It; ++It)
     {
-        UE_LOG(LogTemp, Verbose, TEXT("[BattleGM] Using existing DirectionalLight: %s"), *It->GetName());
+    LOG_ENEMIES(Debug, TEXT("[BattleGM] Using existing DirectionalLight: %s"), *It->GetName());
         goto AfterDirectional;
     }
     if (ADirectionalLight* Dir = World->SpawnActor<ADirectionalLight>(FVector(0, 0, 1000), FRotator(-45, 45, 0)))
@@ -195,7 +217,7 @@ AfterDirectional:
     // Ambient skylight
     for (TActorIterator<ASkyLight> It(World); It; ++It)
     {
-        UE_LOG(LogTemp, Verbose, TEXT("[BattleGM] Using existing SkyLight: %s"), *It->GetName());
+    LOG_ENEMIES(Debug, TEXT("[BattleGM] Using existing SkyLight: %s"), *It->GetName());
         return;
     }
     if (ASkyLight* Sky = World->SpawnActor<ASkyLight>(FVector(0, 0, 800), FRotator::ZeroRotator))
@@ -213,25 +235,37 @@ void ABattleGameMode::InitializeEnemySystem()
     UEnemySpawnerSubsystem* SpawnerSubsystem = GetWorld()->GetSubsystem<UEnemySpawnerSubsystem>();
     if (!SpawnerSubsystem)
     {
-        UE_LOG(LogTemp, Error, TEXT("[BattleGM] Could not get EnemySpawnerSubsystem"));
+        LOG_ENEMIES(Error, TEXT("[BattleGM] Could not get EnemySpawnerSubsystem"));
         return;
+    }
+
+    UEnemyMassSystem* MassSystem = GetWorld()->GetSubsystem<UEnemyMassSystem>();
+    if (!MassSystem)
+    {
+        LOG_ENEMIES(Error, TEXT("[BattleGM] Mass system unavailable"));
+    }
+
+    UEnemyMassSpawnerSubsystem* MassSpawner = GetWorld()->GetSubsystem<UEnemyMassSpawnerSubsystem>();
+    if (!MassSpawner)
+    {
+        LOG_ENEMIES(Warn, TEXT("[BattleGM] Mass spawner unavailable; enemy spawning disabled"));
     }
 
     // Create or use existing enemy config
     if (!DefaultEnemyConfig)
     {
         DefaultEnemyConfig = UEnemyConfig::CreateDefaultConfig();
-        UE_LOG(LogTemp, Log, TEXT("[BattleGM] Created default enemy config"));
+        LOG_ENEMIES(Info, TEXT("[BattleGM] Created default enemy config"));
     }
 
     SpawnerSubsystem->SetEnemyConfig(DefaultEnemyConfig);
-    UE_LOG(LogTemp, Warning, TEXT("[BattleGM] Enemy system initialized"));
+    LOG_ENEMIES(Warn, TEXT("[BattleGM] Enemy system initialized (Mass=%s)"), MassSystem ? TEXT("Enabled") : TEXT("Disabled"));
 }
 
 void ABattleGameMode::StartEnemyWave(const FString& JSONWaveData, int32 Seed)
 {
     UEnemySpawnHelper::QuickSpawnEnemies(this, JSONWaveData, Seed);
-    UE_LOG(LogTemp, Warning, TEXT("[BattleGM] Started enemy wave with seed %d"), Seed);
+    LOG_ENEMIES(Warn, TEXT("[BattleGM] Started enemy wave with seed %d"), Seed);
 }
 
 void ABattleGameMode::StartDefaultWave()
@@ -288,5 +322,5 @@ void ABattleGameMode::StartTestWave()
     })");
 
     StartEnemyWave(TestWaveJSON, FMath::Rand());
-    UE_LOG(LogTemp, Warning, TEXT("[BattleGM] Started test wave from JSON with bosses"));
+    LOG_ENEMIES(Warn, TEXT("[BattleGM] Started test wave from JSON with bosses"));
 }

@@ -3,6 +3,9 @@
 #include "Engine/World.h"
 #include "GameFramework/CharacterMovementComponent.h"
 #include "Kismet/GameplayStatics.h"
+#include "Systems/EnemyMassSpawnerSubsystem.h"
+#include "Systems/EnemyImplementationCVars.h"
+#include "Logging/VazioLogFacade.h"
 
 FBossAttackPattern::FBossAttackPattern()
 {
@@ -73,8 +76,8 @@ void ABossEnemy::BeginPlay()
 
     // Log da posição inicial do boss
     const FVector InitialLocation = GetActorLocation();
-    UE_LOG(LogBoss, Warning, TEXT("[BossPosition] %s BeginPlay at location: X=%.2f, Y=%.2f, Z=%.2f"), 
-           *GetName(), InitialLocation.X, InitialLocation.Y, InitialLocation.Z);
+    LOG_ENEMIES(Warn, TEXT("[BossPosition] %s BeginPlay at location: X=%.2f, Y=%.2f, Z=%.2f"), 
+        *GetName(), InitialLocation.X, InitialLocation.Y, InitialLocation.Z);
     LastLoggedPosition = InitialLocation;
     LastPositionLogTime = GetWorld()->GetTimeSeconds();
 
@@ -94,7 +97,7 @@ void ABossEnemy::Tick(float DeltaTime)
 void ABossEnemy::HandleDeath(bool bIsParentParam)
 {
     OnBossDefeated.Broadcast(this);
-    UE_LOG(LogBoss, Log, TEXT("Boss %s defeated"), *GetName());
+    LOG_ENEMIES(Info, TEXT("Boss %s defeated"), *GetName());
 
     Super::HandleDeath(bIsParentParam);
 }
@@ -175,7 +178,7 @@ void ABossEnemy::EnterPhase(int32 NewPhaseIndex)
     HandlePhaseStarted(NewPhase);
     OnBossPhaseChanged.Broadcast(CurrentPhaseIndex, NewPhase);
 
-    UE_LOG(LogBoss, Log, TEXT("Boss %s entered phase %d"), *GetName(), CurrentPhaseIndex);
+    LOG_ENEMIES(Info, TEXT("Boss %s entered phase %d"), *GetName(), CurrentPhaseIndex);
 }
 
 void ABossEnemy::HandlePhaseStarted(const FBossPhaseDefinition& Phase)
@@ -251,7 +254,7 @@ void ABossEnemy::StartTelegraph(const FBossAttackPattern& Pattern)
         bTelegraphActive = true;
         AttackTimer = TelegraphDuration;
         OnBossTelegraph.Broadcast(Pattern);
-        UE_LOG(LogBoss, VeryVerbose, TEXT("Boss %s telegraphing pattern %s for %.2fs"), *GetName(), *Pattern.PatternName.ToString(), TelegraphDuration);
+        LOG_ENEMIES(Trace, TEXT("Boss %s telegraphing pattern %s for %.2fs"), *GetName(), *Pattern.PatternName.ToString(), TelegraphDuration);
     }
     else
     {
@@ -294,12 +297,12 @@ void ABossEnemy::ExecuteAttackPattern(const FBossAttackPattern& Pattern)
         SpawnSummonedMinions(Pattern.MinionType, Pattern.MinionCount, Pattern.MinionSpawnRadius, Pattern.MinionModifiers);
     }
 
-    UE_LOG(LogBoss, Log, TEXT("Boss %s executed pattern %s"), *GetName(), *Pattern.PatternName.ToString());
+    LOG_ENEMIES(Info, TEXT("Boss %s executed pattern %s"), *GetName(), *Pattern.PatternName.ToString());
 }
 
 void ABossEnemy::PerformAttackPattern(const FBossAttackPattern& Pattern)
 {
-    UE_LOG(LogBoss, VeryVerbose, TEXT("Boss %s base attack pattern %s (override to implement behaviour)"), *GetName(), *Pattern.PatternName.ToString());
+    LOG_ENEMIES(Trace, TEXT("Boss %s base attack pattern %s (override to implement behaviour)"), *GetName(), *Pattern.PatternName.ToString());
 }
 
 void ABossEnemy::PerformMovementPattern(float DeltaTime)
@@ -332,7 +335,7 @@ void ABossEnemy::PerformMovementPattern(float DeltaTime)
     
     if (DistanceFromLastLog > 200.f || TimeSinceLastLog > 5.f) // Log a cada 200 unidades de movimento ou a cada 5 segundos
     {
-        UE_LOG(LogBoss, Warning, TEXT("[BossMovement] %s moved to: X=%.2f, Y=%.2f, Z=%.2f (Distance from last: %.2f)"), 
+    LOG_LOOP_THROTTLE(Warn, FVazioLog::MakeLoopKey(__FUNCTION__), 1, 5.f, TEXT("[BossMovement] %s moved to: X=%.2f, Y=%.2f, Z=%.2f (Distance from last: %.2f)"), 
                *GetName(), NewLocation.X, NewLocation.Y, NewLocation.Z, DistanceFromLastLog);
         LastLoggedPosition = NewLocation;
         LastPositionLogTime = CurrentTime;
@@ -376,11 +379,42 @@ void ABossEnemy::SpawnSummonedMinions(FName MinionType, int32 Count, float Radiu
         return;
     }
 
+    if (GetEnemyImpl() == 1)
+    {
+        if (UWorld* World = GetWorld())
+        {
+            if (UEnemyMassSpawnerSubsystem* MassSpawner = World->GetSubsystem<UEnemyMassSpawnerSubsystem>())
+            {
+                const FVector Origin = GetActorLocation();
+                const int32 ValidCount = FMath::Max(1, Count);
+
+                TArray<FTransform> SpawnTransforms;
+                SpawnTransforms.Reserve(ValidCount);
+
+                for (int32 Index = 0; Index < ValidCount; ++Index)
+                {
+                    const float Angle = (2.f * PI * Index) / ValidCount;
+                    FVector Offset = FVector(FMath::Cos(Angle), FMath::Sin(Angle), 0.f) * Radius;
+                    Offset.Z = 0.f;
+                    const FVector SpawnLocation = Origin + Offset;
+                    const FRotator Facing = (Origin - SpawnLocation).Rotation();
+                    SpawnTransforms.Emplace(Facing.Quaternion(), SpawnLocation);
+                }
+
+                MassSpawner->SpawnEnemiesAtTransforms(MinionType, SpawnTransforms, Mods);
+                return;
+            }
+        }
+
+        LOG_ENEMIES(Warn, TEXT("Boss %s attempted to summon %s via Mass but spawner was unavailable"), *GetName(), *MinionType.ToString());
+        return;
+    }
+
     CacheSpawner();
     UEnemySpawnerSubsystem* Spawner = CachedSpawnerSubsystem.Get();
     if (!Spawner)
     {
-        UE_LOG(LogBoss, Warning, TEXT("Boss %s attempted to summon %s but no spawner subsystem available"), *GetName(), *MinionType.ToString());
+        LOG_ENEMIES(Warn, TEXT("Boss %s attempted to summon %s but no spawner subsystem available"), *GetName(), *MinionType.ToString());
         return;
     }
 

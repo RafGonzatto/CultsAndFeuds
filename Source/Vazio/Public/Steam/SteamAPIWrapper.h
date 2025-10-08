@@ -3,16 +3,14 @@
 #include "CoreMinimal.h"
 
 #if STEAM_SDK_AVAILABLE
+PRAGMA_DISABLE_DEPRECATION_WARNINGS
 #include "steam_api.h"
+PRAGMA_ENABLE_DEPRECATION_WARNINGS
 #endif
 
 /**
  * Steam API wrapper for safe initialization and cleanup
  */
-#pragma once
-
-#include "CoreMinimal.h"
-
 // Forward declaration
 struct FSteamFriend;
 

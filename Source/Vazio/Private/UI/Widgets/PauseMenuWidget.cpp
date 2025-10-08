@@ -6,6 +6,7 @@
 #include "Kismet/GameplayStatics.h"
 #include "Engine/Engine.h"
 #include "Framework/Application/SlateApplication.h"
+#include "Logging/VazioLogFacade.h"
 
 // Static member definition
 TWeakObjectPtr<UPauseMenuWidget> UPauseMenuWidget::CurrentPauseMenu = nullptr;
@@ -48,7 +49,7 @@ void UPauseMenuWidget::NativeConstruct()
         FSlateApplication::Get().SetKeyboardFocus(ContinueButton->GetCachedWidget());
     }
 
-    UE_LOG(LogTemp, Log, TEXT("[PauseMenu] Constructed and focused"));
+    LOG_UI(Info, TEXT("[PauseMenu] Constructed and focused"));
 }
 
 FReply UPauseMenuWidget::NativeOnKeyDown(const FGeometry& InGeometry, const FKeyEvent& InKeyEvent)
@@ -65,24 +66,25 @@ FReply UPauseMenuWidget::NativeOnKeyDown(const FGeometry& InGeometry, const FKey
 
 void UPauseMenuWidget::OnContinueClicked()
 {
-    UE_LOG(LogTemp, Log, TEXT("[PauseMenu] Continue clicked"));
+    LOG_UI(Info, TEXT("[PauseMenu] Continue clicked"));
     HidePauseMenu(GetWorld());
 }
 
 void UPauseMenuWidget::OnSettingsClicked()
 {
-    UE_LOG(LogTemp, Log, TEXT("[PauseMenu] Settings clicked - TODO: Implement settings menu"));
+    LOG_UI(Info, TEXT("[PauseMenu] Settings clicked - TODO: Implement settings menu"));
     // TODO: Implement settings menu
     // For now, just show a message
     if (GEngine)
     {
         GEngine->AddOnScreenDebugMessage(-1, 3.0f, FColor::Yellow, TEXT("Settings menu not implemented yet"));
+        LOG_UI(Warn, TEXT("[PauseMenu] Settings menu not implemented yet"));
     }
 }
 
 void UPauseMenuWidget::OnExitClicked()
 {
-    UE_LOG(LogTemp, Log, TEXT("[PauseMenu] Exit clicked"));
+    LOG_UI(Info, TEXT("[PauseMenu] Exit clicked"));
     
     if (UWorld* World = GetWorld())
     {
@@ -101,14 +103,14 @@ void UPauseMenuWidget::ShowPauseMenu(UWorld* World)
 {
     if (!World)
     {
-        UE_LOG(LogTemp, Error, TEXT("[PauseMenu] ShowPauseMenu: Invalid World"));
+        LOG_UI(Error, TEXT("[PauseMenu] ShowPauseMenu: Invalid World"));
         return;
     }
 
     // Don't create multiple pause menus
     if (CurrentPauseMenu.IsValid())
     {
-        UE_LOG(LogTemp, Warning, TEXT("[PauseMenu] Pause menu already visible"));
+        LOG_UI(Warn, TEXT("[PauseMenu] Pause menu already visible"));
         return;
     }
 
@@ -116,7 +118,7 @@ void UPauseMenuWidget::ShowPauseMenu(UWorld* World)
     APlayerController* PC = World->GetFirstPlayerController();
     if (!PC)
     {
-        UE_LOG(LogTemp, Error, TEXT("[PauseMenu] ShowPauseMenu: No PlayerController"));
+        LOG_UI(Error, TEXT("[PauseMenu] ShowPauseMenu: No PlayerController"));
         return;
     }
 
@@ -124,7 +126,7 @@ void UPauseMenuWidget::ShowPauseMenu(UWorld* World)
     if (AGameModeBase* GameMode = World->GetAuthGameMode())
     {
         GameMode->SetPause(PC);
-        UE_LOG(LogTemp, Log, TEXT("[PauseMenu] Game paused"));
+        LOG_UI(Info, TEXT("[PauseMenu] Game paused"));
     }
 
     // Create the pause menu widget
@@ -139,11 +141,11 @@ void UPauseMenuWidget::ShowPauseMenu(UWorld* World)
         PC->SetInputMode(UIInputMode);
         PC->SetShowMouseCursor(true);
 
-        UE_LOG(LogTemp, Log, TEXT("[PauseMenu] Pause menu created and shown"));
+        LOG_UI(Info, TEXT("[PauseMenu] Pause menu created and shown"));
     }
     else
     {
-        UE_LOG(LogTemp, Error, TEXT("[PauseMenu] Failed to create pause widget"));
+    LOG_UI(Error, TEXT("[PauseMenu] Failed to create pause widget"));
     }
 }
 
@@ -151,7 +153,7 @@ void UPauseMenuWidget::HidePauseMenu(UWorld* World)
 {
     if (!World)
     {
-        UE_LOG(LogTemp, Error, TEXT("[PauseMenu] HidePauseMenu: Invalid World"));
+        LOG_UI(Error, TEXT("[PauseMenu] HidePauseMenu: Invalid World"));
         return;
     }
 
@@ -160,14 +162,14 @@ void UPauseMenuWidget::HidePauseMenu(UWorld* World)
     {
         CurrentPauseMenu->RemoveFromParent();
         CurrentPauseMenu = nullptr;
-        UE_LOG(LogTemp, Log, TEXT("[PauseMenu] Pause menu hidden"));
+        LOG_UI(Info, TEXT("[PauseMenu] Pause menu hidden"));
     }
 
     // Get player controller
     APlayerController* PC = World->GetFirstPlayerController();
     if (!PC)
     {
-        UE_LOG(LogTemp, Error, TEXT("[PauseMenu] HidePauseMenu: No PlayerController"));
+        LOG_UI(Error, TEXT("[PauseMenu] HidePauseMenu: No PlayerController"));
         return;
     }
 
@@ -175,7 +177,7 @@ void UPauseMenuWidget::HidePauseMenu(UWorld* World)
     if (AGameModeBase* GameMode = World->GetAuthGameMode())
     {
         GameMode->ClearPause();
-        UE_LOG(LogTemp, Log, TEXT("[PauseMenu] Game unpaused"));
+        LOG_UI(Info, TEXT("[PauseMenu] Game unpaused"));
     }
 
     // Restore game input mode
@@ -183,7 +185,7 @@ void UPauseMenuWidget::HidePauseMenu(UWorld* World)
     PC->SetInputMode(GameInputMode);
     PC->SetShowMouseCursor(true); // Keep mouse cursor for our top-down game
 
-    UE_LOG(LogTemp, Log, TEXT("[PauseMenu] Input mode restored to game"));
+    LOG_UI(Info, TEXT("[PauseMenu] Input mode restored to game"));
 }
 
 bool UPauseMenuWidget::IsPauseMenuVisible(UWorld* World)

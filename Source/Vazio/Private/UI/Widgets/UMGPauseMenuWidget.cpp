@@ -7,6 +7,7 @@
 #include "Engine/Engine.h"
 #include "Framework/Application/SlateApplication.h"
 #include "UObject/ConstructorHelpers.h"
+#include "Logging/VazioLogFacade.h"
 
 // Static member definition
 TWeakObjectPtr<UUMGPauseMenuWidget> UUMGPauseMenuWidget::CurrentPauseMenu = nullptr;
@@ -24,24 +25,24 @@ void UUMGPauseMenuWidget::NativeConstruct()
     // Bind button events if they exist
     if (ContinueButton)
     {
-        ContinueButton->OnClicked.AddDynamic(this, &UUMGPauseMenuWidget::OnContinueClicked);
-        UE_LOG(LogTemp, Log, TEXT("[UMGPauseMenu] ContinueButton bound"));
+    ContinueButton->OnClicked.AddDynamic(this, &UUMGPauseMenuWidget::OnContinueClicked);
+    LOG_UI(Info, TEXT("[UMGPauseMenu] ContinueButton bound"));
     }
     else
     {
-        UE_LOG(LogTemp, Warning, TEXT("[UMGPauseMenu] ContinueButton not found"));
+    LOG_UI(Warn, TEXT("[UMGPauseMenu] ContinueButton not found"));
     }
 
     if (SettingsButton)
     {
-        SettingsButton->OnClicked.AddDynamic(this, &UUMGPauseMenuWidget::OnSettingsClicked);
-        UE_LOG(LogTemp, Log, TEXT("[UMGPauseMenu] SettingsButton bound"));
+    SettingsButton->OnClicked.AddDynamic(this, &UUMGPauseMenuWidget::OnSettingsClicked);
+    LOG_UI(Info, TEXT("[UMGPauseMenu] SettingsButton bound"));
     }
 
     if (ExitButton)
     {
-        ExitButton->OnClicked.AddDynamic(this, &UUMGPauseMenuWidget::OnExitClicked);
-        UE_LOG(LogTemp, Log, TEXT("[UMGPauseMenu] ExitButton bound"));
+    ExitButton->OnClicked.AddDynamic(this, &UUMGPauseMenuWidget::OnExitClicked);
+    LOG_UI(Info, TEXT("[UMGPauseMenu] ExitButton bound"));
     }
 
     // Set title text if it exists
@@ -50,7 +51,7 @@ void UUMGPauseMenuWidget::NativeConstruct()
         TitleText->SetText(FText::FromString(TEXT("Game Paused")));
     }
 
-    UE_LOG(LogTemp, Log, TEXT("[UMGPauseMenu] NativeConstruct completed"));
+    LOG_UI(Info, TEXT("[UMGPauseMenu] NativeConstruct completed"));
 }
 
 FReply UUMGPauseMenuWidget::NativeOnKeyDown(const FGeometry& InGeometry, const FKeyEvent& InKeyEvent)
@@ -58,7 +59,7 @@ FReply UUMGPauseMenuWidget::NativeOnKeyDown(const FGeometry& InGeometry, const F
     // Handle ESC to close pause menu
     if (InKeyEvent.GetKey() == EKeys::Escape)
     {
-        UE_LOG(LogTemp, Log, TEXT("[UMGPauseMenu] ESC pressed in pause menu"));
+        LOG_UI(Info, TEXT("[UMGPauseMenu] ESC pressed in pause menu"));
         OnContinueClicked(); // Same as continue
         return FReply::Handled();
     }
@@ -68,24 +69,25 @@ FReply UUMGPauseMenuWidget::NativeOnKeyDown(const FGeometry& InGeometry, const F
 
 void UUMGPauseMenuWidget::OnContinueClicked()
 {
-    UE_LOG(LogTemp, Log, TEXT("[UMGPauseMenu] Continue clicked"));
+    LOG_UI(Info, TEXT("[UMGPauseMenu] Continue clicked"));
     HidePauseMenu(GetWorld());
 }
 
 void UUMGPauseMenuWidget::OnSettingsClicked()
 {
-    UE_LOG(LogTemp, Log, TEXT("[UMGPauseMenu] Settings clicked - TODO: Implement settings menu"));
+    LOG_UI(Info, TEXT("[UMGPauseMenu] Settings clicked - TODO: Implement settings menu"));
     // TODO: Implement settings menu
     // For now, just show a message
     if (GEngine)
     {
-        GEngine->AddOnScreenDebugMessage(-1, 3.0f, FColor::Yellow, TEXT("Settings menu not implemented yet"));
+    GEngine->AddOnScreenDebugMessage(-1, 3.0f, FColor::Yellow, TEXT("Settings menu not implemented yet"));
+    LOG_UI(Warn, TEXT("[UMGPauseMenu] Settings menu not implemented yet"));
     }
 }
 
 void UUMGPauseMenuWidget::OnExitClicked()
 {
-    UE_LOG(LogTemp, Log, TEXT("[UMGPauseMenu] Exit clicked"));
+    LOG_UI(Info, TEXT("[UMGPauseMenu] Exit clicked"));
     
     if (UWorld* World = GetWorld())
     {
@@ -104,14 +106,14 @@ void UUMGPauseMenuWidget::ShowPauseMenu(UWorld* World)
 {
     if (!World)
     {
-        UE_LOG(LogTemp, Error, TEXT("[UMGPauseMenu] ShowPauseMenu: Invalid World"));
+    LOG_UI(Error, TEXT("[UMGPauseMenu] ShowPauseMenu: Invalid World"));
         return;
     }
 
     // Don't create multiple pause menus
     if (CurrentPauseMenu.IsValid())
     {
-        UE_LOG(LogTemp, Warning, TEXT("[UMGPauseMenu] Pause menu already visible"));
+    LOG_UI(Warn, TEXT("[UMGPauseMenu] Pause menu already visible"));
         return;
     }
 
@@ -119,7 +121,7 @@ void UUMGPauseMenuWidget::ShowPauseMenu(UWorld* World)
     APlayerController* PC = World->GetFirstPlayerController();
     if (!PC)
     {
-        UE_LOG(LogTemp, Error, TEXT("[UMGPauseMenu] ShowPauseMenu: No PlayerController"));
+    LOG_UI(Error, TEXT("[UMGPauseMenu] ShowPauseMenu: No PlayerController"));
         return;
     }
 
@@ -127,7 +129,7 @@ void UUMGPauseMenuWidget::ShowPauseMenu(UWorld* World)
     if (AGameModeBase* GameMode = World->GetAuthGameMode())
     {
         GameMode->SetPause(PC);
-        UE_LOG(LogTemp, Log, TEXT("[UMGPauseMenu] Game paused"));
+        LOG_UI(Info, TEXT("[UMGPauseMenu] Game paused"));
     }
 
     // Create from C++ class directly (simpler approach)
@@ -142,11 +144,11 @@ void UUMGPauseMenuWidget::ShowPauseMenu(UWorld* World)
         PC->SetInputMode(UIInputMode);
         PC->SetShowMouseCursor(true);
 
-        UE_LOG(LogTemp, Log, TEXT("[UMGPauseMenu] C++ pause menu created and shown"));
+    LOG_UI(Info, TEXT("[UMGPauseMenu] C++ pause menu created and shown"));
     }
     else
     {
-        UE_LOG(LogTemp, Error, TEXT("[UMGPauseMenu] Failed to create pause widget"));
+    LOG_UI(Error, TEXT("[UMGPauseMenu] Failed to create pause widget"));
     }
 }
 
@@ -154,7 +156,7 @@ void UUMGPauseMenuWidget::HidePauseMenu(UWorld* World)
 {
     if (!World)
     {
-        UE_LOG(LogTemp, Error, TEXT("[UMGPauseMenu] HidePauseMenu: Invalid World"));
+    LOG_UI(Error, TEXT("[UMGPauseMenu] HidePauseMenu: Invalid World"));
         return;
     }
 
@@ -163,14 +165,14 @@ void UUMGPauseMenuWidget::HidePauseMenu(UWorld* World)
     {
         CurrentPauseMenu->RemoveFromParent();
         CurrentPauseMenu = nullptr;
-        UE_LOG(LogTemp, Log, TEXT("[UMGPauseMenu] Pause menu hidden"));
+        LOG_UI(Info, TEXT("[UMGPauseMenu] Pause menu hidden"));
     }
 
     // Get player controller
     APlayerController* PC = World->GetFirstPlayerController();
     if (!PC)
     {
-        UE_LOG(LogTemp, Error, TEXT("[UMGPauseMenu] HidePauseMenu: No PlayerController"));
+    LOG_UI(Error, TEXT("[UMGPauseMenu] HidePauseMenu: No PlayerController"));
         return;
     }
 
@@ -178,7 +180,7 @@ void UUMGPauseMenuWidget::HidePauseMenu(UWorld* World)
     if (AGameModeBase* GameMode = World->GetAuthGameMode())
     {
         GameMode->ClearPause();
-        UE_LOG(LogTemp, Log, TEXT("[UMGPauseMenu] Game unpaused"));
+        LOG_UI(Info, TEXT("[UMGPauseMenu] Game unpaused"));
     }
 
     // Restore game input mode
@@ -186,7 +188,7 @@ void UUMGPauseMenuWidget::HidePauseMenu(UWorld* World)
     PC->SetInputMode(GameInputMode);
     PC->SetShowMouseCursor(true); // Keep mouse cursor for our top-down game
 
-    UE_LOG(LogTemp, Log, TEXT("[UMGPauseMenu] Input mode restored to game"));
+    LOG_UI(Info, TEXT("[UMGPauseMenu] Input mode restored to game"));
 }
 
 bool UUMGPauseMenuWidget::IsPauseMenuVisible(UWorld* World)

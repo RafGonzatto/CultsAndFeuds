@@ -15,11 +15,10 @@
 #include "DrawDebugHelpers.h"
 #include "Engine/EngineTypes.h"
 #include "Gameplay/Upgrades/UpgradeSystem.h"
+#include "Systems/EnemyMassSystem.h"
 #include "UI/LevelUp/SLevelUpModal.h"
 #include "Framework/Application/SlateApplication.h"
-
-DEFINE_LOG_CATEGORY_STATIC(LogPlayerHealth, Log, All);
-DEFINE_LOG_CATEGORY_STATIC(LogXP, Log, All);
+#include "Logging/VazioLogFacade.h"
 
 AMyCharacter::AMyCharacter()
 {
@@ -89,12 +88,12 @@ void AMyCharacter::PostInitializeComponents()
 	
 	if (HealthComponent)
 	{
-		UE_LOG(LogPlayerHealth, Display, TEXT("Health component initialized"));
+	LOG_UI(Info, TEXT("Health component initialized"));
 	}
 	
 	if (XPComponent)
 	{
-		UE_LOG(LogXP, Display, TEXT("XP component initialized"));
+	LOG_UPGRADES(Info, TEXT("XP component initialized"));
 	}
 }
 
@@ -121,7 +120,7 @@ void AMyCharacter::BeginPlay()
 	if (XPComponent)
 	{
 		XPComponent->OnLevelChanged.AddDynamic(this, &AMyCharacter::OnPlayerLevelUp);
-		UE_LOG(LogXP, Log, TEXT("[MyCharacter] Connected to XPComponent OnLevelChanged delegate"));
+	LOG_UPGRADES(Debug, TEXT("[MyCharacter] Connected to XPComponent OnLevelChanged delegate"));
 	}
 }
 
@@ -160,7 +159,7 @@ float AMyCharacter::TakeDamage(float DamageAmount, struct FDamageEvent const& Da
 	if (HealthComponent && ActualDamage > 0.0f)
 	{
 		HealthComponent->ReceiveDamage(ActualDamage);
-		UE_LOG(LogPlayerHealth, Warning, TEXT("Player took %.1f damage - HP: %.1f/%.1f"), 
+	LOG_WEAPONS(Warn, TEXT("Player took %.1f damage - HP: %.1f/%.1f"), 
 			ActualDamage, 
 			HealthComponent->GetCurrentHealth(), 
 			HealthComponent->GetMaxHealth());
@@ -231,7 +230,7 @@ void AMyCharacter::Attack()
 
 void AMyCharacter::PerformAttack()
 {
-	UE_LOG(LogTemp, Warning, TEXT("[ATTACK] PerformAttack called - Range=%.1f, Damage=%.1f"), AttackRange, AttackDamage);
+	LOG_WEAPONS(Debug, TEXT("[ATTACK] PerformAttack called - Range=%.1f, Damage=%.1f"), AttackRange, AttackDamage);
 	
 	// Play attack montage if available
 	if (AttackMontage)
@@ -263,8 +262,18 @@ void AMyCharacter::PerformAttack()
 		Params
 	);
 	
-	UE_LOG(LogTemp, Warning, TEXT("[ATTACK] Sweep result: %s, Found %d hits"), bHit ? TEXT("HIT") : TEXT("MISS"), HitResults.Num());
-	
+	LOG_WEAPONS(Debug, TEXT("[ATTACK] Sweep result: %s, Found %d hits"), bHit ? TEXT("HIT") : TEXT("MISS"), HitResults.Num());
+
+	bool bAppliedMassDamage = false;
+	if (UWorld* World = GetWorld())
+	{
+		if (UEnemyMassSystem* MassSystem = World->GetSubsystem<UEnemyMassSystem>())
+		{
+			MassSystem->ApplyRadialDamageMass(Start, AttackRange, AttackDamage);
+			bAppliedMassDamage = true;
+		}
+	}
+
 	if (bHit)
 	{
 		int32 EnemiesHit = 0;
@@ -272,34 +281,39 @@ void AMyCharacter::PerformAttack()
 		{
 			if (AActor* HitActor = Hit.GetActor())
 			{
-				UE_LOG(LogTemp, Warning, TEXT("[ATTACK] Checking hit actor: %s (Class: %s)"), *HitActor->GetName(), *HitActor->GetClass()->GetName());
-				
-				// Check if it's an enemy by looking for EnemyBase class
-				if (HitActor->GetClass()->GetName().Contains(TEXT("Enemy")))
+				LOG_WEAPONS(Debug, TEXT("[ATTACK] Checking hit actor: %s (Class: %s)"), *HitActor->GetName(), *HitActor->GetClass()->GetName());
+
+				if (UEnemyHealthComponent* EnemyHealth = HitActor->FindComponentByClass<UEnemyHealthComponent>())
 				{
-					// Apply damage
-					FPointDamageEvent DamageEvent;
-					DamageEvent.Damage = AttackDamage;
-					DamageEvent.HitInfo = Hit;
-					DamageEvent.ShotDirection = (HitActor->GetActorLocation() - GetActorLocation()).GetSafeNormal();
-					
-					float DamageApplied = HitActor->TakeDamage(AttackDamage, DamageEvent, GetController(), this);
-					EnemiesHit++;
-					
-					UE_LOG(LogTemp, Warning, TEXT("[ATTACK] Player dealt %.1f damage to %s (Applied: %.1f)"), AttackDamage, *HitActor->GetName(), DamageApplied);
+					++EnemiesHit;
+
+					if (!bAppliedMassDamage)
+					{
+						EnemyHealth->ReceiveDamage(AttackDamage);
+						LOG_WEAPONS(Debug, TEXT("[ATTACK] Applied fallback damage %.1f to %s via EnemyHealthComponent"), AttackDamage, *HitActor->GetName());
+					}
+					else
+					{
+						LOG_WEAPONS(Debug, TEXT("[ATTACK] Enemy %s queued for Mass radial damage"), *HitActor->GetName());
+					}
 				}
 				else
 				{
-					UE_LOG(LogTemp, Warning, TEXT("[ATTACK] Hit non-enemy: %s"), *HitActor->GetName());
+					LOG_WEAPONS(Debug, TEXT("[ATTACK] Hit non-enemy: %s"), *HitActor->GetName());
 				}
 			}
 		}
-		
-		UE_LOG(LogTemp, Warning, TEXT("[ATTACK] Attack complete - Hit %d enemies total"), EnemiesHit);
+
+	LOG_WEAPONS(Info, TEXT("[ATTACK] Attack complete - Hit %d enemies total"), EnemiesHit);
 	}
 	else
 	{
-		UE_LOG(LogTemp, Warning, TEXT("[ATTACK] No targets found in range %.1f"), AttackRange);
+	LOG_WEAPONS(Debug, TEXT("[ATTACK] No targets found in range %.1f"), AttackRange);
+	}
+
+	if (bAppliedMassDamage)
+	{
+	LOG_WEAPONS(Debug, TEXT("[ATTACK] Queued Mass radial damage at %s (Radius=%.1f, Damage=%.1f)"), *Start.ToString(), AttackRange, AttackDamage);
 	}
 }
 
@@ -335,16 +349,16 @@ void AMyCharacter::OnOverlapBegin(UPrimitiveComponent* OverlappedComp, AActor* O
 {
 	if (!OtherActor || OtherActor == this) return;
 	
-	UE_LOG(LogPlayerHealth, Warning, TEXT("[PLAYER-OVERLAP] %s (%s) overlapped with %s (%s)"), 
-        *GetName(),
-        OverlappedComp ? *OverlappedComp->GetName() : TEXT("NULL"), 
-        *OtherActor->GetName(),
-        OtherComp ? *OtherComp->GetName() : TEXT("NULL"));
+	LOG_WEAPONS(Warn, TEXT("[PLAYER-OVERLAP] %s (%s) overlapped with %s (%s)"),
+		*GetName(),
+		OverlappedComp ? *OverlappedComp->GetName() : TEXT("NULL"),
+		*OtherActor->GetName(),
+		OtherComp ? *OtherComp->GetName() : TEXT("NULL"));
 	
 	// Check if it's an enemy
 	if (OtherActor->FindComponentByClass<UEnemyHealthComponent>())
 	{
-		UE_LOG(LogPlayerHealth, Warning, TEXT("[PLAYER-ENEMY-DETECTED] Enemy %s entered damage area"), *OtherActor->GetName());
+	LOG_WEAPONS(Warn, TEXT("[PLAYER-ENEMY-DETECTED] Enemy %s entered damage area"), *OtherActor->GetName());
 	}
 }
 
@@ -355,7 +369,7 @@ void AMyCharacter::OnOverlapEnd(UPrimitiveComponent* OverlappedComp, AActor* Oth
 	// Check if it's an enemy
 	if (OtherActor->FindComponentByClass<UEnemyHealthComponent>())
 	{
-		UE_LOG(LogPlayerHealth, Display, TEXT("Enemy %s left damage area"), *OtherActor->GetName());
+	LOG_WEAPONS(Info, TEXT("Enemy %s left damage area"), *OtherActor->GetName());
 	}
 }
 
@@ -370,20 +384,20 @@ void AMyCharacter::OnRep_Health()
 
 void AMyCharacter::OnPlayerLevelUp(int32 NewLevel)
 {
-	UE_LOG(LogXP, Warning, TEXT("[MyCharacter] ⭐ LEVEL UP! New Level: %d"), NewLevel);
+	LOG_UPGRADES(Info, TEXT("[MyCharacter] ⭐ LEVEL UP! New Level: %d"), NewLevel);
 	
 	// Get upgrade subsystem
 	UWorld* World = GetWorld();
 	if (!World)
 	{
-		UE_LOG(LogXP, Error, TEXT("[MyCharacter] Cannot show level up modal - World is null"));
+	LOG_UPGRADES(Error, TEXT("[MyCharacter] Cannot show level up modal - World is null"));
 		return;
 	}
 	
 	UUpgradeSubsystem* UpgradeSS = World->GetSubsystem<UUpgradeSubsystem>();
 	if (!UpgradeSS)
 	{
-		UE_LOG(LogXP, Error, TEXT("[MyCharacter] Cannot show level up modal - UpgradeSubsystem not found"));
+	LOG_UPGRADES(Error, TEXT("[MyCharacter] Cannot show level up modal - UpgradeSubsystem not found"));
 		return;
 	}
 	
@@ -391,16 +405,16 @@ void AMyCharacter::OnPlayerLevelUp(int32 NewLevel)
 	TArray<FUpgradeData> RandomUpgrades = UpgradeSS->GenerateRandomUpgrades(3);
 	if (RandomUpgrades.Num() == 0)
 	{
-		UE_LOG(LogXP, Warning, TEXT("[MyCharacter] No upgrades available!"));
+	LOG_UPGRADES(Warn, TEXT("[MyCharacter] No upgrades available!"));
 		return;
 	}
 	
-	UE_LOG(LogXP, Display, TEXT("[MyCharacter] Generated %d upgrade options:"), RandomUpgrades.Num());
+	LOG_UPGRADES(Info, TEXT("[MyCharacter] Generated %d upgrade options:"), RandomUpgrades.Num());
 	for (const FUpgradeData& Upgrade : RandomUpgrades)
 	{
-		UE_LOG(LogXP, Display, TEXT("  - %s (Level %d/%d)"), 
-			*Upgrade.DisplayName.ToString(), 
-			Upgrade.CurrentLevel, 
+	LOG_UPGRADES(Info, TEXT("  - %s (Level %d/%d)"),
+			*Upgrade.DisplayName.ToString(),
+			Upgrade.CurrentLevel,
 			Upgrade.MaxLevel);
 	}
 	
@@ -413,7 +427,7 @@ void AMyCharacter::ShowLevelUpModal(const TArray<FUpgradeData>& Upgrades)
 	APlayerController* PC = Cast<APlayerController>(GetController());
 	if (!PC)
 	{
-		UE_LOG(LogXP, Error, TEXT("[MyCharacter] Cannot show modal - PlayerController is null"));
+	LOG_UPGRADES(Error, TEXT("[MyCharacter] Cannot show modal - PlayerController is null"));
 		return;
 	}
 	
@@ -425,7 +439,7 @@ void AMyCharacter::ShowLevelUpModal(const TArray<FUpgradeData>& Upgrades)
 	
 	// Pause game
 	PC->SetPause(true);
-	UE_LOG(LogXP, Display, TEXT("[MyCharacter] Game paused for level up"));
+	LOG_UPGRADES(Info, TEXT("[MyCharacter] Game paused for level up"));
 	
 	// Set input mode to UI only
 	FInputModeUIOnly InputMode;
@@ -453,19 +467,19 @@ void AMyCharacter::ShowLevelUpModal(const TArray<FUpgradeData>& Upgrades)
 		
 		// Force focus to the modal
 		FSlateApplication::Get().SetKeyboardFocus(ActiveLevelUpModal);
-		
-		UE_LOG(LogXP, Display, TEXT("[MyCharacter] ✅ Level Up modal displayed!"));
+
+	LOG_UPGRADES(Info, TEXT("[MyCharacter] ✅ Level Up modal displayed!"));
 	}
 	else
 	{
-		UE_LOG(LogXP, Error, TEXT("[MyCharacter] Failed to add modal to viewport - GEngine or GameViewport is null"));
+	LOG_UPGRADES(Error, TEXT("[MyCharacter] Failed to add modal to viewport - GEngine or GameViewport is null"));
 		PC->SetPause(false); // Unpause if we failed
 	}
 }
 
 void AMyCharacter::OnUpgradeChosen(EUpgradeType ChosenType)
 {
-	UE_LOG(LogXP, Warning, TEXT("[MyCharacter] 🎯 Upgrade chosen: %d"), (int32)ChosenType);
+	LOG_UPGRADES(Info, TEXT("[MyCharacter] 🎯 Upgrade chosen: %d"), (int32)ChosenType);
 	
 	// Apply upgrade
 	if (UWorld* World = GetWorld())
@@ -476,7 +490,7 @@ void AMyCharacter::OnUpgradeChosen(EUpgradeType ChosenType)
 			
 			// Get upgrade info for feedback
 			FUpgradeData UpgradeInfo = UpgradeSS->GetUpgradeDisplayData(ChosenType);
-			UE_LOG(LogXP, Display, TEXT("[MyCharacter] ✨ Applied upgrade: %s (Level %d)"), 
+			LOG_UPGRADES(Info, TEXT("[MyCharacter] ✨ Applied upgrade: %s (Level %d)"),
 				*UpgradeInfo.DisplayName.ToString(),
 				UpgradeSS->GetUpgradeLevel(ChosenType));
 		}
@@ -497,7 +511,7 @@ void AMyCharacter::CloseLevelUpModal()
 	if (GEngine && GEngine->GameViewport)
 	{
 		GEngine->GameViewport->RemoveViewportWidgetContent(ActiveLevelUpModal.ToSharedRef());
-		UE_LOG(LogXP, Display, TEXT("[MyCharacter] Level Up modal closed"));
+	LOG_UPGRADES(Info, TEXT("[MyCharacter] Level Up modal closed"));
 	}
 	
 	// Reset modal reference
@@ -515,6 +529,6 @@ void AMyCharacter::CloseLevelUpModal()
 		PC->SetInputMode(InputMode);
 		PC->bShowMouseCursor = true;
 		
-		UE_LOG(LogXP, Display, TEXT("[MyCharacter] Game resumed"));
+	LOG_UPGRADES(Info, TEXT("[MyCharacter] Game resumed"));
 	}
 }

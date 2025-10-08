@@ -4,6 +4,7 @@
 #include "Kismet/GameplayStatics.h"
 #include "TimerManager.h"
 #include "Enemy/EnemyTypes.h"
+#include "Logging/VazioLogFacade.h"
 
 ADashEnemy::ADashEnemy()
 {
@@ -68,7 +69,7 @@ void ADashEnemy::HandleDashBehavior(float DeltaTime)
                 false
             );
             
-            UE_LOG(LogEnemy, VeryVerbose, TEXT("%s completed dash, cooldown started"), *GetName());
+            LOG_ENEMIES(Trace, TEXT("%s completed dash, cooldown started"), *GetName());
         }
     }
     else
@@ -104,11 +105,11 @@ void ADashEnemy::ExecuteDash()
     DashTimeRemaining = DashDuration;
     bIsDashing = true;
     
-    UE_LOG(LogEnemy, Log, TEXT("%s executing dash towards player"), *GetName());
+    LOG_ENEMIES(Info, TEXT("%s executing dash towards player"), *GetName());
 }
 
 void ADashEnemy::OnDashCooldownComplete()
 {
     bCanDash = true;
-    UE_LOG(LogEnemy, VeryVerbose, TEXT("%s dash cooldown complete"), *GetName());
+    LOG_ENEMIES(Trace, TEXT("%s dash cooldown complete"), *GetName());
 }

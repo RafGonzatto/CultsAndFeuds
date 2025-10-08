@@ -1,4 +1,5 @@
 #include "World/Common/Player/MainMenuPlayerController.h"
+#include "Logging/VazioLogFacade.h"
 #include "UI/Widgets/MainMenuWidget.h"
 #include "TimerManager.h"
 #include "Engine/World.h"
@@ -60,6 +61,6 @@ void AMainMenuPlayerController::SpawnMenu()
     // Log útil de diagnóstico
     const FVector2D Size = UWidgetLayoutLibrary::GetViewportSize(this);
     const float Scale = UWidgetLayoutLibrary::GetViewportScale(this);
-    UE_LOG(LogTemp, Warning, TEXT("[PC] InViewport=%d Vis=%d Opacity=%.2f Size=%.0fx%.0f Scale=%.3f"),
+    LOG_UI(Warn, TEXT("[PC] InViewport=%d Vis=%d Opacity=%.2f Size=%.0fx%.0f Scale=%.3f"),
         Menu->IsInViewport(), (int32)Menu->GetVisibility(), Menu->GetRenderOpacity(), Size.X, Size.Y, Scale);
 }

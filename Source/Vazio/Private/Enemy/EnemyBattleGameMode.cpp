@@ -4,6 +4,7 @@
 #include "Enemy/EnemySpawnHelper.h"
 #include "Engine/World.h"
 #include "Enemy/EnemyTypes.h"
+#include "Logging/VazioLogFacade.h"
 
 AEnemyBattleGameMode::AEnemyBattleGameMode()
 {
@@ -23,7 +24,7 @@ void AEnemyBattleGameMode::BeginPlay()
 void AEnemyBattleGameMode::AddGold_Implementation(int32 Amount)
 {
     PlayerGold += Amount;
-    UE_LOG(LogEconomy, Log, TEXT("Added %d gold, total: %d"), Amount, PlayerGold);
+    LOG_ENEMIES(Info, TEXT("Added %d gold, total: %d"), Amount, PlayerGold);
     
     // Notify UI or other systems about gold change
     OnGoldChanged(PlayerGold);
@@ -32,7 +33,7 @@ void AEnemyBattleGameMode::AddGold_Implementation(int32 Amount)
 void AEnemyBattleGameMode::SpawnXPOrbs_Implementation(int32 TotalXP, const FVector& Location)
 {
     PlayerXP += TotalXP;
-    UE_LOG(LogEconomy, Log, TEXT("Added %d XP, total: %d"), TotalXP, PlayerXP);
+    LOG_ENEMIES(Info, TEXT("Added %d XP, total: %d"), TotalXP, PlayerXP);
     
     // Create visual XP orbs
     CreateXPOrbVisuals(TotalXP, Location);

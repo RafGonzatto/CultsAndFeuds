@@ -5,6 +5,7 @@
 #include "TimerManager.h"
 #include "Enemy/EnemyTypes.h"
 #include "World/Common/Projectiles/RangedProjectile.h"
+#include "Logging/VazioLogFacade.h"
 
 ARangedEnemy::ARangedEnemy()
 {
@@ -113,12 +114,8 @@ void ARangedEnemy::HandleRangedCombat(float DeltaTime)
     }
 
     // Throttled debug log
-    static float LastDbgTime = 0.f; const float Now = GetWorld()->GetTimeSeconds();
-    if (Now - LastDbgTime > 1.0f)
-    {
-        UE_LOG(LogTemp, Warning, TEXT("[RANGED] %s Dist=%.1f InRange=%s"), *GetName(), DistanceToPlayer, DistanceToPlayer<=AttackRange?TEXT("Y"):TEXT("N"));
-        LastDbgTime = Now;
-    }
+    LOG_LOOP_THROTTLE(Debug, FVazioLog::MakeLoopKey("RangedCombat"), 1, 1.0f,
+        TEXT("[RANGED] %s Dist=%.1f InRange=%s"), *GetName(), DistanceToPlayer, DistanceToPlayer <= AttackRange ? TEXT("Y") : TEXT("N"));
 }
 
 void ARangedEnemy::FireProjectile()
@@ -155,7 +152,7 @@ void ARangedEnemy::FireProjectile()
                 RP->InitShoot(Dir, 1100.f);
                 RP->Damage = CurrentArchetype.BaseDMG > 0.f ? CurrentArchetype.BaseDMG : 15.f;
             }
-            UE_LOG(LogTemp, Warning, TEXT("[RANGED] %s fired projectile"), *GetName());
+            LOG_ENEMIES(Info, TEXT("[RANGED] %s fired projectile"), *GetName());
         }
     }
 }

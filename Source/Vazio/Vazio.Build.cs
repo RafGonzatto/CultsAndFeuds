@@ -9,7 +9,14 @@ public class Vazio : ModuleRules
 
         PublicDependencyModuleNames.AddRange(new string[] {
             "Core","CoreUObject","Engine","InputCore","UMG","Slate","SlateCore","EnhancedInput","NavigationSystem",
-            "OnlineSubsystem", "OnlineSubsystemUtils", "Json"
+            "OnlineSubsystem", "OnlineSubsystemUtils", "Json", "VazioShared"
+        });
+
+        PublicDefinitions.Add("_CRT_SECURE_NO_WARNINGS=1");
+
+        // Access VazioMass public headers from the Vazio module
+        PrivateDependencyModuleNames.AddRange(new string[] {
+            "VazioMass"
         });
 
         if (Target.Platform == UnrealTargetPlatform.Win64 || Target.Platform == UnrealTargetPlatform.Linux || Target.Platform == UnrealTargetPlatform.Mac)
@@ -40,7 +47,7 @@ public class Vazio : ModuleRules
 
         if (Target.Platform == UnrealTargetPlatform.Win64)
         {
-            // Expect libs in a Win64 (or Lib) folder – adapt to your layout
+            // Expect libs in a Win64 (or Lib) folder ï¿½ adapt to your layout
             string LibFolder = Directory.Exists(Path.Combine(SteamSDKPath, "Win64"))
                 ? Path.Combine(SteamSDKPath, "Win64")
                 : Path.Combine(SteamSDKPath, "Lib");

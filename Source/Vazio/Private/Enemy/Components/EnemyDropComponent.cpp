@@ -4,6 +4,7 @@
 #include "World/Common/Collectables/XPOrb.h"
 #include "Economy/GameEconomyService.h"
 #include "Engine/World.h"
+#include "Logging/VazioLogFacade.h"
 
 UEnemyDropComponent::UEnemyDropComponent()
 {
@@ -47,7 +48,7 @@ void UEnemyDropComponent::SpawnXPOrbs(int32 TotalXP, const FVector& Location)
         return;
     }
     
-    UE_LOG(LogTemp, Warning, TEXT("[XP-DROP] Spawning %d XP orbs at location %s"), TotalXP, *Location.ToString());
+    LOG_ENEMIES(Debug, TEXT("[XP-DROP] Spawning %d XP orbs at location %s"), TotalXP, *Location.ToString());
     
     // Determine how many orbs to spawn based on total XP
     int32 NumOrbs = 1;
@@ -75,18 +76,18 @@ void UEnemyDropComponent::SpawnXPOrbs(int32 TotalXP, const FVector& Location)
         // Spawn the XP orb
         FActorSpawnParameters SpawnParams;
         SpawnParams.SpawnCollisionHandlingOverride = ESpawnActorCollisionHandlingMethod::AdjustIfPossibleButAlwaysSpawn;
-        
-        UE_LOG(LogTemp, Warning, TEXT("[XP-DROP] Attempting to spawn XPOrb at %s"), *SpawnLocation.ToString());
+
+        LOG_ENEMIES(Debug, TEXT("[XP-DROP] Attempting to spawn XPOrb at %s"), *SpawnLocation.ToString());
         
         AXPOrb* XPOrb = GetWorld()->SpawnActor<AXPOrb>(AXPOrb::StaticClass(), SpawnLocation, FRotator::ZeroRotator, SpawnParams);
         if (XPOrb && IsValid(XPOrb))
         {
             XPOrb->XPAmount = XPPerOrb + (i < (TotalXP % NumOrbs) ? 1 : 0); // Distribute remainder evenly
-            UE_LOG(LogTemp, Warning, TEXT("[XP-DROP] Successfully spawned XPOrb with %d XP at %s"), XPOrb->XPAmount, *SpawnLocation.ToString());
+            LOG_ENEMIES(Info, TEXT("[XP-DROP] Successfully spawned XPOrb with %d XP at %s"), XPOrb->XPAmount, *SpawnLocation.ToString());
         }
         else
         {
-            UE_LOG(LogTemp, Error, TEXT("[XP-DROP] Failed to spawn XPOrb at %s - XPOrb is null or invalid"), *SpawnLocation.ToString());
+            LOG_ENEMIES(Error, TEXT("[XP-DROP] Failed to spawn XPOrb at %s - XPOrb is null or invalid"), *SpawnLocation.ToString());
         }
     }
 }
@@ -94,13 +95,13 @@ void UEnemyDropComponent::SpawnXPOrbs(int32 TotalXP, const FVector& Location)
 void UEnemyDropComponent::SpawnGold(int32 GoldAmount, const FVector& Location)
 {
     // TODO: Implement gold spawning logic
-    UE_LOG(LogTemp, Log, TEXT("Should spawn %d gold at location %s"), GoldAmount, *Location.ToString());
+    LOG_ENEMIES(Debug, TEXT("Should spawn %d gold at location %s"), GoldAmount, *Location.ToString());
 }
 
 void UEnemyDropComponent::HandleBossRewards(const ABossEnemy* Boss)
 {
     // TODO: Implement boss-specific reward logic
-    UE_LOG(LogTemp, Log, TEXT("Should handle boss rewards for boss"));
+    LOG_ENEMIES(Debug, TEXT("Should handle boss rewards for boss"));
 }
 
 int32 UEnemyDropComponent::CalculateXPDrop(const FEnemyArchetype& Arch, const FEnemyInstanceModifiers& Mods, bool bIsParent)
@@ -124,7 +125,7 @@ int32 UEnemyDropComponent::CalculateXPDrop(const FEnemyArchetype& Arch, const FE
     // Ensure minimum viable XP drop
     BaseXP = FMath::Max(BaseXP, 5);
     
-    UE_LOG(LogTemp, Log, TEXT("[XP-CALC] Enemy XP: Base=%d, HP=%.0f, Parent=%s, Final=%d"), 
+    LOG_ENEMIES(Debug, TEXT("[XP-CALC] Enemy XP: Base=%d, HP=%.0f, Parent=%s, Final=%d"),
         Arch.BaseRewards.XPValue, Arch.BaseHP, bIsParent ? TEXT("YES") : TEXT("NO"), BaseXP);
     
     return BaseXP;

@@ -1,4 +1,5 @@
 #include "Steam/SteamAPIWrapper.h"
+#include "Logging/VazioLogFacade.h"
 #include "Engine/Engine.h"
 #include "Multiplayer/SteamMultiplayerSubsystem.h" // For FSteamFriend struct
 #include "HAL/PlatformFilemanager.h"
@@ -10,7 +11,7 @@ static void* SteamDLLHandle = nullptr;
 bool SteamAPIWrapper::Initialize()
 {
     // Always return true for now to prevent crashes - we'll implement Steam in packaged builds only
-    UE_LOG(LogTemp, Warning, TEXT("[SteamAPI] Steam API disabled in current build - running in safe mode"));
+    LOG_NETWORK(Warn, TEXT("[SteamAPI] Steam API disabled in current build - running in safe mode"));
     bInitialized = true;
     return true;
 
@@ -18,15 +19,15 @@ bool SteamAPIWrapper::Initialize()
 #if STEAM_SDK_AVAILABLE
     if (!bInitialized)
     {
-        UE_LOG(LogTemp, Warning, TEXT("[SteamAPI] Attempting to initialize Steam API safely..."));
+    LOG_NETWORK(Warn, TEXT("[SteamAPI] Attempting to initialize Steam API safely..."));
         
         // First check if Steam DLL exists and try to load it dynamically
         FString SteamDLLPath = FPaths::Combine(FPaths::ProjectDir(), TEXT("ThirdParty/Steamworks/lib/steam_api64.dll"));
         
         if (!FPaths::FileExists(SteamDLLPath))
         {
-            UE_LOG(LogTemp, Warning, TEXT("[SteamAPI] Steam DLL not found at: %s"), *SteamDLLPath);
-            UE_LOG(LogTemp, Warning, TEXT("[SteamAPI] Running in DEVELOPMENT MODE - Steam features disabled"));
+            LOG_NETWORK(Warn, TEXT("[SteamAPI] Steam DLL not found at: %s"), *SteamDLLPath);
+            LOG_NETWORK(Warn, TEXT("[SteamAPI] Running in DEVELOPMENT MODE - Steam features disabled"));
             bInitialized = true;
             return true;
         }
@@ -35,13 +36,13 @@ bool SteamAPIWrapper::Initialize()
         SteamDLLHandle = FPlatformProcess::GetDllHandle(*SteamDLLPath);
         if (!SteamDLLHandle)
         {
-            UE_LOG(LogTemp, Warning, TEXT("[SteamAPI] Could not load Steam DLL dynamically"));
-            UE_LOG(LogTemp, Warning, TEXT("[SteamAPI] Running in DEVELOPMENT MODE - Steam features disabled"));
+            LOG_NETWORK(Warn, TEXT("[SteamAPI] Could not load Steam DLL dynamically"));
+            LOG_NETWORK(Warn, TEXT("[SteamAPI] Running in DEVELOPMENT MODE - Steam features disabled"));
             bInitialized = true;
             return true;
         }
         
-        UE_LOG(LogTemp, Warning, TEXT("[SteamAPI] Steam DLL loaded successfully, attempting API init..."));
+    LOG_NETWORK(Warn, TEXT("[SteamAPI] Steam DLL loaded successfully, attempting API init..."));
         
         try
         {
@@ -49,44 +50,44 @@ bool SteamAPIWrapper::Initialize()
             if (SteamAPI_Init())
             {
                 bInitialized = true;
-                UE_LOG(LogTemp, Warning, TEXT("[SteamAPI] ✅ Steam API initialized successfully - REAL STEAM MODE"));
+                LOG_NETWORK(Warn, TEXT("[SteamAPI] ✅ Steam API initialized successfully - REAL STEAM MODE"));
                 return true;
             }
             else
             {
-                UE_LOG(LogTemp, Warning, TEXT("[SteamAPI] ⚠️ Steam API init failed, trying restart approach..."));
+                LOG_NETWORK(Warn, TEXT("[SteamAPI] ⚠️ Steam API init failed, trying restart approach..."));
             }
         }
         catch (...)
         {
-            UE_LOG(LogTemp, Error, TEXT("[SteamAPI] ❌ Exception during Steam API init, continuing in dev mode..."));
+            LOG_NETWORK(Error, TEXT("[SteamAPI] ❌ Exception during Steam API init, continuing in dev mode..."));
         }
         
         // Try restart approach as fallback
         if (SteamAPI_RestartAppIfNecessary(480)) // Replace 480 with your actual App ID
         {
             // If this returns true, it means the game was not launched through Steam
-            UE_LOG(LogTemp, Warning, TEXT("Game was not launched through Steam"));
-            UE_LOG(LogTemp, Warning, TEXT("[SteamAPI] Running in DEVELOPMENT MODE - will try to access Steam if available"));
+            LOG_NETWORK(Warn, TEXT("Game was not launched through Steam"));
+            LOG_NETWORK(Warn, TEXT("[SteamAPI] Running in DEVELOPMENT MODE - will try to access Steam if available"));
             bInitialized = true; // Allow development mode
             return true;
         }
         
         if (!SteamAPI_Init())
         {
-            UE_LOG(LogTemp, Warning, TEXT("Failed to initialize Steam API - Running in DEVELOPMENT MODE"));
-            UE_LOG(LogTemp, Warning, TEXT("[SteamAPI] Will attempt to use Steam features if Steam is running"));
+            LOG_NETWORK(Warn, TEXT("Failed to initialize Steam API - Running in DEVELOPMENT MODE"));
+            LOG_NETWORK(Warn, TEXT("[SteamAPI] Will attempt to use Steam features if Steam is running"));
             bInitialized = true; // Allow development mode
             return true;
         }
         
         bInitialized = true;
-        UE_LOG(LogTemp, Warning, TEXT("Steam API initialized successfully - REAL STEAM MODE"));
+    LOG_NETWORK(Warn, TEXT("Steam API initialized successfully - REAL STEAM MODE"));
         return true;
     }
     return true;
 #else
-    UE_LOG(LogTemp, Warning, TEXT("Steam SDK not available - using placeholder mode"));
+    LOG_NETWORK(Warn, TEXT("Steam SDK not available - using placeholder mode"));
     bInitialized = true;
     return true;
 #endif
@@ -104,18 +105,18 @@ void SteamAPIWrapper::Shutdown()
         }
         catch (...)
         {
-            UE_LOG(LogTemp, Warning, TEXT("[SteamAPI] Exception during shutdown - continuing"));
+            LOG_NETWORK(Warn, TEXT("[SteamAPI] Exception during shutdown - continuing"));
         }
         
         if (SteamDLLHandle)
         {
             FPlatformProcess::FreeDllHandle(SteamDLLHandle);
             SteamDLLHandle = nullptr;
-            UE_LOG(LogTemp, Warning, TEXT("[SteamAPI] Steam DLL unloaded"));
+            LOG_NETWORK(Warn, TEXT("[SteamAPI] Steam DLL unloaded"));
         }
         
         bInitialized = false;
-        UE_LOG(LogTemp, Warning, TEXT("[SteamAPI] Steam API shutdown completed"));
+    LOG_NETWORK(Warn, TEXT("[SteamAPI] Steam API shutdown completed"));
     }
 #endif
 }
@@ -147,7 +148,7 @@ uint64 SteamAPIWrapper::GetSteamID()
 bool SteamAPIWrapper::TryGetRealSteamFriends(TArray<struct FSteamFriend>& OutFriends)
 {
     // Temporarily disabled to prevent crashes - return false to use mock data
-    UE_LOG(LogTemp, Warning, TEXT("[SteamAPI] TryGetRealSteamFriends disabled - using mock data instead"));
+    LOG_NETWORK(Warn, TEXT("[SteamAPI] TryGetRealSteamFriends disabled - using mock data instead"));
     return false;
 
 #if 0 // Disabled Steam friends functionality
@@ -155,11 +156,11 @@ bool SteamAPIWrapper::TryGetRealSteamFriends(TArray<struct FSteamFriend>& OutFri
     // Try to initialize Steam if not already done and Steam is running
     if (!IsLoggedIn() && SteamAPI_IsSteamRunning())
     {
-        UE_LOG(LogTemp, Warning, TEXT("[SteamAPI] Steam is running, attempting lightweight connection for friends..."));
+    LOG_NETWORK(Warn, TEXT("[SteamAPI] Steam is running, attempting lightweight connection for friends..."));
         if (SteamAPI_Init())
         {
             bInitialized = true;
-            UE_LOG(LogTemp, Warning, TEXT("[SteamAPI] Successfully connected to Steam for friends access!"));
+            LOG_NETWORK(Warn, TEXT("[SteamAPI] Successfully connected to Steam for friends access!"));
         }
     }
     
@@ -168,7 +169,7 @@ bool SteamAPIWrapper::TryGetRealSteamFriends(TArray<struct FSteamFriend>& OutFri
         OutFriends.Empty();
         
         int32 FriendCount = SteamFriends()->GetFriendCount(k_EFriendFlagImmediate);
-        UE_LOG(LogTemp, Warning, TEXT("[SteamAPI] Found %d real Steam friends"), FriendCount);
+    LOG_NETWORK(Warn, TEXT("[SteamAPI] Found %d real Steam friends"), FriendCount);
         
         for (int32 i = 0; i < FriendCount; i++)
         {
@@ -189,7 +190,7 @@ bool SteamAPIWrapper::TryGetRealSteamFriends(TArray<struct FSteamFriend>& OutFri
             FSteamFriend Friend(FriendName, FriendID, bIsOnline, bIsInGame);
             OutFriends.Add(Friend);
             
-            UE_LOG(LogTemp, Log, TEXT("[SteamAPI] REAL Friend: %s (%s) - Online: %s, InGame: %s"),
+            LOG_NETWORK(Info, TEXT("[SteamAPI] REAL Friend: %s (%s) - Online: %s, InGame: %s"),
                    *FriendName, *FriendID, bIsOnline ? TEXT("Yes") : TEXT("No"), bIsInGame ? TEXT("Yes") : TEXT("No"));
         }
         

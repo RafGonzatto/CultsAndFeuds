@@ -4,18 +4,20 @@
 #include "Enemy/EnemyConfig.h"
 #include "Engine/World.h"
 #include "Enemy/EnemyTypes.h"
+#include "Systems/EnemyMassSystem.h"
+#include "Logging/VazioLogFacade.h"
 
 USpawnTimeline* UEnemySpawnHelper::CreateTimelineFromJSON(const FString& JSONString)
 {
     USpawnTimeline* Timeline = NewObject<USpawnTimeline>();
-    if (Timeline->ParseFromJSON(JSONString))
-    {
-        UE_LOG(LogEnemySpawn, Log, TEXT("Successfully created timeline with %d events"), Timeline->Events.Num());
+  if (Timeline->ParseFromJSON(JSONString))
+  {
+    LOG_ENEMIES(Info, TEXT("Created timeline with %d events"), Timeline->Events.Num());
         return Timeline;
     }
     else
     {
-        UE_LOG(LogEnemySpawn, Error, TEXT("Failed to parse JSON for spawn timeline"));
+    LOG_ENEMIES(Error, TEXT("Failed to parse JSON for spawn timeline"));
         return nullptr;
     }
 }
@@ -70,21 +72,24 @@ void UEnemySpawnHelper::StartSpawnTimeline(UObject* WorldContext, USpawnTimeline
 {
     if (!WorldContext || !Timeline)
     {
-        UE_LOG(LogEnemySpawn, Error, TEXT("StartSpawnTimeline: Invalid parameters"));
+        LOG_ENEMIES(Error, TEXT("StartSpawnTimeline invalid parameters"));
         return;
     }
     
     UWorld* World = GEngine->GetWorldFromContextObject(WorldContext, EGetWorldErrorMode::LogAndReturnNull);
     if (!World)
     {
-        UE_LOG(LogEnemySpawn, Error, TEXT("StartSpawnTimeline: Could not get world from context"));
+        LOG_ENEMIES(Error, TEXT("StartSpawnTimeline could not get world"));
         return;
     }
+
+    // Ensure Mass subsystem exists prior to accessing spawner bridge
+    World->GetSubsystem<UEnemyMassSystem>();
     
     UEnemySpawnerSubsystem* SpawnerSubsystem = World->GetSubsystem<UEnemySpawnerSubsystem>();
     if (!SpawnerSubsystem)
     {
-        UE_LOG(LogEnemySpawn, Error, TEXT("StartSpawnTimeline: Could not get EnemySpawnerSubsystem"));
+        LOG_ENEMIES(Error, TEXT("StartSpawnTimeline missing EnemySpawnerSubsystem"));
         return;
     }
     
@@ -93,7 +98,7 @@ void UEnemySpawnHelper::StartSpawnTimeline(UObject* WorldContext, USpawnTimeline
     {
         UEnemyConfig* DefaultConfig = UEnemyConfig::CreateDefaultConfig();
         SpawnerSubsystem->SetEnemyConfig(DefaultConfig);
-        UE_LOG(LogEnemySpawn, Log, TEXT("Created and set default enemy config"));
+        LOG_ENEMIES(Info, TEXT("Created and set default enemy config"));
     }
     
     SpawnerSubsystem->StartTimeline(Timeline, Seed);

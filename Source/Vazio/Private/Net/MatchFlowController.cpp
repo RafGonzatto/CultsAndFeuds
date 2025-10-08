@@ -1,4 +1,5 @@
 #include "Net/MatchFlowController.h"
+#include "Logging/VazioLogFacade.h"
 #include "Engine/World.h"
 #include "Engine/GameInstance.h"
 #include "Blueprint/UserWidget.h"
@@ -27,11 +28,11 @@ void UMatchFlowController::Initialize(FSubsystemCollectionBase& Collection)
 		SessionSubsystem->OnJoinSessionCompleteEvent.AddDynamic(this, &UMatchFlowController::OnJoinSessionComplete);
 		SessionSubsystem->OnDestroySessionCompleteEvent.AddDynamic(this, &UMatchFlowController::OnDestroySessionComplete);
 		
-		UE_LOG(LogTemp, Warning, TEXT("[MatchFlowController] Initialized and bound to SessionSubsystem"));
+		LOG_NETWORK(Warn, TEXT("[MatchFlowController] Initialized and bound to SessionSubsystem"));
 	}
 	else
 	{
-		UE_LOG(LogTemp, Error, TEXT("[MatchFlowController] Failed to get SessionSubsystem"));
+		LOG_NETWORK(Error, TEXT("[MatchFlowController] Failed to get SessionSubsystem"));
 	}
 }
 
@@ -55,7 +56,7 @@ void UMatchFlowController::StartHosting(const FString& MapName, const FString& D
 {
 	if (CurrentState != EMatchFlowState::Idle)
 	{
-		UE_LOG(LogTemp, Warning, TEXT("[MatchFlowController] Cannot start hosting - not in Idle state (current: %d)"), (int32)CurrentState);
+		LOG_NETWORK(Warn, TEXT("[MatchFlowController] Cannot start hosting - not in Idle state (current: %d)"), (int32)CurrentState);
 		return;
 	}
 	
@@ -69,15 +70,15 @@ void UMatchFlowController::StartHosting(const FString& MapName, const FString& D
 			SessionSubsystem->OnCreateSessionCompleteEvent.AddDynamic(this, &UMatchFlowController::OnCreateSessionComplete);
 			SessionSubsystem->OnJoinSessionCompleteEvent.AddDynamic(this, &UMatchFlowController::OnJoinSessionComplete);
 			SessionSubsystem->OnDestroySessionCompleteEvent.AddDynamic(this, &UMatchFlowController::OnDestroySessionComplete);
-			UE_LOG(LogTemp, Warning, TEXT("[MatchFlowController] SessionSubsystem bound successfully"));
+			LOG_NETWORK(Warn, TEXT("[MatchFlowController] SessionSubsystem bound successfully"));
 		}
 	}
 	
-	UE_LOG(LogTemp, Warning, TEXT("[MatchFlowController] Starting to host session: Map=%s, Difficulty=%s"), *MapName, *Difficulty);
+	LOG_NETWORK(Warn, TEXT("[MatchFlowController] Starting to host session: Map=%s, Difficulty=%s"), *MapName, *Difficulty);
 	
 	if (!SessionSubsystem)
 	{
-		UE_LOG(LogTemp, Warning, TEXT("[MatchFlowController] SessionSubsystem not available - starting single player session"));
+		LOG_NETWORK(Warn, TEXT("[MatchFlowController] SessionSubsystem not available - starting single player session"));
 		StartSinglePlayerSession(MapName, Difficulty);
 		return;
 	}
@@ -92,17 +93,17 @@ void UMatchFlowController::StartJoining(int32 SessionIndex)
 {
 	if (CurrentState != EMatchFlowState::Idle)
 	{
-		UE_LOG(LogTemp, Warning, TEXT("[MatchFlowController] Cannot start joining - not in Idle state (current: %d)"), (int32)CurrentState);
+		LOG_NETWORK(Warn, TEXT("[MatchFlowController] Cannot start joining - not in Idle state (current: %d)"), (int32)CurrentState);
 		return;
 	}
 	
 	if (!SessionSubsystem)
 	{
-		UE_LOG(LogTemp, Error, TEXT("[MatchFlowController] Cannot start joining - SessionSubsystem is null"));
+		LOG_NETWORK(Error, TEXT("[MatchFlowController] Cannot start joining - SessionSubsystem is null"));
 		return;
 	}
 	
-	UE_LOG(LogTemp, Warning, TEXT("[MatchFlowController] Starting to join session at index: %d"), SessionIndex);
+	LOG_NETWORK(Warn, TEXT("[MatchFlowController] Starting to join session at index: %d"), SessionIndex);
 	
 	SetState(EMatchFlowState::Joining);
 	ShowLoadingScreen(TEXT("Joining session..."));
@@ -114,11 +115,11 @@ void UMatchFlowController::LeaveMatch()
 {
 	if (!IsInMatch())
 	{
-		UE_LOG(LogTemp, Warning, TEXT("[MatchFlowController] Not in match - nothing to leave"));
+		LOG_NETWORK(Warn, TEXT("[MatchFlowController] Not in match - nothing to leave"));
 		return;
 	}
 	
-	UE_LOG(LogTemp, Warning, TEXT("[MatchFlowController] Leaving match"));
+	LOG_NETWORK(Warn, TEXT("[MatchFlowController] Leaving match"));
 	ShowLoadingScreen(TEXT("Leaving match..."));
 	
 	if (SessionSubsystem)
@@ -157,7 +158,7 @@ void UMatchFlowController::HideLoadingScreen()
 
 void UMatchFlowController::OnCreateSessionComplete(FName SessionName, bool bWasSuccessful)
 {
-	UE_LOG(LogTemp, Warning, TEXT("[MatchFlowController] OnCreateSessionComplete: %s"), bWasSuccessful ? TEXT("Success") : TEXT("Failed"));
+	LOG_NETWORK(Warn, TEXT("[MatchFlowController] OnCreateSessionComplete: %s"), bWasSuccessful ? TEXT("Success") : TEXT("Failed"));
 	
 	if (bWasSuccessful)
 	{
@@ -199,7 +200,7 @@ void UMatchFlowController::OnCreateSessionComplete(FName SessionName, bool bWasS
 		// Force BattleGameMode for Battle_Main level
 		TravelURL += TEXT("&game=/Script/Vazio.BattleGameMode");
 		
-		UE_LOG(LogTemp, Warning, TEXT("[MatchFlowController] Host traveling to: %s"), *TravelURL);
+		LOG_NETWORK(Warn, TEXT("[MatchFlowController] Host traveling to: %s"), *TravelURL);
 		
 		// Server travel to Battle_Main as listen server
 		if (UWorld* World = GetWorld())
@@ -213,7 +214,7 @@ void UMatchFlowController::OnCreateSessionComplete(FName SessionName, bool bWasS
 		if (UWorld* World = GetWorld())
 		{
 			World->GetTimerManager().SetTimer(SoloPlayTimerHandle, this, &UMatchFlowController::CheckForSoloPlay, 30.0f, false);
-			UE_LOG(LogTemp, Warning, TEXT("[MatchFlowController] Solo play timer started - will check in 30 seconds"));
+			LOG_NETWORK(Warn, TEXT("[MatchFlowController] Solo play timer started - will check in 30 seconds"));
 		}
 	}
 	else
@@ -231,7 +232,7 @@ void UMatchFlowController::OnCreateSessionComplete(FName SessionName, bool bWasS
 
 void UMatchFlowController::OnJoinSessionComplete(FName SessionName, int32 Result)
 {
-	UE_LOG(LogTemp, Warning, TEXT("[MatchFlowController] OnJoinSessionComplete: %d"), (int32)Result);
+	LOG_NETWORK(Warn, TEXT("[MatchFlowController] OnJoinSessionComplete: %d"), (int32)Result);
 	
 	if (Result == 0) // EOnJoinSessionCompleteResult::Success
 	{
@@ -271,7 +272,7 @@ void UMatchFlowController::OnJoinSessionComplete(FName SessionName, int32 Result
 
 void UMatchFlowController::OnDestroySessionComplete(FName SessionName, bool bWasSuccessful)
 {
-	UE_LOG(LogTemp, Warning, TEXT("[MatchFlowController] OnDestroySessionComplete: %s"), bWasSuccessful ? TEXT("Success") : TEXT("Failed"));
+	LOG_NETWORK(Warn, TEXT("[MatchFlowController] OnDestroySessionComplete: %s"), bWasSuccessful ? TEXT("Success") : TEXT("Failed"));
 	
 	SetState(EMatchFlowState::Idle);
 	HideLoadingScreen();
@@ -281,7 +282,7 @@ void UMatchFlowController::SetState(EMatchFlowState NewState)
 {
 	if (CurrentState != NewState)
 	{
-		UE_LOG(LogTemp, Warning, TEXT("[MatchFlowController] State change: %d -> %d"), (int32)CurrentState, (int32)NewState);
+		LOG_NETWORK(Warn, TEXT("[MatchFlowController] State change: %d -> %d"), (int32)CurrentState, (int32)NewState);
 		CurrentState = NewState;
 	}
 }
@@ -297,7 +298,7 @@ void UMatchFlowController::CreateLoadingScreenWidget()
 			if (LoadingScreenWidget)
 			{
 				LoadingScreenWidget->AddToViewport(1000); // High Z-order to be on top
-				UE_LOG(LogTemp, Warning, TEXT("[MatchFlowController] Created loading screen widget"));
+				LOG_NETWORK(Warn, TEXT("[MatchFlowController] Created loading screen widget"));
 			}
 		}
 	}
@@ -309,13 +310,13 @@ void UMatchFlowController::DestroyLoadingScreenWidget()
 	{
 		LoadingScreenWidget->RemoveFromParent();
 		LoadingScreenWidget = nullptr;
-		UE_LOG(LogTemp, Warning, TEXT("[MatchFlowController] Destroyed loading screen widget"));
+		LOG_NETWORK(Warn, TEXT("[MatchFlowController] Destroyed loading screen widget"));
 	}
 }
 
 void UMatchFlowController::StartSinglePlayerSession(const FString& MapName, const FString& Difficulty)
 {
-	UE_LOG(LogTemp, Warning, TEXT("[MatchFlowController] Starting single player session: Map=%s, Difficulty=%s"), *MapName, *Difficulty);
+	LOG_NETWORK(Warn, TEXT("[MatchFlowController] Starting single player session: Map=%s, Difficulty=%s"), *MapName, *Difficulty);
 	
 	SetState(EMatchFlowState::LoadingHost);
 	ShowLoadingScreen(TEXT("Loading single player arena..."));
@@ -343,7 +344,7 @@ void UMatchFlowController::StartSinglePlayerSession(const FString& MapName, cons
 	// Force BattleGameMode for Battle_Main level
 	TravelURL += TEXT("&game=/Script/Vazio.BattleGameMode");
 	
-	UE_LOG(LogTemp, Warning, TEXT("[MatchFlowController] Single player traveling to: %s"), *TravelURL);
+	LOG_NETWORK(Warn, TEXT("[MatchFlowController] Single player traveling to: %s"), *TravelURL);
 	
 	// Use the full URL with GameMode parameter for single player
 	if (UWorld* World = GetWorld())
@@ -356,7 +357,7 @@ void UMatchFlowController::StartSinglePlayerSession(const FString& MapName, cons
 
 void UMatchFlowController::CheckForSoloPlay()
 {
-	UE_LOG(LogTemp, Warning, TEXT("[MatchFlowController] Checking for solo play..."));
+	LOG_NETWORK(Warn, TEXT("[MatchFlowController] Checking for solo play..."));
 	
 	if (UWorld* World = GetWorld())
 	{
@@ -373,12 +374,12 @@ void UMatchFlowController::CheckForSoloPlay()
 			}
 		}
 		
-		UE_LOG(LogTemp, Warning, TEXT("[MatchFlowController] Current player count: %d"), PlayerCount);
+	LOG_NETWORK(Warn, TEXT("[MatchFlowController] Current player count: %d"), PlayerCount);
 		
 		if (PlayerCount <= 1)
 		{
 			// Only host is connected, continue as single player
-			UE_LOG(LogTemp, Warning, TEXT("[MatchFlowController] No other players joined - continuing as single player"));
+			LOG_NETWORK(Warn, TEXT("[MatchFlowController] No other players joined - continuing as single player"));
 			
 			// Show message to player
 			if (GEngine)
@@ -391,7 +392,7 @@ void UMatchFlowController::CheckForSoloPlay()
 		}
 		else
 		{
-			UE_LOG(LogTemp, Warning, TEXT("[MatchFlowController] Other players have joined - multiplayer session active"));
+			LOG_NETWORK(Warn, TEXT("[MatchFlowController] Other players have joined - multiplayer session active"));
 			HideLoadingScreen();
 		}
 	}

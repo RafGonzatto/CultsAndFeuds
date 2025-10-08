@@ -12,10 +12,11 @@
 #include "UObject/ConstructorHelpers.h"
 #include "EngineUtils.h" // For TActorIterator
 #include "Components/PointLightComponent.h"
+#include "Logging/VazioLogFacade.h"
 
 AEnemyBase::AEnemyBase()
 {
-    PrimaryActorTick.bCanEverTick = true;
+    PrimaryActorTick.bCanEverTick = false; // TODO(DEPRECATE): Disable legacy ticking in favor of Mass system
 
     // Create components
     DropComponent = CreateDefaultSubobject<UEnemyDropComponent>(TEXT("DropComponent"));
@@ -76,12 +77,7 @@ void AEnemyBase::BeginPlay()
 {
     Super::BeginPlay();
     
-    // GARANTIR QUE TICK ESTÁ HABILITADO
-    PrimaryActorTick.bCanEverTick = true;
-    SetActorTickEnabled(true);
-    
-    UE_LOG(LogTemp, Warning, TEXT("[ENEMY] %s BeginPlay - Tick Enabled: %s"), 
-        *GetName(), IsActorTickEnabled() ? TEXT("YES") : TEXT("NO"));
+    LOG_ENEMIES(Debug, TEXT("Enemy %s BeginPlay (legacy tick disabled)"), *GetName());
     
     SetupMovement();
     // Garantir que o componente de movimento está ativo e em modo Walking
@@ -126,11 +122,11 @@ void AEnemyBase::BeginPlay()
             {
                 DebugLight->SetLightColor(EnemyColor.ToFColor(true));
             }
-            UE_LOG(LogTemp, Warning, TEXT("[BEGINPLAY] %s: Applied initial color %s"), *GetName(), *EnemyColor.ToString());
+            LOG_ENEMIES(Debug, TEXT("%s applied initial color %s"), *GetName(), *EnemyColor.ToString());
         }
     }
     
-    UE_LOG(LogTemp, Warning, TEXT("[BEGINPLAY] %s: HP=%.1f, Speed=%.1f, Damage=%.1f"), 
+    LOG_ENEMIES(Info, TEXT("%s spawned with HP=%.1f Speed=%.1f Damage=%.1f"),
         *GetName(), CurrentHP, GetCharacterMovement()->MaxWalkSpeed, CurrentArchetype.BaseDMG);
 
     // Initialize movement logging baseline
@@ -141,72 +137,8 @@ void AEnemyBase::BeginPlay()
 
 void AEnemyBase::Tick(float DeltaTime)
 {
-    // SAFETY: Always check validity first
-    if (!IsValid(this))
-    {
-        return;
-    }
-    
+    // TODO(DEPRECATE): Legacy actor-based enemy tick disabled; Mass handles enemy simulation.
     Super::Tick(DeltaTime);
-
-    if (!bFirstTickLogged)
-    {
-        UE_LOG(LogTemp, Warning, TEXT("[TICK-ONCE] %s primeiro Tick executado"), *GetName());
-        bFirstTickLogged = true;
-    }
-    
-    // SAFE movement execution with try-catch equivalent (validation checks)
-    bool bCanMove = true;
-    
-    // Check if we're in a valid state for movement
-    if (CurrentModifiers.bImmovable)
-    {
-        bCanMove = false;
-    }
-    
-    // Check world validity
-    UWorld* World = GetWorld();
-    if (!World || !IsValid(World))
-    {
-        bCanMove = false;
-    }
-    
-    // Check movement component validity
-    UCharacterMovementComponent* MovementComp = GetCharacterMovement();
-    if (!MovementComp || !IsValid(MovementComp))
-    {
-        bCanMove = false;
-    }
-    
-    // Only attempt base chase if enabled and all checks pass
-    if (bCanMove && bUseBaseChase)
-    {
-        ChasePlayer();
-    }
-    
-    // SAFE performance optimization call
-    if (World && IsValid(World))
-    {
-        PerformanceOptimization();
-    }
-    
-    // SAFE dash logic call
-    HandleDashLogic(DeltaTime);
-    
-    // DEBUG: Very occasional logging to confirm tick is working
-    static TMap<AEnemyBase*, float> TickLogTimes;
-    if (World)
-    {
-        float CurrentTime = World->GetTimeSeconds();
-        float* LastTickLogPtr = TickLogTimes.Find(this);
-        
-        if (!LastTickLogPtr || (CurrentTime - *LastTickLogPtr > 5.0f))
-        {
-            UE_LOG(LogTemp, VeryVerbose, TEXT("[TICK] %s ticking safely - HP=%.1f, CanMove=%s"), 
-                *GetName(), CurrentHP, bCanMove ? TEXT("YES") : TEXT("NO"));
-            TickLogTimes.Add(this, CurrentTime);
-        }
-    }
 }
 
 // Console helper para reativar ticks em todos os inimigos (caso algum blueprint tenha desabilitado)
@@ -229,7 +161,7 @@ static FAutoConsoleCommand CmdEnemyForceTick(
                     ++Count;
                 }
             }
-            UE_LOG(LogTemp, Warning, TEXT("[Enemy.ForceTick] Reativados %d inimigos"), Count);
+            LOG_LOOP(Debug, TEXT("Enemy.ForceTick reactivated %d enemies"), Count);
         }
     }),
     ECVF_Default
@@ -237,7 +169,7 @@ static FAutoConsoleCommand CmdEnemyForceTick(
 
 void AEnemyBase::HandleDeath(bool bIsParentParam)
 {
-    UE_LOG(LogEnemy, Log, TEXT("%s died (parent=%d)"), *GetName(), bIsParentParam ? 1 : 0);
+    LOG_ENEMIES(Info, TEXT("%s died (parent=%d)"), *GetName(), bIsParentParam ? 1 : 0);
 
     // Handle drops through DropComponent
     if (DropComponent)
@@ -292,8 +224,8 @@ void AEnemyBase::ApplyArchetypeAndModifiers(const FEnemyArchetype& Arch, const F
             SetActorLocation(FVector(CurrentLocation.X, CurrentLocation.Y, 90.0f)); // Standard ground level
         }
         
-        UE_LOG(LogTemp, Warning, TEXT("[DEBUG] Enemy %s: Location=%s, Scale=%s"), 
-            *GetName(), 
+        LOG_ENEMIES(Debug, TEXT("Enemy %s location=%s scale=%s"),
+            *GetName(),
             *GetActorLocation().ToString(),
             *VisualMesh->GetComponentScale().ToString());
         
@@ -314,7 +246,7 @@ void AEnemyBase::ApplyArchetypeAndModifiers(const FEnemyArchetype& Arch, const F
                 BaseMaterial = LoadObject<UMaterialInterface>(nullptr, *Path);
                 if (BaseMaterial && IsValid(BaseMaterial))
                 {
-                    UE_LOG(LogTemp, Warning, TEXT("[MATERIAL] %s: Successfully loaded %s"), *GetName(), *Path);
+                    LOG_ENEMIES(Debug, TEXT("%s loaded material %s"), *GetName(), *Path);
                     break;
                 }
             }
@@ -323,11 +255,11 @@ void AEnemyBase::ApplyArchetypeAndModifiers(const FEnemyArchetype& Arch, const F
             if (BaseMaterial && IsValid(BaseMaterial))
             {
                 VisualMesh->SetMaterial(0, BaseMaterial);
-                UE_LOG(LogTemp, Warning, TEXT("[MATERIAL] %s: Applied base material"), *GetName());
+                LOG_ENEMIES(Debug, TEXT("%s applied base material"), *GetName());
             }
             else
             {
-                UE_LOG(LogTemp, Error, TEXT("[MATERIAL] %s: All material loading failed - using default"), *GetName());
+                LOG_ENEMIES(Error, TEXT("%s material loading failed - using default"), *GetName());
             }
         }
         
@@ -368,11 +300,11 @@ void AEnemyBase::ApplyArchetypeAndModifiers(const FEnemyArchetype& Arch, const F
                 DynamicMaterial->SetScalarParameterValue(FName("Metallic"), 0.0f);
                 DynamicMaterial->SetScalarParameterValue(FName("Roughness"), 0.8f);
                 
-                UE_LOG(LogTemp, Warning, TEXT("[COLOR] %s: Applied color safely"), *GetName());
+                LOG_ENEMIES(Debug, TEXT("%s applied color safely"), *GetName());
             }
             else
             {
-                UE_LOG(LogTemp, Error, TEXT("[COLOR] %s: Failed to create dynamic material"), *GetName());
+                LOG_ENEMIES(Error, TEXT("%s failed to create dynamic material"), *GetName());
             }
         }
 
@@ -381,14 +313,14 @@ void AEnemyBase::ApplyArchetypeAndModifiers(const FEnemyArchetype& Arch, const F
         VisualMesh->SetVisibility(true);
         VisualMesh->SetHiddenInGame(false);
         
-        UE_LOG(LogTemp, Warning, TEXT("[DEBUG] Enemy %s: VisualMesh configured - Mesh=%s, Visible=%s"), 
+    LOG_ENEMIES(Debug, TEXT("Enemy %s mesh=%s visible=%s"),
             *GetName(),
             VisualMesh->GetStaticMesh() ? *VisualMesh->GetStaticMesh()->GetName() : TEXT("NULL"),
             VisualMesh->IsVisible() ? TEXT("YES") : TEXT("NO"));
     }
     else
     {
-        UE_LOG(LogTemp, Error, TEXT("[DEBUG] Enemy %s: VisualMesh is NULL!"), *GetName());
+    LOG_ENEMIES(Error, TEXT("Enemy %s visual mesh is null"), *GetName());
     }
 
     // 2. Apply difficulty scaling (would come from game state/difficulty setting)
@@ -404,7 +336,7 @@ void AEnemyBase::ApplyArchetypeAndModifiers(const FEnemyArchetype& Arch, const F
         {
             FVector CurrentScale = VisualMesh->GetComponentScale();
             VisualMesh->SetWorldScale3D(CurrentScale * 1.5f);
-            UE_LOG(LogTemp, Warning, TEXT("[DEBUG] Enemy %s: BIG modifier applied - New scale=%s"), 
+            LOG_ENEMIES(Info, TEXT("Enemy %s BIG modifier applied scale=%s"),
                 *GetName(), *VisualMesh->GetComponentScale().ToString());
         }
 
@@ -449,16 +381,16 @@ void AEnemyBase::ApplyArchetypeAndModifiers(const FEnemyArchetype& Arch, const F
     // Apply visual effects
     OnApplyVisualEffects();
 
-    UE_LOG(LogEnemy, Log, TEXT("Applied archetype to %s: HP=%.1f, Speed=%.1f, Big=%d, Immovable=%d, Dissolve=%.1fs"), 
-           *GetName(), MaxHP, GetCharacterMovement()->MaxWalkSpeed, 
-           Mods.bBig ? 1 : 0, Mods.bImmovable ? 1 : 0, Mods.DissolveSeconds);
+    LOG_ENEMIES(Info, TEXT("Archetype applied to %s HP=%.1f Speed=%.1f Big=%d Immovable=%d Dissolve=%.1fs"),
+        *GetName(), MaxHP, GetCharacterMovement()->MaxWalkSpeed,
+        Mods.bBig ? 1 : 0, Mods.bImmovable ? 1 : 0, Mods.DissolveSeconds);
 }
 
 void AEnemyBase::StartDissolveTimer()
 {
     if (CurrentModifiers.DissolveSeconds > 0.f && GetWorld())
     {
-        UE_LOG(LogEnemy, Log, TEXT("%s starting dissolve timer: %.1fs"), *GetName(), CurrentModifiers.DissolveSeconds);
+        LOG_ENEMIES(Debug, TEXT("%s starting dissolve timer %.1fs"), *GetName(), CurrentModifiers.DissolveSeconds);
         
         GetWorld()->GetTimerManager().SetTimer(
             DissolveTimerHandle,
@@ -472,7 +404,7 @@ void AEnemyBase::StartDissolveTimer()
 
 void AEnemyBase::OnDissolveComplete()
 {
-    UE_LOG(LogEnemy, Log, TEXT("%s dissolved (no drops)"), *GetName());
+    LOG_ENEMIES(Info, TEXT("%s dissolved (no drops)"), *GetName());
     
     // Clear timers
     if (DissolveTimerHandle.IsValid())
@@ -599,16 +531,9 @@ void AEnemyBase::ChasePlayer()
         AddActorWorldOffset(Step, true, &SweepHit);
     }
 
-    // DEBUG: Reduced frequency logging to prevent spam and potential crashes
-    static TMap<AEnemyBase*, float> LastLogTimes;
-    float CurrentTime = World->GetTimeSeconds();
-    float* LastLogTimePtr = LastLogTimes.Find(this);
-    
-    if (!LastLogTimePtr || (CurrentTime - *LastLogTimePtr > 3.0f))
-    {
-        UE_LOG(LogTemp, VeryVerbose, TEXT("[CHASE] %s chasing player - Distance: %.1f"), *GetName(), DistanceToPlayer);
-        LastLogTimes.Add(this, CurrentTime);
-    }
+    static const FName ChaseLoopKey(TEXT("EnemyBase.Chase"));
+        LOG_LOOP_THROTTLE(Debug, ChaseLoopKey, 1, 3.0f,
+        TEXT("%s chasing player - Distance: %.1f"), *GetName(), DistanceToPlayer);
 
     // MOVEMENT POSITION LOGGING (toggleable)
     static TAutoConsoleVariable<int32> CVarEnemyMoveLog(
@@ -617,6 +542,7 @@ void AEnemyBase::ChasePlayer()
         TEXT("Ativa (1) ou desativa (0) logs detalhados de movimento dos inimigos. Formato: [MOVE] Nome Old=(x,y,z) New=(x,y,z) Target=(x,y,z) Dist= Delta= Speed= Nominal= MaxWalk= Time=\n"),
         ECVF_Default);
 
+    const float CurrentTime = World->GetTimeSeconds();
     const bool bDoMoveLog = CVarEnemyMoveLog.GetValueOnGameThread() != 0;
     if (bDoMoveLog && bHasPreviousLocation)
     {
@@ -638,7 +564,9 @@ void AEnemyBase::ChasePlayer()
         if (bMovedEnough || bTimeElapsed)
         {
             LastMoveLogTime.Add(this, CurrentTime);
-            UE_LOG(LogTemp, Warning, TEXT("[MOVE] %s Old=(%.0f,%.0f,%.0f) New=(%.0f,%.0f,%.0f) Target=(%.0f,%.0f,%.0f) Dist=%.1f Delta=%.2f Speed=%.1f Nominal=%.1f MaxWalk=%.1f Time=%.2f"),
+            static const FName MoveLoopKey(TEXT("EnemyBase.Move"));
+            LOG_LOOP_THROTTLE(Debug, MoveLoopKey, 1, 0.25f,
+                TEXT("%s Old=(%.0f,%.0f,%.0f) New=(%.0f,%.0f,%.0f) Target=(%.0f,%.0f,%.0f) Dist=%.1f Delta=%.2f Speed=%.1f Nominal=%.1f MaxWalk=%.1f Time=%.2f"),
                 *GetName(),
                 OldLocation.X, OldLocation.Y, OldLocation.Z,
                 NewLocation.X, NewLocation.Y, NewLocation.Z,
@@ -675,8 +603,8 @@ void AEnemyBase::TakeDamageSimple(float Damage)
 {
     CurrentHP = FMath::Max(0.f, CurrentHP - Damage);
     
-    UE_LOG(LogEnemy, VeryVerbose, TEXT("%s took %.1f damage, HP: %.1f/%.1f"), 
-           *GetName(), Damage, CurrentHP, MaxHP);
+    LOG_ENEMIES(Debug, TEXT("%s took %.1f damage HP %.1f/%.1f"),
+        *GetName(), Damage, CurrentHP, MaxHP);
     
     if (CurrentHP <= 0.f)
     {
@@ -687,22 +615,22 @@ void AEnemyBase::TakeDamageSimple(float Damage)
 void AEnemyBase::OnOverlapBegin(UPrimitiveComponent* OverlappedComp, AActor* OtherActor, UPrimitiveComponent* OtherComp, int32 OtherBodyIndex, bool bFromSweep, const FHitResult& SweepResult)
 {
     // Log all overlaps for debugging with more detail
-    UE_LOG(LogTemp, Warning, TEXT("[ENEMY-OVERLAP] %s (%s) overlapped with %s (%s)"), 
-        *GetName(), 
-        OverlappedComp ? *OverlappedComp->GetName() : TEXT("NULL"), 
+    LOG_ENEMIES(Debug, TEXT("%s (%s) overlapped with %s (%s)"),
+        *GetName(),
+        OverlappedComp ? *OverlappedComp->GetName() : TEXT("NULL"),
         OtherActor ? *OtherActor->GetName() : TEXT("NULL"),
         OtherComp ? *OtherComp->GetName() : TEXT("NULL"));
     
     // Damage player on overlap
     if (AMyCharacter* Player = Cast<AMyCharacter>(OtherActor))
     {
-        UE_LOG(LogTemp, Warning, TEXT("[DAMAGE-ATTEMPT] %s attempting to damage player %s"), *GetName(), *Player->GetName());
+        LOG_ENEMIES(Info, TEXT("%s attempting to damage player %s"), *GetName(), *Player->GetName());
         
         // Damage cooldown to prevent spam
         float CurrentTime = GetWorld()->GetTimeSeconds();
         if (CurrentTime - LastDamageTime < 1.0f) 
         {
-            UE_LOG(LogTemp, Warning, TEXT("[DAMAGE] %s damage on cooldown (%.2fs remaining)"), 
+            LOG_ENEMIES(Debug, TEXT("%s damage on cooldown (%.2fs remaining)"),
                 *GetName(), 1.0f - (CurrentTime - LastDamageTime));
             return;
         }
@@ -712,17 +640,16 @@ void AEnemyBase::OnOverlapBegin(UPrimitiveComponent* OverlappedComp, AActor* Oth
         float DamageAmount = CurrentArchetype.BaseDMG > 0.0f ? CurrentArchetype.BaseDMG : 25.0f; // Fallback damage
         
         // Create proper damage event
-        FPointDamageEvent DamageEvent;
-        DamageEvent.Damage = DamageAmount;
-        DamageEvent.HitInfo = SweepResult;
+    FPointDamageEvent DamageEvent;
+    DamageEvent.Damage = DamageAmount;
         DamageEvent.ShotDirection = (Player->GetActorLocation() - GetActorLocation()).GetSafeNormal();
         
-        UE_LOG(LogTemp, Warning, TEXT("[DAMAGE-APPLY] %s calling TakeDamage(%.1f) on player %s"), 
+        LOG_ENEMIES(Info, TEXT("%s applying %.1f damage to player %s"),
             *GetName(), DamageAmount, *Player->GetName());
         
         float ActualDamage = Player->TakeDamage(DamageAmount, DamageEvent, nullptr, this);
         
-        UE_LOG(LogTemp, Warning, TEXT("[DAMAGE-RESULT] Player->TakeDamage returned %.1f (expected %.1f)"), 
+        LOG_ENEMIES(Debug, TEXT("Player damage result %.1f expected %.1f"),
             ActualDamage, DamageAmount);
             
         // Visual feedback - make enemy flash or something

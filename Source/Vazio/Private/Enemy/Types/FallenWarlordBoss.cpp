@@ -3,6 +3,7 @@
 // TODO: FallenSwordWeapon was removed with Swarm system - implement boss weapon if needed
 #include "GameFramework/CharacterMovementComponent.h"
 #include "Engine/World.h"
+#include "Logging/VazioLogFacade.h"
 
 AFallenWarlordBoss::AFallenWarlordBoss()
 {
@@ -77,7 +78,7 @@ void AFallenWarlordBoss::BeginPlay()
         }
         else
         {
-            UE_LOG(LogBoss, Warning, TEXT("Failed to spawn FallenSwordWeapon for %s"), *GetName());
+            LOG_ENEMIES(Warn, TEXT("Failed to spawn FallenSwordWeapon for %s"), *GetName());
         }
     }
     */

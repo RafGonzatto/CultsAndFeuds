@@ -1,4 +1,5 @@
 #include "Net/LoadingScreenWidget.h"
+#include "Logging/VazioLogFacade.h"
 #include "Widgets/Text/STextBlock.h"
 #include "Widgets/Layout/SBorder.h"
 #include "Engine/Engine.h"
@@ -35,7 +36,7 @@ void ULoadingScreenWidget::SetLoadingText(const FString& Text)
 void ULoadingScreenWidget::ShowLoadingScreen()
 {
 	SetVisibility(ESlateVisibility::Visible);
-	UE_LOG(LogTemp, Warning, TEXT("[LoadingScreen] Showing loading screen: %s"), *CurrentLoadingText);
+	LOG_UI(Warn, TEXT("[LoadingScreen] Showing loading screen: %s"), *CurrentLoadingText);
 }
 
 void ULoadingScreenWidget::HideLoadingScreen()
@@ -50,7 +51,7 @@ void ULoadingScreenWidget::HideLoadingScreen()
 		PC->bShowMouseCursor = false;
 	}
 	
-	UE_LOG(LogTemp, Warning, TEXT("[LoadingScreen] Hiding loading screen"));
+	LOG_UI(Warn, TEXT("[LoadingScreen] Hiding loading screen"));
 }
 
 FText ULoadingScreenWidget::GetLoadingText() const

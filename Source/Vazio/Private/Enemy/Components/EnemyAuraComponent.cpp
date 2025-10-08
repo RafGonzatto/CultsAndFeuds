@@ -5,6 +5,7 @@
 #include "GameFramework/Pawn.h"
 #include "Engine/OverlapResult.h"
 #include "Enemy/EnemyTypes.h"
+#include "Logging/VazioLogFacade.h"
 
 UEnemyAuraComponent::UEnemyAuraComponent()
 {
@@ -38,7 +39,7 @@ void UEnemyAuraComponent::SetAuraProperties(float NewRadius, float NewDPS)
     Radius = NewRadius;
     DPS = NewDPS;
     
-    UE_LOG(LogEnemy, VeryVerbose, TEXT("Aura component configured: Radius=%.1f, DPS=%.1f"), Radius, DPS);
+    LOG_ENEMIES(Trace, TEXT("Aura component configured: Radius=%.1f, DPS=%.1f"), Radius, DPS);
 }
 
 void UEnemyAuraComponent::DealAuraDamage(float DeltaTime)
@@ -62,7 +63,8 @@ void UEnemyAuraComponent::DealAuraDamage(float DeltaTime)
                 {
                     // Deal damage to player
                     // This would depend on your damage system implementation
-                    UE_LOG(LogEnemy, VeryVerbose, TEXT("Aura dealing %.1f damage to %s"), DamageThisTick, *TargetPawn->GetName());
+                    LOG_LOOP_THROTTLE(Debug, TargetPawn->GetFName(), 1, DamageTickRate,
+                        TEXT("Aura dealing %.1f damage to %s"), DamageThisTick, *TargetPawn->GetName());
                     
                     // Example: if you have a health component system
                     // if (UHealthComponent* HealthComp = TargetPawn->FindComponentByClass<UHealthComponent>())

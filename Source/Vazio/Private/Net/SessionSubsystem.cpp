@@ -1,4 +1,5 @@
 #include "Net/SessionSubsystem.h"
+#include "Logging/VazioLogFacade.h"
 #include "OnlineSubsystem.h"
 #include "OnlineSessionSettings.h"
 #include "Engine/Engine.h"
@@ -27,7 +28,7 @@ void USessionSubsystem::Initialize(FSubsystemCollectionBase& Collection)
 		SessionInterface = OnlineSubsystem->GetSessionInterface();
 		if (SessionInterface.IsValid())
 		{
-			UE_LOG(LogTemp, Warning, TEXT("[SessionSubsystem] Online subsystem and session interface initialized successfully"));
+			LOG_NETWORK(Warn, TEXT("[SessionSubsystem] Online subsystem and session interface initialized successfully"));
 		}
 	}
 }
@@ -41,7 +42,7 @@ void USessionSubsystem::HostArenaSession(const FString& MapName, const FString& 
 {
 	if (!SessionInterface.IsValid())
 	{
-		UE_LOG(LogTemp, Error, TEXT("[SessionSubsystem] Cannot host session - SessionInterface is invalid"));
+		LOG_NETWORK(Error, TEXT("[SessionSubsystem] Cannot host session - SessionInterface is invalid"));
 		OnCreateSessionCompleteEvent.Broadcast(SESSION_NAME, false);
 		return;
 	}
@@ -60,13 +61,13 @@ void USessionSubsystem::HostArenaSession(const FString& MapName, const FString& 
 	const ULocalPlayer* LocalPlayer = GetWorld()->GetFirstLocalPlayerFromController();
 	if (!SessionInterface->CreateSession(*LocalPlayer->GetPreferredUniqueNetId(), SESSION_NAME, SessionSettings))
 	{
-		UE_LOG(LogTemp, Error, TEXT("[SessionSubsystem] Failed to create session"));
+		LOG_NETWORK(Error, TEXT("[SessionSubsystem] Failed to create session"));
 		SessionInterface->ClearOnCreateSessionCompleteDelegate_Handle(CreateSessionCompleteDelegateHandle);
 		OnCreateSessionCompleteEvent.Broadcast(SESSION_NAME, false);
 	}
 	else
 	{
-		UE_LOG(LogTemp, Warning, TEXT("[SessionSubsystem] Creating session..."));
+		LOG_NETWORK(Warn, TEXT("[SessionSubsystem] Creating session..."));
 	}
 }
 
@@ -74,12 +75,12 @@ void USessionSubsystem::FindFriendSessions()
 {
 	if (!SessionInterface.IsValid())
 	{
-		UE_LOG(LogTemp, Error, TEXT("[SessionSubsystem] Cannot find sessions - SessionInterface is invalid"));
+		LOG_NETWORK(Error, TEXT("[SessionSubsystem] Cannot find sessions - SessionInterface is invalid"));
 		OnFindSessionsCompleteEvent.Broadcast(false);
 		return;
 	}
 
-	UE_LOG(LogTemp, Warning, TEXT("[SessionSubsystem] Finding friend sessions..."));
+	LOG_NETWORK(Warn, TEXT("[SessionSubsystem] Finding friend sessions..."));
 
 	// Create search settings
 	SessionSearch = MakeShareable(new FOnlineSessionSearch());
@@ -93,7 +94,7 @@ void USessionSubsystem::FindFriendSessions()
 	const ULocalPlayer* LocalPlayer = GetWorld()->GetFirstLocalPlayerFromController();
 	if (!SessionInterface->FindSessions(*LocalPlayer->GetPreferredUniqueNetId(), SessionSearch.ToSharedRef()))
 	{
-		UE_LOG(LogTemp, Error, TEXT("[SessionSubsystem] Failed to start session search"));
+		LOG_NETWORK(Error, TEXT("[SessionSubsystem] Failed to start session search"));
 		SessionInterface->ClearOnFindSessionsCompleteDelegate_Handle(FindSessionsCompleteDelegateHandle);
 		OnFindSessionsCompleteEvent.Broadcast(false);
 	}
@@ -103,19 +104,19 @@ void USessionSubsystem::JoinSessionByIndex(int32 SessionIndex)
 {
 	if (!SessionInterface.IsValid())
 	{
-		UE_LOG(LogTemp, Error, TEXT("[SessionSubsystem] Cannot join session - SessionInterface is invalid"));
+		LOG_NETWORK(Error, TEXT("[SessionSubsystem] Cannot join session - SessionInterface is invalid"));
 		OnJoinSessionCompleteEvent.Broadcast(SESSION_NAME, static_cast<int32>(EOnJoinSessionCompleteResult::UnknownError));
 		return;
 	}
 
 	if (!SessionSearch.IsValid() || SessionIndex >= SessionSearch->SearchResults.Num() || SessionIndex < 0)
 	{
-		UE_LOG(LogTemp, Error, TEXT("[SessionSubsystem] Invalid session index: %d"), SessionIndex);
+		LOG_NETWORK(Error, TEXT("[SessionSubsystem] Invalid session index: %d"), SessionIndex);
 		OnJoinSessionCompleteEvent.Broadcast(SESSION_NAME, static_cast<int32>(EOnJoinSessionCompleteResult::SessionDoesNotExist));
 		return;
 	}
 
-	UE_LOG(LogTemp, Warning, TEXT("[SessionSubsystem] Joining session at index %d..."), SessionIndex);
+	LOG_NETWORK(Warn, TEXT("[SessionSubsystem] Joining session at index %d..."), SessionIndex);
 
 	// Set up join session delegate
 	JoinSessionCompleteDelegateHandle = SessionInterface->AddOnJoinSessionCompleteDelegate_Handle(
@@ -124,7 +125,7 @@ void USessionSubsystem::JoinSessionByIndex(int32 SessionIndex)
 	const ULocalPlayer* LocalPlayer = GetWorld()->GetFirstLocalPlayerFromController();
 	if (!SessionInterface->JoinSession(*LocalPlayer->GetPreferredUniqueNetId(), SESSION_NAME, SessionSearch->SearchResults[SessionIndex]))
 	{
-		UE_LOG(LogTemp, Error, TEXT("[SessionSubsystem] Failed to join session"));
+		LOG_NETWORK(Error, TEXT("[SessionSubsystem] Failed to join session"));
 		SessionInterface->ClearOnJoinSessionCompleteDelegate_Handle(JoinSessionCompleteDelegateHandle);
 		OnJoinSessionCompleteEvent.Broadcast(SESSION_NAME, static_cast<int32>(EOnJoinSessionCompleteResult::UnknownError));
 	}
@@ -134,7 +135,7 @@ void USessionSubsystem::DestroySession()
 {
 	if (!SessionInterface.IsValid())
 	{
-		UE_LOG(LogTemp, Error, TEXT("[SessionSubsystem] Cannot destroy session - SessionInterface is invalid"));
+		LOG_NETWORK(Error, TEXT("[SessionSubsystem] Cannot destroy session - SessionInterface is invalid"));
 		OnDestroySessionCompleteEvent.Broadcast(SESSION_NAME, false);
 		return;
 	}
@@ -143,13 +144,13 @@ void USessionSubsystem::DestroySession()
 
 	if (!SessionInterface->DestroySession(SESSION_NAME))
 	{
-		UE_LOG(LogTemp, Error, TEXT("[SessionSubsystem] Failed to destroy session"));
+		LOG_NETWORK(Error, TEXT("[SessionSubsystem] Failed to destroy session"));
 		SessionInterface->ClearOnDestroySessionCompleteDelegate_Handle(DestroySessionCompleteDelegateHandle);
 		OnDestroySessionCompleteEvent.Broadcast(SESSION_NAME, false);
 	}
 	else
 	{
-		UE_LOG(LogTemp, Warning, TEXT("[SessionSubsystem] Destroying session..."));
+		LOG_NETWORK(Warn, TEXT("[SessionSubsystem] Destroying session..."));
 	}
 }
 
@@ -157,7 +158,7 @@ void USessionSubsystem::StartSession()
 {
 	if (!SessionInterface.IsValid())
 	{
-		UE_LOG(LogTemp, Error, TEXT("[SessionSubsystem] Cannot start session - SessionInterface is invalid"));
+		LOG_NETWORK(Error, TEXT("[SessionSubsystem] Cannot start session - SessionInterface is invalid"));
 		OnStartSessionCompleteEvent.Broadcast(SESSION_NAME, false);
 		return;
 	}
@@ -166,13 +167,13 @@ void USessionSubsystem::StartSession()
 
 	if (!SessionInterface->StartSession(SESSION_NAME))
 	{
-		UE_LOG(LogTemp, Error, TEXT("[SessionSubsystem] Failed to start session"));
+		LOG_NETWORK(Error, TEXT("[SessionSubsystem] Failed to start session"));
 		SessionInterface->ClearOnStartSessionCompleteDelegate_Handle(StartSessionCompleteDelegateHandle);
 		OnStartSessionCompleteEvent.Broadcast(SESSION_NAME, false);
 	}
 	else
 	{
-		UE_LOG(LogTemp, Warning, TEXT("[SessionSubsystem] Starting session..."));
+		LOG_NETWORK(Warn, TEXT("[SessionSubsystem] Starting session..."));
 	}
 }
 
@@ -232,7 +233,7 @@ FString USessionSubsystem::GetSessionInfo(int32 SessionIndex) const
 // Callbacks
 void USessionSubsystem::OnCreateSessionComplete(FName SessionName, bool bWasSuccessful)
 {
-	UE_LOG(LogTemp, Warning, TEXT("[SessionSubsystem] Create session complete: %s"), bWasSuccessful ? TEXT("Success") : TEXT("Failed"));
+	LOG_NETWORK(Warn, TEXT("[SessionSubsystem] Create session complete: %s"), bWasSuccessful ? TEXT("Success") : TEXT("Failed"));
 	
 	SessionInterface->ClearOnCreateSessionCompleteDelegate_Handle(CreateSessionCompleteDelegateHandle);
 	OnCreateSessionCompleteEvent.Broadcast(SessionName, bWasSuccessful);
@@ -240,13 +241,13 @@ void USessionSubsystem::OnCreateSessionComplete(FName SessionName, bool bWasSucc
 
 void USessionSubsystem::OnFindSessionsComplete(bool bWasSuccessful)
 {
-	UE_LOG(LogTemp, Warning, TEXT("[SessionSubsystem] Find sessions complete: %s"), bWasSuccessful ? TEXT("Success") : TEXT("Failed"));
+	LOG_NETWORK(Warn, TEXT("[SessionSubsystem] Find sessions complete: %s"), bWasSuccessful ? TEXT("Success") : TEXT("Failed"));
 	
 	SessionInterface->ClearOnFindSessionsCompleteDelegate_Handle(FindSessionsCompleteDelegateHandle);
 	
 	if (bWasSuccessful && SessionSearch.IsValid())
 	{
-		UE_LOG(LogTemp, Warning, TEXT("[SessionSubsystem] Found %d sessions"), SessionSearch->SearchResults.Num());
+		LOG_NETWORK(Warn, TEXT("[SessionSubsystem] Found %d sessions"), SessionSearch->SearchResults.Num());
 		
 		// Log session details for debugging
 		for (int32 i = 0; i < SessionSearch->SearchResults.Num(); i++)
@@ -260,7 +261,7 @@ void USessionSubsystem::OnFindSessionsComplete(bool bWasSuccessful)
 				FString MapName;
 				SearchResult.Session.SessionSettings.Get(FName("MapName"), MapName);
 				
-				UE_LOG(LogTemp, Warning, TEXT("[SessionSubsystem] Session %d: %s - Map: %s - Players: %d/%d"), 
+				LOG_NETWORK(Warn, TEXT("[SessionSubsystem] Session %d: %s - Map: %s - Players: %d/%d"), 
 					i, *SessionName, *MapName, 
 					SearchResult.Session.SessionSettings.NumPublicConnections - SearchResult.Session.NumOpenPublicConnections,
 					SearchResult.Session.SessionSettings.NumPublicConnections);
@@ -273,7 +274,7 @@ void USessionSubsystem::OnFindSessionsComplete(bool bWasSuccessful)
 
 void USessionSubsystem::OnJoinSessionComplete(FName SessionName, EOnJoinSessionCompleteResult::Type Result)
 {
-	UE_LOG(LogTemp, Warning, TEXT("[SessionSubsystem] Join session complete: %s"), Result == EOnJoinSessionCompleteResult::Success ? TEXT("Success") : TEXT("Failed"));
+	LOG_NETWORK(Warn, TEXT("[SessionSubsystem] Join session complete: %s"), Result == EOnJoinSessionCompleteResult::Success ? TEXT("Success") : TEXT("Failed"));
 	
 	SessionInterface->ClearOnJoinSessionCompleteDelegate_Handle(JoinSessionCompleteDelegateHandle);
 	
@@ -283,18 +284,18 @@ void USessionSubsystem::OnJoinSessionComplete(FName SessionName, EOnJoinSessionC
 		FString ConnectionString;
 		if (SessionInterface->GetResolvedConnectString(SessionName, ConnectionString))
 		{
-			UE_LOG(LogTemp, Warning, TEXT("[SessionSubsystem] Got connection string: %s"), *ConnectionString);
+			LOG_NETWORK(Warn, TEXT("[SessionSubsystem] Got connection string: %s"), *ConnectionString);
 			
 			// Travel to the session
 			if (APlayerController* PlayerController = GetWorld()->GetFirstPlayerController())
 			{
 				PlayerController->ClientTravel(ConnectionString, ETravelType::TRAVEL_Absolute);
-				UE_LOG(LogTemp, Warning, TEXT("[SessionSubsystem] Traveling to session..."));
+				LOG_NETWORK(Warn, TEXT("[SessionSubsystem] Traveling to session..."));
 			}
 		}
 		else
 		{
-			UE_LOG(LogTemp, Error, TEXT("[SessionSubsystem] Failed to get connection string"));
+			LOG_NETWORK(Error, TEXT("[SessionSubsystem] Failed to get connection string"));
 		}
 	}
 	
@@ -303,7 +304,7 @@ void USessionSubsystem::OnJoinSessionComplete(FName SessionName, EOnJoinSessionC
 
 void USessionSubsystem::OnDestroySessionComplete(FName SessionName, bool bWasSuccessful)
 {
-	UE_LOG(LogTemp, Warning, TEXT("[SessionSubsystem] Destroy session complete: %s"), bWasSuccessful ? TEXT("Success") : TEXT("Failed"));
+	LOG_NETWORK(Warn, TEXT("[SessionSubsystem] Destroy session complete: %s"), bWasSuccessful ? TEXT("Success") : TEXT("Failed"));
 	
 	SessionInterface->ClearOnDestroySessionCompleteDelegate_Handle(DestroySessionCompleteDelegateHandle);
 	OnDestroySessionCompleteEvent.Broadcast(SessionName, bWasSuccessful);
@@ -311,7 +312,7 @@ void USessionSubsystem::OnDestroySessionComplete(FName SessionName, bool bWasSuc
 
 void USessionSubsystem::OnStartSessionComplete(FName SessionName, bool bWasSuccessful)
 {
-	UE_LOG(LogTemp, Warning, TEXT("[SessionSubsystem] Start session complete: %s"), bWasSuccessful ? TEXT("Success") : TEXT("Failed"));
+	LOG_NETWORK(Warn, TEXT("[SessionSubsystem] Start session complete: %s"), bWasSuccessful ? TEXT("Success") : TEXT("Failed"));
 	
 	SessionInterface->ClearOnStartSessionCompleteDelegate_Handle(StartSessionCompleteDelegateHandle);
 	OnStartSessionCompleteEvent.Broadcast(SessionName, bWasSuccessful);

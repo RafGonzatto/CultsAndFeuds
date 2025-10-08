@@ -1,4 +1,5 @@
 #include "World/Common/GameModes/MainMenuGameMode.h"
+#include "Logging/VazioLogFacade.h"
 #include "World/Common/Player/MainMenuPlayerController.h"
 #include "Kismet/GameplayStatics.h"
 #include "TimerManager.h"
@@ -8,7 +9,7 @@
 #include "Engine/StaticMeshActor.h"
 #include "Components/StaticMeshComponent.h"
 #include "Camera/PlayerCameraManager.h"
-#include "Atmosphere/AtmosphericFog.h"
+#include "UObject/UObjectGlobals.h"
 #include "Engine/ExponentialHeightFog.h"
 #include "Components/ExponentialHeightFogComponent.h"
 
@@ -28,7 +29,7 @@ void AMainMenuGameMode::BeginPlay()
     
     // UI é criada no PlayerController local
 
-    UE_LOG(LogTemp, Log, TEXT("[MainMenu] Main Menu initialized successfully"));
+    LOG_UI(Info, TEXT("[MainMenu] Main Menu initialized successfully"));
 }
 
 
@@ -40,11 +41,13 @@ void AMainMenuGameMode::CreateMenuCamera()
         return;
     }
 
-    // 1. Criar Atmospheric Fog para iluminação ambiente (Sky Atmosphere)
-    AAtmosphericFog* AtmosFog = World->SpawnActor<AAtmosphericFog>();
-    if (AtmosFog)
+    // 1. Criar Sky Atmosphere moderno para iluminação ambiente
+    if (UClass* SkyAtmosClass = StaticLoadClass(AActor::StaticClass(), nullptr, TEXT("/Script/Engine.SkyAtmosphere")))
     {
-        UE_LOG(LogTemp, Warning, TEXT("[MainMenu] Atmospheric Fog created"));
+        if (AActor* SkyAtmos = World->SpawnActor<AActor>(SkyAtmosClass))
+        {
+            LOG_UI(Info, TEXT("[MainMenu] SkyAtmosphere created"));
+        }
     }
     
     // 2. Criar Exponential Height Fog para profundidade
@@ -55,7 +58,7 @@ void AMainMenuGameMode::CreateMenuCamera()
         {
             FogComp->SetFogDensity(0.002f);
         }
-        UE_LOG(LogTemp, Warning, TEXT("[MainMenu] Exponential Height Fog created"));
+    LOG_UI(Warn, TEXT("[MainMenu] Exponential Height Fog created"));
     }
     
     // 3. Criar luz direcional para iluminar a cena
@@ -63,7 +66,7 @@ void AMainMenuGameMode::CreateMenuCamera()
     if (Light)
     {
         Light->SetBrightness(10.0f); // Aumentando o brilho
-        UE_LOG(LogTemp, Warning, TEXT("[MainMenu] Directional light created with brightness 10"));
+    LOG_UI(Warn, TEXT("[MainMenu] Directional light created with brightness 10"));
     }
 
     // 4. Spawnar cubo com material colorido PRIMEIRO (antes da câmera)
@@ -87,7 +90,7 @@ void AMainMenuGameMode::CreateMenuCamera()
                 {
                     DynMat->SetVectorParameterValue(FName("Color"), FLinearColor(1.0f, 0.3f, 0.3f, 1.0f)); // Vermelho
                     TestCube->GetStaticMeshComponent()->SetMaterial(0, DynMat);
-                    UE_LOG(LogTemp, Warning, TEXT("[MainMenu] Test cube at (%.1f, %.1f, %.1f) with RED material created!"),
+                    LOG_UI(Warn, TEXT("[MainMenu] Test cube at (%.1f, %.1f, %.1f) with RED material created!"),
                         CubeLocation.X, CubeLocation.Y, CubeLocation.Z);
                 }
             }
@@ -106,7 +109,7 @@ void AMainMenuGameMode::CreateMenuCamera()
         if (PC)
         {
             PC->SetViewTargetWithBlend(Cast<AActor>(MenuCamera), 0.f);
-            UE_LOG(LogTemp, Warning, TEXT("[MainMenu] Camera at (%.1f, %.1f, %.1f) looking at cube at (%.1f, %.1f, %.1f)"), 
+            LOG_UI(Warn, TEXT("[MainMenu] Camera at (%.1f, %.1f, %.1f) looking at cube at (%.1f, %.1f, %.1f)"),
                 CameraLocation.X, CameraLocation.Y, CameraLocation.Z, CubeLocation.X, CubeLocation.Y, CubeLocation.Z);
         }
     }

@@ -1,4 +1,5 @@
 #include "Multiplayer/SteamMultiplayerSubsystem.h"
+#include "Logging/VazioLogFacade.h"
 #include "Engine/Engine.h"
 #include "Kismet/GameplayStatics.h"
 #include "Steam/SteamAPIWrapper.h"
@@ -16,12 +17,12 @@ void USteamMultiplayerSubsystem::Initialize(FSubsystemCollectionBase& Collection
     bIsSessionActive = false;
     CurrentMaxPlayers = 4;
     
-    UE_LOG(LogTemp, Warning, TEXT("[SteamSubsystem] Initialized"));
+    LOG_NETWORK(Warn, TEXT("[SteamSubsystem] Initialized"));
 }
 
 void USteamMultiplayerSubsystem::Deinitialize()
 {
-    UE_LOG(LogTemp, Warning, TEXT("[SteamSubsystem] Shutting down"));
+    LOG_NETWORK(Warn, TEXT("[SteamSubsystem] Shutting down"));
     
     // Clean up any active sessions
     if (bIsSessionActive)
@@ -34,7 +35,7 @@ void USteamMultiplayerSubsystem::Deinitialize()
 
 void USteamMultiplayerSubsystem::InitializeSteam()
 {
-    UE_LOG(LogTemp, Warning, TEXT("[SteamSubsystem] Attempting to initialize Steam..."));
+    LOG_NETWORK(Warn, TEXT("[SteamSubsystem] Attempting to initialize Steam..."));
     
     // Use real Steam API through SteamAPIWrapper
     bool bSteamInitSuccess = SteamAPIWrapper::Initialize();
@@ -50,7 +51,7 @@ void USteamMultiplayerSubsystem::InitializeSteam()
             PlayerSteamName = SteamAPIWrapper::GetPlayerName();
             PlayerSteamID = FString::Printf(TEXT("%llu"), SteamAPIWrapper::GetSteamID());
             
-            UE_LOG(LogTemp, Warning, TEXT("[SteamSubsystem] REAL STEAM MODE - Player: %s (%s)"), 
+         LOG_NETWORK(Warn, TEXT("[SteamSubsystem] REAL STEAM MODE - Player: %s (%s)"), 
                    *PlayerSteamName, *PlayerSteamID);
             
             OnSteamAuthComplete.Broadcast(true);
@@ -61,7 +62,7 @@ void USteamMultiplayerSubsystem::InitializeSteam()
         else
         {
             // Development mode - Steam API available but not logged in or not launched through Steam
-            UE_LOG(LogTemp, Warning, TEXT("[SteamSubsystem] DEVELOPMENT MODE - Using enhanced placeholder data"));
+            LOG_NETWORK(Warn, TEXT("[SteamSubsystem] DEVELOPMENT MODE - Using enhanced placeholder data"));
             InitializePlaceholderData();
             bIsSteamInitialized = true;
             
@@ -73,10 +74,10 @@ void USteamMultiplayerSubsystem::InitializeSteam()
     }
     else
     {
-        UE_LOG(LogTemp, Error, TEXT("[SteamSubsystem] Steam API completely unavailable"));
+    LOG_NETWORK(Error, TEXT("[SteamSubsystem] Steam API completely unavailable"));
         
         // Fallback to placeholder data for testing
-        UE_LOG(LogTemp, Warning, TEXT("[SteamSubsystem] Using basic placeholder data"));
+    LOG_NETWORK(Warn, TEXT("[SteamSubsystem] Using basic placeholder data"));
         InitializePlaceholderData();
         bIsSteamInitialized = true;
         
@@ -87,12 +88,12 @@ void USteamMultiplayerSubsystem::InitializeSteam()
 void USteamMultiplayerSubsystem::RefreshFriendsList()
 {
     if (!bIsSteamInitialized)
-    {
-        UE_LOG(LogTemp, Warning, TEXT("[SteamSubsystem] Cannot refresh friends list - Steam not initialized"));
-        return;
-    }
+        {
+            LOG_NETWORK(Warn, TEXT("[SteamSubsystem] Cannot refresh friends list - Steam not initialized"));
+            return;
+        }
     
-    UE_LOG(LogTemp, Warning, TEXT("[SteamSubsystem] Refreshing friends list..."));
+    LOG_NETWORK(Warn, TEXT("[SteamSubsystem] Refreshing friends list..."));
     
     FriendsList.Empty();
     
@@ -101,12 +102,12 @@ void USteamMultiplayerSubsystem::RefreshFriendsList()
     if (SteamAPIWrapper::TryGetRealSteamFriends(RealFriends))
     {
         FriendsList = RealFriends;
-        UE_LOG(LogTemp, Warning, TEXT("[SteamSubsystem] ✅ REAL STEAM FRIENDS loaded - %d friends found"), FriendsList.Num());
+            LOG_NETWORK(Warn, TEXT("[SteamSubsystem] ✅ REAL STEAM FRIENDS loaded - %d friends found"), FriendsList.Num());
         
         // Log each friend for debugging
         for (const FSteamFriend& Friend : FriendsList)
         {
-            UE_LOG(LogTemp, Warning, TEXT("[SteamSubsystem] 👤 %s - %s - %s"), 
+                LOG_NETWORK(Warn, TEXT("[SteamSubsystem] 👤 %s - %s - %s"), 
                    *Friend.DisplayName, 
                    Friend.bIsOnline ? TEXT("🟢 Online") : TEXT("⚫ Offline"),
                    Friend.bIsInGame ? TEXT("🎮 In Game") : TEXT("💬 Available"));
@@ -115,13 +116,13 @@ void USteamMultiplayerSubsystem::RefreshFriendsList()
     else
     {
         // Fallback to placeholder data for development/testing
-        UE_LOG(LogTemp, Warning, TEXT("[SteamSubsystem] Steam not available - using placeholder friends list"));
+            LOG_NETWORK(Warn, TEXT("[SteamSubsystem] Steam not available - using placeholder friends list"));
         UpdatePlaceholderFriends();
     }
     
     OnFriendsListUpdated.Broadcast(FriendsList);
     
-    UE_LOG(LogTemp, Warning, TEXT("[SteamSubsystem] Friends list updated - %d friends found"), FriendsList.Num());
+    LOG_NETWORK(Warn, TEXT("[SteamSubsystem] Friends list updated - %d friends found"), FriendsList.Num());
 }
 
 TArray<FSteamFriend> USteamMultiplayerSubsystem::GetOnlineFriends() const
@@ -143,11 +144,11 @@ void USteamMultiplayerSubsystem::CreateMultiplayerSession(const FString& Session
 {
     if (!bIsSteamInitialized)
     {
-        UE_LOG(LogTemp, Warning, TEXT("[SteamSubsystem] Cannot create session - Steam not initialized"));
+    LOG_NETWORK(Warn, TEXT("[SteamSubsystem] Cannot create session - Steam not initialized"));
         return;
     }
     
-    UE_LOG(LogTemp, Warning, TEXT("[SteamSubsystem] Creating multiplayer session: %s (Max Players: %d)"), *SessionName, MaxPlayers);
+    LOG_NETWORK(Warn, TEXT("[SteamSubsystem] Creating multiplayer session: %s (Max Players: %d)"), *SessionName, MaxPlayers);
     
     CurrentSessionName = SessionName;
     CurrentMaxPlayers = MaxPlayers;
@@ -155,14 +156,14 @@ void USteamMultiplayerSubsystem::CreateMultiplayerSession(const FString& Session
     
     // TODO: Implement actual Steam session creation
     // For now, just log the creation
-    UE_LOG(LogTemp, Warning, TEXT("[SteamSubsystem] Session created successfully (placeholder)"));
+    LOG_NETWORK(Warn, TEXT("[SteamSubsystem] Session created successfully (placeholder)"));
 }
 
 void USteamMultiplayerSubsystem::InviteFriendToSession(const FString& FriendSteamID)
 {
     if (!bIsSteamInitialized || !bIsSessionActive)
     {
-        UE_LOG(LogTemp, Warning, TEXT("[SteamSubsystem] Cannot invite friend - Steam not initialized or no active session"));
+    LOG_NETWORK(Warn, TEXT("[SteamSubsystem] Cannot invite friend - Steam not initialized or no active session"));
         OnSessionInviteSent.Broadcast(TEXT("Unknown"), false);
         return;
     }
@@ -178,7 +179,7 @@ void USteamMultiplayerSubsystem::InviteFriendToSession(const FString& FriendStea
         }
     }
     
-    UE_LOG(LogTemp, Warning, TEXT("[SteamSubsystem] Inviting friend %s (%s) to session"), *FriendName, *FriendSteamID);
+    LOG_NETWORK(Warn, TEXT("[SteamSubsystem] Inviting friend %s (%s) to session"), *FriendName, *FriendSteamID);
     
 #ifdef STEAM_SDK_AVAILABLE
     if (SteamAPIWrapper::IsLoggedIn())
@@ -197,24 +198,24 @@ void USteamMultiplayerSubsystem::InviteFriendToSession(const FString& FriendStea
                 
                 if (bInviteResult)
                 {
-                    UE_LOG(LogTemp, Warning, TEXT("[SteamSubsystem] Steam invite sent successfully to %s"), *FriendName);
+                    LOG_NETWORK(Warn, TEXT("[SteamSubsystem] Steam invite sent successfully to %s"), *FriendName);
                     OnSessionInviteSent.Broadcast(FriendName, true);
                 }
                 else
                 {
-                    UE_LOG(LogTemp, Error, TEXT("[SteamSubsystem] Failed to send Steam invite to %s"), *FriendName);
+                    LOG_NETWORK(Error, TEXT("[SteamSubsystem] Failed to send Steam invite to %s"), *FriendName);
                     OnSessionInviteSent.Broadcast(FriendName, false);
                 }
             }
             else
             {
-                UE_LOG(LogTemp, Error, TEXT("[SteamSubsystem] Invalid Steam ID: %s"), *FriendSteamID);
+                LOG_NETWORK(Error, TEXT("[SteamSubsystem] Invalid Steam ID: %s"), *FriendSteamID);
                 OnSessionInviteSent.Broadcast(FriendName, false);
             }
         }
         else
         {
-            UE_LOG(LogTemp, Error, TEXT("[SteamSubsystem] Steam Friends interface not available"));
+            LOG_NETWORK(Error, TEXT("[SteamSubsystem] Steam Friends interface not available"));
             OnSessionInviteSent.Broadcast(FriendName, false);
         }
     }
@@ -222,7 +223,7 @@ void USteamMultiplayerSubsystem::InviteFriendToSession(const FString& FriendStea
 #endif
     {
         // Fallback for development/testing
-        UE_LOG(LogTemp, Warning, TEXT("[SteamSubsystem] Simulating invite to %s (development mode)"), *FriendName);
+    LOG_NETWORK(Warn, TEXT("[SteamSubsystem] Simulating invite to %s (development mode)"), *FriendName);
         OnSessionInviteSent.Broadcast(FriendName, true);
     }
 }
@@ -231,11 +232,11 @@ void USteamMultiplayerSubsystem::JoinFriendSession(const FString& FriendSteamID)
 {
     if (!bIsSteamInitialized)
     {
-        UE_LOG(LogTemp, Warning, TEXT("[SteamSubsystem] Cannot join friend session - Steam not initialized"));
+    LOG_NETWORK(Warn, TEXT("[SteamSubsystem] Cannot join friend session - Steam not initialized"));
         return;
     }
     
-    UE_LOG(LogTemp, Warning, TEXT("[SteamSubsystem] Attempting to join friend's session: %s"), *FriendSteamID);
+    LOG_NETWORK(Warn, TEXT("[SteamSubsystem] Attempting to join friend's session: %s"), *FriendSteamID);
     
 #ifdef STEAM_SDK_AVAILABLE
     if (SteamAPIWrapper::IsLoggedIn())
@@ -254,40 +255,40 @@ void USteamMultiplayerSubsystem::JoinFriendSession(const FString& FriendSteamID)
                 if (SteamFriendsAPI->GetFriendGamePlayed(FriendID, &GameInfo) && GameInfo.m_gameID.IsValid())
                 {
                     // Friend is in a game, try to join
-                    UE_LOG(LogTemp, Warning, TEXT("[SteamSubsystem] Friend is in game, attempting to join..."));
+                    LOG_NETWORK(Warn, TEXT("[SteamSubsystem] Friend is in game, attempting to join..."));
                     
                     // This would typically trigger the OnlineSubsystem to handle the actual connection
                     // For now, we'll use the SessionSubsystem to handle the join
-                    if (USessionSubsystem* SessionSubsystem = GetWorld()->GetGameInstance()->GetSubsystem<USessionSubsystem>())
-                    {
-                        // In a real implementation, we'd get session info from Steam and join
-                        // For now, simulate a join attempt
-                        UE_LOG(LogTemp, Warning, TEXT("[SteamSubsystem] Triggering session join via SessionSubsystem"));
+                        if (USessionSubsystem* SessionSubsystem = GetWorld()->GetGameInstance()->GetSubsystem<USessionSubsystem>())
+                        {
+                            // In a real implementation, we'd get session info from Steam and join
+                            // For now, simulate a join attempt
+                            LOG_NETWORK(Warn, TEXT("[SteamSubsystem] Triggering session join via SessionSubsystem"));
                         // SessionSubsystem->JoinSessionByIndex(0); // This would be the real call
                     }
                     
-                    UE_LOG(LogTemp, Warning, TEXT("[SteamSubsystem] Join friend session initiated"));
+                    LOG_NETWORK(Warn, TEXT("[SteamSubsystem] Join friend session initiated"));
                 }
                 else
                 {
-                    UE_LOG(LogTemp, Warning, TEXT("[SteamSubsystem] Friend is not currently in a game"));
+                    LOG_NETWORK(Warn, TEXT("[SteamSubsystem] Friend is not currently in a game"));
                 }
             }
             else
             {
-                UE_LOG(LogTemp, Error, TEXT("[SteamSubsystem] Invalid Steam ID: %s"), *FriendSteamID);
+                LOG_NETWORK(Error, TEXT("[SteamSubsystem] Invalid Steam ID: %s"), *FriendSteamID);
             }
         }
         else
         {
-            UE_LOG(LogTemp, Error, TEXT("[SteamSubsystem] Steam Friends interface not available"));
+            LOG_NETWORK(Error, TEXT("[SteamSubsystem] Steam Friends interface not available"));
         }
     }
     else
 #endif
     {
         // Fallback for development/testing
-        UE_LOG(LogTemp, Warning, TEXT("[SteamSubsystem] Simulating join friend session (development mode)"));
+    LOG_NETWORK(Warn, TEXT("[SteamSubsystem] Simulating join friend session (development mode)"));
     }
 }
 
@@ -298,7 +299,7 @@ void USteamMultiplayerSubsystem::InitializePlaceholderData()
     {
         PlayerSteamName = SteamAPIWrapper::GetPlayerName();
         PlayerSteamID = FString::Printf(TEXT("%llu"), SteamAPIWrapper::GetSteamID());
-        UE_LOG(LogTemp, Warning, TEXT("[SteamSubsystem] Using real Steam data - Player: %s (%s)"), *PlayerSteamName, *PlayerSteamID);
+    LOG_NETWORK(Warn, TEXT("[SteamSubsystem] Using real Steam data - Player: %s (%s)"), *PlayerSteamName, *PlayerSteamID);
     }
     else
     {
@@ -316,7 +317,7 @@ void USteamMultiplayerSubsystem::InitializePlaceholderData()
             }
         }
         
-        UE_LOG(LogTemp, Warning, TEXT("[SteamSubsystem] Using placeholder data - Player: %s (%s)"), *PlayerSteamName, *PlayerSteamID);
+    LOG_NETWORK(Warn, TEXT("[SteamSubsystem] Using placeholder data - Player: %s (%s)"), *PlayerSteamName, *PlayerSteamID);
     }
 }
 
@@ -345,5 +346,5 @@ void USteamMultiplayerSubsystem::UpdatePlaceholderFriends()
         }
     }
     
-    UE_LOG(LogTemp, Warning, TEXT("[SteamSubsystem] Updated placeholder friends list with %d friends"), FriendsList.Num());
+    LOG_NETWORK(Warn, TEXT("[SteamSubsystem] Updated placeholder friends list with %d friends"), FriendsList.Num());
 }

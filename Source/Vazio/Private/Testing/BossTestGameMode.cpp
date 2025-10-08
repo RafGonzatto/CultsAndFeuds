@@ -3,20 +3,21 @@
 #include "Testing/BossAutoTestSubsystem.h"
 #include "Engine/World.h"
 #include "Engine/Engine.h"
+#include "Logging/VazioLogFacade.h"
 
 ABossTestGameMode::ABossTestGameMode()
 {
     // Definir o PlayerController customizado para testes
     PlayerControllerClass = ABossTestPlayerController::StaticClass();
     
-    UE_LOG(LogTemp, Log, TEXT("BossTestGameMode initialized with BossTestPlayerController"));
+    LOG_ENEMIES(Info, TEXT("BossTestGameMode initialized with BossTestPlayerController"));
 }
 
 void ABossTestGameMode::InitGame(const FString& MapName, const FString& Options, FString& ErrorMessage)
 {
     Super::InitGame(MapName, Options, ErrorMessage);
     
-    UE_LOG(LogTemp, Log, TEXT("BossTestGameMode: InitGame called for map: %s"), *MapName);
+    LOG_ENEMIES(Info, TEXT("BossTestGameMode: InitGame called for map: %s"), *MapName);
 }
 
 void ABossTestGameMode::BeginPlay()
@@ -31,7 +32,7 @@ void ABossTestGameMode::SetupBossTestingEnvironment()
     // Verificar se o BossAutoTestSubsystem está disponível
     if (UBossAutoTestSubsystem* BossTestSystem = GetWorld()->GetSubsystem<UBossAutoTestSubsystem>())
     {
-        UE_LOG(LogTemp, Log, TEXT("Boss testing environment setup complete"));
+    LOG_ENEMIES(Info, TEXT("Boss testing environment setup complete"));
         
         if (GEngine)
         {
@@ -57,6 +58,6 @@ void ABossTestGameMode::SetupBossTestingEnvironment()
     }
     else
     {
-        UE_LOG(LogTemp, Error, TEXT("Failed to find BossAutoTestSubsystem"));
+    LOG_ENEMIES(Error, TEXT("Failed to find BossAutoTestSubsystem"));
     }
 }

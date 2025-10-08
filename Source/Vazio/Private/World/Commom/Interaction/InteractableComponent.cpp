@@ -1,4 +1,5 @@
 #include "World/Commom/Interaction/InteractableComponent.h"
+#include "Logging/VazioLogFacade.h"
 #include "Components/WidgetComponent.h"
 #include "Components/PrimitiveComponent.h"
 #include "Blueprint/UserWidget.h"
@@ -71,7 +72,7 @@ void UInteractableComponent::OnRegister()
             PromptWidgetComponent->SetDrawSize(PromptScreenSize);
             UpdatePromptTransform();
             // escala não se aplica em Screen Space
-            UE_LOG(LogTemp, Warning, TEXT("[Interactable] Prompt widget created for %s (class=%s)"), *GetOwner()->GetName(), *PromptClass->GetName());
+            LOG_UI(Warn, TEXT("[Interactable] Prompt widget created for %s (class=%s)"), *GetOwner()->GetName(), *PromptClass->GetName());
         }
     }
 }
@@ -111,12 +112,12 @@ void UInteractableComponent::ShowPrompt(bool bShow)
         {
             PromptWidgetComponent->SetVisibility(bShow);
             PromptWidgetComponent->SetHiddenInGame(!bShow);
-            UE_LOG(LogTemp, Warning, TEXT("[Interactable] Prompt %s for %s"), bShow ? TEXT("VISIBLE") : TEXT("HIDDEN"), *GetOwner()->GetName());
+            LOG_UI(Warn, TEXT("[Interactable] Prompt %s for %s"), bShow ? TEXT("VISIBLE") : TEXT("HIDDEN"), *GetOwner()->GetName());
         }
     }
     else
     {
-        UE_LOG(LogTemp, Warning, TEXT("[Interactable] ShowPrompt(%s) called but PromptWidgetComponent is NULL on %s"), bShow ? TEXT("true") : TEXT("false"), *GetOwner()->GetName());
+    LOG_UI(Warn, TEXT("[Interactable] ShowPrompt(%s) called but PromptWidgetComponent is NULL on %s"), bShow ? TEXT("true") : TEXT("false"), *GetOwner()->GetName());
     }
 }
 
@@ -124,7 +125,7 @@ void UInteractableComponent::OnPawnBeginOverlap(UPrimitiveComponent* OverlappedC
 {
     if (OtherActor && OtherActor->IsA<APawn>())
     {
-        UE_LOG(LogTemp, Warning, TEXT("[Interactable] Pawn entered radius of %s"), *GetOwner()->GetName());
+    LOG_UI(Warn, TEXT("[Interactable] Pawn entered radius of %s"), *GetOwner()->GetName());
         ShowPrompt(true);
     }
 }
@@ -133,7 +134,7 @@ void UInteractableComponent::OnPawnEndOverlap(UPrimitiveComponent* OverlappedCom
 {
     if (OtherActor && OtherActor->IsA<APawn>())
     {
-        UE_LOG(LogTemp, Warning, TEXT("[Interactable] Pawn left radius of %s"), *GetOwner()->GetName());
+    LOG_UI(Warn, TEXT("[Interactable] Pawn left radius of %s"), *GetOwner()->GetName());
         ShowPrompt(false);
     }
 }
@@ -151,7 +152,7 @@ void UInteractableComponent::DisablePlayerInputForModal(APlayerController* PC)
     Mode.SetLockMouseToViewportBehavior(EMouseLockMode::DoNotLock);
     PC->SetInputMode(Mode);
     PC->bShowMouseCursor = true;
-    UE_LOG(LogTemp, Warning, TEXT("[Interactable] Input disabled for modal (PC=%s)"), *PC->GetName());
+    LOG_UI(Warn, TEXT("[Interactable] Input disabled for modal (PC=%s)"), *PC->GetName());
 }
 
 void UInteractableComponent::RestorePlayerInput(APlayerController* PC)
@@ -164,7 +165,7 @@ void UInteractableComponent::RestorePlayerInput(APlayerController* PC)
     FInputModeGameOnly Mode;
     PC->SetInputMode(Mode);
     PC->bShowMouseCursor = false;
-    UE_LOG(LogTemp, Warning, TEXT("[Interactable] Input restored after modal (PC=%s)"), *PC->GetName());
+    LOG_UI(Warn, TEXT("[Interactable] Input restored after modal (PC=%s)"), *PC->GetName());
 }
 
 void UInteractableComponent::OnModalClosed()
@@ -172,7 +173,7 @@ void UInteractableComponent::OnModalClosed()
     ActiveModal = nullptr;
     if (APlayerController* PC = GetWorld() ? GetWorld()->GetFirstPlayerController() : nullptr)
     {
-        UE_LOG(LogTemp, Warning, TEXT("[Interactable] Modal closed for %s"), *GetOwner()->GetName());
+    LOG_UI(Warn, TEXT("[Interactable] Modal closed for %s"), *GetOwner()->GetName());
         // Retornar câmera para o pawn
         if (APawn* Pawn = PC->GetPawn())
         {
@@ -213,11 +214,11 @@ void UInteractableComponent::Interact_Implementation(APlayerController* Interact
 {
     if (!InteractingPC)
     {
-        UE_LOG(LogTemp, Warning, TEXT("[Interactable] Interact called but PC is NULL for %s"), *GetOwner()->GetName());
+    LOG_UI(Warn, TEXT("[Interactable] Interact called but PC is NULL for %s"), *GetOwner()->GetName());
         return;
     }
 
-    UE_LOG(LogTemp, Warning, TEXT("[Interactable] Interact pressed on %s by %s"), *GetOwner()->GetName(), *InteractingPC->GetName());
+    LOG_UI(Warn, TEXT("[Interactable] Interact pressed on %s by %s"), *GetOwner()->GetName(), *InteractingPC->GetName());
 
     // 1) Ativar câmera especial se habilitado e focar no componente correto (este)
     if (bUseCameraFocus)
@@ -250,7 +251,7 @@ void UInteractableComponent::Interact_Implementation(APlayerController* Interact
     TSubclassOf<UUserWidget> ClassToUse = ModalWidgetClass ? TSubclassOf<UUserWidget>(*ModalWidgetClass) : TSubclassOf<UUserWidget>(GetModalClassByTag());
     if (UBaseModalWidget* Modal = CreateWidget<UBaseModalWidget>(InteractingPC, ClassToUse))
     {
-        UE_LOG(LogTemp, Warning, TEXT("[Interactable] Modal created (%s) for %s"), *ClassToUse->GetName(), *GetOwner()->GetName());
+    LOG_UI(Warn, TEXT("[Interactable] Modal created (%s) for %s"), *ClassToUse->GetName(), *GetOwner()->GetName());
         DisablePlayerInputForModal(InteractingPC);
         Modal->OnModalClosed.AddDynamic(this, &UInteractableComponent::OnModalClosed);
         Modal->AddToViewport(1000);
@@ -265,11 +266,11 @@ void UInteractableComponent::Interact_Implementation(APlayerController* Interact
         }
         ShowPrompt(false);
         Modal->FocusFirstWidget();
-        UE_LOG(LogTemp, Warning, TEXT("[Interactable] Modal added to viewport and focused for %s"), *GetOwner()->GetName());
+    LOG_UI(Warn, TEXT("[Interactable] Modal added to viewport and focused for %s"), *GetOwner()->GetName());
     }
     else
     {
-        UE_LOG(LogTemp, Error, TEXT("[Interactable] CreateWidget failed for %s (class=%s)"), *GetOwner()->GetName(), *ClassToUse->GetName());
+    LOG_UI(Error, TEXT("[Interactable] CreateWidget failed for %s (class=%s)"), *GetOwner()->GetName(), *ClassToUse->GetName());
     }
 }
 

@@ -2,6 +2,7 @@
 #include "UI/LevelUp/SUpgradeCard.h"
 #include "Gameplay/Upgrades/UpgradeSystem.h"
 #include "SlateOptMacros.h"
+#include "Logging/VazioLogFacade.h"
 
 BEGIN_SLATE_FUNCTION_BUILD_OPTIMIZATION
 
@@ -65,7 +66,7 @@ void SLevelUpModal::Construct(const FArguments& InArgs)
         ]
     ];
 
-    UE_LOG(LogTemp, Warning, TEXT("LevelUp:UI:SlateModalConstructed"));
+    LOG_UI(Info, TEXT("LevelUp:UI:SlateModalConstructed"));
 }
 
 void SLevelUpModal::SetupUpgrades(const TArray<FUpgradeData>& Upgrades)
@@ -97,7 +98,7 @@ void SLevelUpModal::SetupUpgrades(const TArray<FUpgradeData>& Upgrades)
         SelectCard(0);
     }
 
-    UE_LOG(LogTemp, Warning, TEXT("LevelUp:UI:CardsSetup Count=%d"), Upgrades.Num());
+    LOG_UI(Debug, TEXT("LevelUp:UI:CardsSetup Count=%d"), Upgrades.Num());
 }
 
 void SLevelUpModal::SelectCard(int32 Index)
@@ -117,7 +118,7 @@ void SLevelUpModal::SelectCard(int32 Index)
     SelectedIndex = Index;
     UpgradeCards[SelectedIndex]->SetSelected(true);
     
-    UE_LOG(LogTemp, Warning, TEXT("LevelUp:UI:CardSelected Index=%d"), Index);
+    LOG_UI(Debug, TEXT("LevelUp:UI:CardSelected Index=%d"), Index);
 }
 
 void SLevelUpModal::ConfirmSelection()
@@ -125,7 +126,7 @@ void SLevelUpModal::ConfirmSelection()
     if (SelectedIndex >= 0 && SelectedIndex < CurrentUpgrades.Num())
     {
         EUpgradeType SelectedType = CurrentUpgrades[SelectedIndex].Type;
-        UE_LOG(LogTemp, Warning, TEXT("LevelUp:UI:ConfirmSelection Type=%d"), (int32)SelectedType);
+        LOG_UI(Info, TEXT("LevelUp:UI:ConfirmSelection Type=%d"), (int32)SelectedType);
         
         if (OnUpgradeChosen.IsBound())
         {
@@ -165,7 +166,7 @@ FReply SLevelUpModal::OnKeyDown(const FGeometry& MyGeometry, const FKeyEvent& In
 
 FReply SLevelUpModal::OnFocusReceived(const FGeometry& MyGeometry, const FFocusEvent& InFocusEvent)
 {
-    UE_LOG(LogTemp, Warning, TEXT("LevelUp:UI:FocusReceived"));
+    LOG_UI(Debug, TEXT("LevelUp:UI:FocusReceived"));
     return SCompoundWidget::OnFocusReceived(MyGeometry, InFocusEvent);
 }
 

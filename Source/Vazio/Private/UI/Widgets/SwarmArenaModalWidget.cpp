@@ -5,6 +5,7 @@
 #include "Widgets/Input/SButton.h"
 #include "Widgets/SBoxPanel.h"
 #include "EngineUtils.h"
+#include "Logging/VazioLogFacade.h"
 
 TSharedRef<SWidget> USwarmArenaModalWidget::BuildBody()
 {
@@ -19,7 +20,7 @@ TSharedRef<SWidget> USwarmArenaModalWidget::BuildBody()
         .OnClicked_Lambda([this]()
         {
             // TODO: SwarmGameFlow removed - implement generic level transition
-            UE_LOG(LogTemp, Warning, TEXT("[SwarmArenaModal] Enter Arena clicked - SwarmGameFlow removed"));
+            LOG_UI(Warn, TEXT("[SwarmArenaModal] Enter Arena clicked - SwarmGameFlow removed"));
             
             // Simple level change as fallback
             if (UWorld* World = GetWorld())

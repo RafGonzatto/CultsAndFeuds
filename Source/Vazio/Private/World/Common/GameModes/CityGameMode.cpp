@@ -1,5 +1,6 @@
 // CityGameMode.cpp
 #include "World/Common/GameModes/CityGameMode.h"
+#include "Logging/VazioLogFacade.h"
 #include "World/Common/Player/MyCharacter.h"
 #include "World/Common/Player/MyPlayerController.h"
 
@@ -28,11 +29,11 @@ ACityGameMode::ACityGameMode()
 	if (BPCharClass.Succeeded())
 	{
 		DefaultPawnClass = BPCharClass.Class;
-		UE_LOG(LogTemp, Log, TEXT("[CityGM] DefaultPawnClass = BP_MyCharacter"));
+		LOG_SYSTEMS(Info, TEXT("[CityGM] DefaultPawnClass = BP_MyCharacter"));
 	}
 	else
 	{
-		UE_LOG(LogTemp, Warning, TEXT("[CityGM] BP_MyCharacter nao encontrado. Usando AMyCharacter."));
+		LOG_SYSTEMS(Warn, TEXT("[CityGM] BP_MyCharacter nao encontrado. Usando AMyCharacter."));
 	}
 
 	// Assets básicos do Engine
@@ -42,7 +43,7 @@ ACityGameMode::ACityGameMode()
 	static ConstructorHelpers::FObjectFinder<UMaterialInterface> BasicMatAsset(TEXT("/Engine/BasicShapes/BasicShapeMaterial"));
 	BasicMaterial = BasicMatAsset.Succeeded() ? BasicMatAsset.Object : nullptr;
 
-	UE_LOG(LogTemp, Log, TEXT("[CityGM] Assets: CubeMesh=%s, BasicMaterial=%s"),
+	LOG_SYSTEMS(Info, TEXT("[CityGM] Assets: CubeMesh=%s, BasicMaterial=%s"),
 		CubeMesh ? TEXT("OK") : TEXT("FAIL"),
 		BasicMaterial ? TEXT("OK") : TEXT("FAIL"));
 }
@@ -58,7 +59,7 @@ void ACityGameMode::BeginPlay()
 {
 	Super::BeginPlay();
 
-	UE_LOG(LogTemp, Log, TEXT("[CityGM] BeginPlay. DefaultPawn=%s"),
+	LOG_SYSTEMS(Info, TEXT("[CityGM] BeginPlay. DefaultPawn=%s"),
 		*GetDefaultPawnClassForController(nullptr)->GetName());
 
 	CreatePlayerStartIfNeeded();
@@ -74,7 +75,7 @@ void ACityGameMode::CreateEnvironmentNextTick()
 {
 	CreateBasicLighting();
 	// CreateCityBounds(); // mantido desativado por enquanto
-	UE_LOG(LogTemp, Log, TEXT("[CityGM] Ambiente criado (next tick)."));
+	LOG_SYSTEMS(Info, TEXT("[CityGM] Ambiente criado (next tick)."));
 }
 
 void ACityGameMode::CreatePlayerStartIfNeeded()
@@ -86,7 +87,7 @@ void ACityGameMode::CreatePlayerStartIfNeeded()
 	{
 		if (It->ActorHasTag(GetCitySpawnTag()))
 		{
-			UE_LOG(LogTemp, Log, TEXT("[CityGM] PlayerStart com tag encontrado: %s"), *It->GetName());
+			LOG_SYSTEMS(Info, TEXT("[CityGM] PlayerStart com tag encontrado: %s"), *It->GetName());
 			return;
 		}
 	}
@@ -101,11 +102,11 @@ void ACityGameMode::CreatePlayerStartIfNeeded()
 		PS->SetActorLabel(TEXT("CityPlayerStart"));
 #endif
 		PS->Tags.AddUnique(GetCitySpawnTag());
-		UE_LOG(LogTemp, Log, TEXT("[CityGM] PlayerStart criado em (0,0,150) com tag CitySpawn."));
+		LOG_SYSTEMS(Info, TEXT("[CityGM] PlayerStart criado em (0,0,150) com tag CitySpawn."));
 	}
 	else
 	{
-		UE_LOG(LogTemp, Error, TEXT("[CityGM] Falha ao criar PlayerStart."));
+		LOG_SYSTEMS(Error, TEXT("[CityGM] Falha ao criar PlayerStart."));
 	}
 }
 
@@ -118,7 +119,7 @@ AActor* ACityGameMode::ChoosePlayerStart_Implementation(AController* Player)
 	{
 		if (It->ActorHasTag(GetCitySpawnTag()))
 		{
-			UE_LOG(LogTemp, Log, TEXT("[CityGM] Usando PlayerStart com tag CitySpawn: %s"), *It->GetName());
+			LOG_SYSTEMS(Info, TEXT("[CityGM] Usando PlayerStart com tag CitySpawn: %s"), *It->GetName());
 			return *It;
 		}
 	}
@@ -126,21 +127,21 @@ AActor* ACityGameMode::ChoosePlayerStart_Implementation(AController* Player)
 	// Fallback: qualquer PlayerStart
 	for (TActorIterator<APlayerStart> It(World); It; ++It)
 	{
-		UE_LOG(LogTemp, Warning, TEXT("[CityGM] Usando PlayerStart generico: %s"), *It->GetName());
+		LOG_SYSTEMS(Warn, TEXT("[CityGM] Usando PlayerStart generico: %s"), *It->GetName());
 		return *It;
 	}
 
-	UE_LOG(LogTemp, Error, TEXT("[CityGM] Nenhum PlayerStart encontrado. Retornando Super."));
+	LOG_SYSTEMS(Error, TEXT("[CityGM] Nenhum PlayerStart encontrado. Retornando Super."));
 	return Super::ChoosePlayerStart_Implementation(Player);
 }
 
 void ACityGameMode::CreateCityGround()
 {
-	if (!CubeMesh) { UE_LOG(LogTemp, Error, TEXT("[CityGM] CubeMesh nao carregado.")); return; }
+	if (!CubeMesh) { LOG_SYSTEMS(Error, TEXT("[CityGM] CubeMesh nao carregado.")); return; }
 
 	// 30x30m, fino em Z
 	AStaticMeshActor* Ground = SpawnMeshActor(FVector::ZeroVector, FRotator::ZeroRotator, FVector(30.f, 30.f, 0.2f));
-	if (!Ground) { UE_LOG(LogTemp, Error, TEXT("[CityGM] Falha ao criar Ground.")); return; }
+	if (!Ground) { LOG_SYSTEMS(Error, TEXT("[CityGM] Falha ao criar Ground.")); return; }
 
 	UStaticMeshComponent* Mesh = Ground->GetStaticMeshComponent();
 	// Primeiro mobilidade, depois troca de mesh, para evitar warnings
@@ -153,7 +154,7 @@ void ACityGameMode::CreateCityGround()
 #if WITH_EDITOR
 	Ground->SetActorLabel(TEXT("CityGround"));
 #endif
-	UE_LOG(LogTemp, Log, TEXT("[CityGM] Ground criado 30x30m."));
+	LOG_SYSTEMS(Info, TEXT("[CityGM] Ground criado 30x30m."));
 	CreateReferenceCubes();
 }
 
@@ -187,10 +188,10 @@ void ACityGameMode::CreateReferenceCubes()
 #if WITH_EDITOR
 		Cube->SetActorLabel(*FString::Printf(TEXT("RefCube_%d"), i));
 #endif
-		UE_LOG(LogTemp, Log, TEXT("[CityGM] RefCube_%d criado em %s"), i, *Positions[i].ToString());
+		LOG_SYSTEMS(Info, TEXT("[CityGM] RefCube_%d criado em %s"), i, *Positions[i].ToString());
 	}
 
-	UE_LOG(LogTemp, Log, TEXT("[CityGM] 4 cubos de referencia criados."));
+	LOG_SYSTEMS(Info, TEXT("[CityGM] 4 cubos de referencia criados."));
 }
 
 void ACityGameMode::CreateBasicLighting()
@@ -229,7 +230,7 @@ void ACityGameMode::CreateBasicLighting()
 #endif
 	}
 
-	UE_LOG(LogTemp, Log, TEXT("[CityGM] Iluminacao basica criada."));
+	LOG_SYSTEMS(Info, TEXT("[CityGM] Iluminacao basica criada."));
 }
 
 void ACityGameMode::CreateCityBounds() { /* mantido desativado */ }

@@ -4,8 +4,7 @@
 #include "Engine/World.h"
 #include "Components/PrimitiveComponent.h"
 #include "DrawDebugHelpers.h"
-
-DEFINE_LOG_CATEGORY_STATIC(LogEnemyHealth, Log, All);
+#include "Logging/VazioLogFacade.h"
 
 UEnemyHealthComponent::UEnemyHealthComponent() {
     PrimaryComponentTick.bCanEverTick = false;
@@ -36,14 +35,14 @@ void UEnemyHealthComponent::BeginPlay() {
         }
     }
     
-    UE_LOG(LogEnemyHealth, Display, TEXT("Enemy %s initialized with HP=%.1f"), *GetOwner()->GetName(), CurrentHealth);
+    LOG_ENEMIES(Info, TEXT("Enemy %s initialized with HP=%.1f"), *GetOwner()->GetName(), CurrentHealth);
 }
 
 void UEnemyHealthComponent::ReceiveDamage(float DamageAmount) {
     if (DamageAmount <= 0.f || CurrentHealth <= 0.f) return;
 
     CurrentHealth = FMath::Clamp(CurrentHealth - DamageAmount, 0.f, MaxHealth);
-    UE_LOG(LogEnemyHealth, Display, TEXT("%s took %.1f damage → HP=%.1f"), *GetOwner()->GetName(), DamageAmount, CurrentHealth);
+    LOG_ENEMIES(Info, TEXT("%s took %.1f damage → HP=%.1f"), *GetOwner()->GetName(), DamageAmount, CurrentHealth);
 
     // Visual indicator of damage
     if (AActor* Owner = GetOwner())
@@ -53,8 +52,9 @@ void UEnemyHealthComponent::ReceiveDamage(float DamageAmount) {
         #endif
     }
 
-    if (CurrentHealth <= 0.f) {
-        UE_LOG(LogEnemyHealth, Warning, TEXT("%s died, dropping XPOrb with %d XP"), *GetOwner()->GetName(), XPValue);
+    if (CurrentHealth <= 0.f)
+    {
+        LOG_ENEMIES(Warn, TEXT("%s died, dropping XPOrb with %d XP"), *GetOwner()->GetName(), XPValue);
         if (UWorld* World = GetWorld()) {
             const FVector L = GetOwner()->GetActorLocation();
             // Eleva a posição um pouco para evitar que o orb fique embaixo do terreno
@@ -65,9 +65,9 @@ void UEnemyHealthComponent::ReceiveDamage(float DamageAmount) {
             AXPOrb* Orb = World->SpawnActor<AXPOrb>(AXPOrb::StaticClass(), SpawnLocation, FRotator::ZeroRotator, P);
             if (Orb) {
                 Orb->XPAmount = XPValue;
-                UE_LOG(LogEnemyHealth, Display, TEXT("XPOrb spawned successfully at %s"), *SpawnLocation.ToString());
+                LOG_ENEMIES(Info, TEXT("XPOrb spawned successfully at %s"), *SpawnLocation.ToString());
             } else {
-                UE_LOG(LogEnemyHealth, Error, TEXT("Failed to spawn XPOrb!"));
+                LOG_ENEMIES(Error, TEXT("Failed to spawn XPOrb!"));
             }
         }
         if (AActor* Owner = GetOwner()) {

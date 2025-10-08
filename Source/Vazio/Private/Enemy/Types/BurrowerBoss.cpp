@@ -4,6 +4,7 @@
 #include "Components/CapsuleComponent.h"
 #include "Engine/World.h"
 #include "TimerManager.h"
+#include "Logging/VazioLogFacade.h"
 
 ABurrowerBoss::ABurrowerBoss()
 {
@@ -90,7 +91,7 @@ void ABurrowerBoss::PerformAttackPattern(const FBossAttackPattern& Pattern)
     }
     else if (Pattern.PatternName == TEXT("SummonLarvae"))
     {
-        UE_LOG(LogBoss, Log, TEXT("%s summons larvae"), *GetName());
+    LOG_ENEMIES(Info, TEXT("%s summons larvae"), *GetName());
     }
     else
     {
@@ -112,7 +113,7 @@ float ABurrowerBoss::TakeDamage(float DamageAmount, FDamageEvent const& DamageEv
 {
     if (bIsBurrowed)
     {
-        UE_LOG(LogBoss, VeryVerbose, TEXT("%s ignored damage while burrowed"), *GetName());
+        LOG_ENEMIES(Trace, TEXT("%s ignored damage while burrowed"), *GetName());
         return 0.f;
     }
 
@@ -141,7 +142,7 @@ void ABurrowerBoss::StartBurrow()
         World->GetTimerManager().SetTimer(BurrowTimerHandle, this, &ABurrowerBoss::FinishBurrow, BurrowDuration, false);
     }
 
-    UE_LOG(LogBoss, Log, TEXT("%s burrowed underground"), *GetName());
+    LOG_ENEMIES(Info, TEXT("%s burrowed underground"), *GetName());
 }
 
 void ABurrowerBoss::FinishBurrow()
@@ -176,18 +177,18 @@ void ABurrowerBoss::FinishBurrow()
         SetActorRotation((PlayerPawn->GetActorLocation() - NewLocation).Rotation());
     }
 
-    UE_LOG(LogBoss, Log, TEXT("%s resurfaced"), *GetName());
+    LOG_ENEMIES(Info, TEXT("%s resurfaced"), *GetName());
 }
 
 void ABurrowerBoss::PerformAmbushStrike()
 {
     FinishBurrow();
     UGameplayStatics::ApplyRadialDamage(GetWorld(), SpikeDamage * 1.2f, GetActorLocation(), 250.f, nullptr, TArray<AActor*>(), this);
-    UE_LOG(LogBoss, Log, TEXT("%s performed an ambush strike"), *GetName());
+    LOG_ENEMIES(Info, TEXT("%s performed an ambush strike"), *GetName());
 }
 
 void ABurrowerBoss::PerformSpikeBurst()
 {
     UGameplayStatics::ApplyRadialDamage(GetWorld(), SpikeDamage, GetActorLocation(), SpikeRadius, nullptr, TArray<AActor*>(), this);
-    UE_LOG(LogBoss, Log, TEXT("%s released a spike burst"), *GetName());
+    LOG_ENEMIES(Info, TEXT("%s released a spike burst"), *GetName());
 }

@@ -19,6 +19,12 @@
 #include "Kismet/GameplayStatics.h"
 #include "NavigationSystem.h"
 #include "Sound/SoundBase.h"
+#include "Systems/EnemyMassSpawnerSubsystem.h"
+#include "Systems/EnemyMassSystem.h"
+#include "Systems/EnemyImplementationCVars.h"
+#include "World/XPDropService.h"
+#include "World/Common/Collectables/XPOrb.h"
+#include "Logging/VazioLogFacade.h"
 
 void UEnemySpawnerSubsystem::Initialize(FSubsystemCollectionBase& Collection)
 {
@@ -32,7 +38,35 @@ void UEnemySpawnerSubsystem::Initialize(FSubsystemCollectionBase& Collection)
     bRegularSpawnsPaused = false;
     DeferredEvents.Empty();
 
-    UE_LOG(LogEnemySpawn, Log, TEXT("EnemySpawnerSubsystem initialized"));
+    if (UWorld* World = GetWorld())
+    {
+        World->GetSubsystem<UEnemyMassSystem>(); // ensure subsystem instantiation
+        MassSpawner = World->GetSubsystem<UEnemyMassSpawnerSubsystem>();
+
+        if (MassSpawner.IsValid())
+        {
+            LOG_ENEMIES(Info, TEXT("EnemySpawnerSubsystem connected to Mass spawner"));
+            if (CurrentEnemyConfig)
+            {
+                MassSpawner->SetEnemyConfig(CurrentEnemyConfig.Get());
+            }
+
+            MassSpawner->OnBossSpawned.AddUObject(this, &UEnemySpawnerSubsystem::HandleMassBossSpawned);
+            MassSpawner->OnBossHealthChanged.AddUObject(this, &UEnemySpawnerSubsystem::HandleMassBossHealthChanged);
+            MassSpawner->OnBossDefeated.AddUObject(this, &UEnemySpawnerSubsystem::HandleMassBossDefeated);
+        }
+        else
+        {
+            LOG_ENEMIES(Warn, TEXT("EnemySpawnerSubsystem could not acquire Mass spawner; legacy path will remain disabled"));
+        }
+
+        if (UXPDropService* XPService = World->GetSubsystem<UXPDropService>())
+        {
+            XPService->XPDropActorClass = AXPOrb::StaticClass();
+        }
+    }
+
+    LOG_ENEMIES(Info, TEXT("EnemySpawnerSubsystem initialized"));
 }
 
 void UEnemySpawnerSubsystem::Deinitialize()
@@ -65,10 +99,20 @@ void UEnemySpawnerSubsystem::Deinitialize()
     ScheduledBossTimers.Empty();
     DeferredEvents.Empty();
 
+    if (MassSpawner.IsValid())
+    {
+        MassSpawner->OnBossSpawned.RemoveAll(this);
+        MassSpawner->OnBossHealthChanged.RemoveAll(this);
+        MassSpawner->OnBossDefeated.RemoveAll(this);
+        MassSpawner.Reset();
+    }
+
     ClearBossDelegates();
     ActiveBoss = nullptr;
     bBossEncounterActive = false;
     bRegularSpawnsPaused = false;
+    ActiveMassBossHandle = FBossMassHandle();
+    bMassBossEncounter = false;
 
     Super::Deinitialize();
 }
@@ -77,7 +121,7 @@ void UEnemySpawnerSubsystem::StartTimeline(const USpawnTimeline* Timeline, int32
 {
     if (!Timeline)
     {
-        UE_LOG(LogEnemySpawn, Error, TEXT("StartTimeline called with null timeline"));
+        LOG_ENEMIES(Error, TEXT("StartTimeline called with null timeline"));
         return;
     }
 
@@ -86,7 +130,7 @@ void UEnemySpawnerSubsystem::StartTimeline(const USpawnTimeline* Timeline, int32
     if (Seed != 0)
     {
         SpawnRng.Initialize(Seed);
-        UE_LOG(LogEnemySpawn, Log, TEXT("Using deterministic seed %d for spawn timeline"), Seed);
+        LOG_ENEMIES(Debug, TEXT("Using deterministic seed %d for spawn timeline"), Seed);
     }
 
     if (UWorld* World = GetWorld())
@@ -122,6 +166,8 @@ void UEnemySpawnerSubsystem::StartTimeline(const USpawnTimeline* Timeline, int32
     bBossEncounterActive = false;
     bRegularSpawnsPaused = false;
     ActiveBossEntry = FBossSpawnEntry();
+    ActiveMassBossHandle = FBossMassHandle();
+    bMassBossEncounter = false;
 
     for (const FSpawnEvent& Event : Timeline->Events)
     {
@@ -133,76 +179,109 @@ void UEnemySpawnerSubsystem::StartTimeline(const USpawnTimeline* Timeline, int32
         ScheduleBossEvent(BossEvent);
     }
 
-    UE_LOG(LogEnemySpawn, Log, TEXT("Started spawn timeline with %d events and %d boss events"), Timeline->Events.Num(), Timeline->BossEvents.Num());
+    LOG_ENEMIES(Info, TEXT("Started spawn timeline with %d events and %d boss events"), Timeline->Events.Num(), Timeline->BossEvents.Num());
 }
 
 void UEnemySpawnerSubsystem::SpawnLinear(FName Type, int32 Count, const FEnemyInstanceModifiers& Mods)
 {
-    UE_LOG(LogEnemySpawn, Log, TEXT("SpawnLinear: %s x%d"), *Type.ToString(), Count);
+    LOG_ENEMIES(Debug, TEXT("SpawnLinear: %s x%d"), *Type.ToString(), Count);
+
+    if (!ShouldUseMassSpawning())
+    {
+        LOG_ENEMIES(Warn, TEXT("TODO(DEPRECATE): Legacy actor-based SpawnLinear disabled; Mass spawner unavailable for %s"), *Type.ToString());
+        return;
+    }
+
+    TArray<FTransform> SpawnTransforms;
+    SpawnTransforms.Reserve(Count);
 
     for (int32 i = 0; i < Count; i++)
     {
         FVector SpawnLocation;
         if (FindSpawnPointLinear(SpawnLocation))
         {
-            FTransform SpawnTransform;
-            SpawnTransform.SetLocation(SpawnLocation);
-
-            if (AEnemyBase* NewEnemy = SpawnOne(Type, SpawnTransform, Mods))
-            {
-                UE_LOG(LogEnemySpawn, VeryVerbose, TEXT("Spawned %s at %s"), *Type.ToString(), *SpawnLocation.ToCompactString());
-            }
+            SpawnTransforms.Emplace(FQuat::Identity, SpawnLocation);
         }
         else
         {
-            UE_LOG(LogEnemySpawn, Warning, TEXT("Failed to find spawn point for %s"), *Type.ToString());
+            LOG_ENEMIES(Warn, TEXT("Failed to find spawn point for %s"), *Type.ToString());
         }
+    }
+
+    if (SpawnTransforms.Num() > 0)
+    {
+        MassSpawner->SpawnEnemiesAtTransforms(Type, SpawnTransforms, Mods);
     }
 }
 
 void UEnemySpawnerSubsystem::SpawnCircleAroundPlayer(FName Type, int32 Count, const FEnemyInstanceModifiers& Mods, float Radius)
 {
-    UE_LOG(LogEnemySpawn, Log, TEXT("SpawnCircleAroundPlayer: %s x%d (radius %.1f)"), *Type.ToString(), Count, Radius);
+    LOG_ENEMIES(Info, TEXT("SpawnCircleAroundPlayer: %s x%d (radius %.1f)"), *Type.ToString(), Count, Radius);
+
+    if (!ShouldUseMassSpawning())
+    {
+        LOG_ENEMIES(Warn, TEXT("TODO(DEPRECATE): Legacy actor-based circular spawn disabled; Mass spawner unavailable for %s"), *Type.ToString());
+        return;
+    }
+
+    TArray<FTransform> SpawnTransforms;
+    SpawnTransforms.Reserve(Count);
 
     for (int32 i = 0; i < Count; i++)
     {
         FVector SpawnLocation;
         if (FindSpawnPointCircle(Radius, i, Count, SpawnLocation))
         {
-            FTransform SpawnTransform;
-            SpawnTransform.SetLocation(SpawnLocation);
-
-            if (AEnemyBase* NewEnemy = SpawnOne(Type, SpawnTransform, Mods))
-            {
-                UE_LOG(LogEnemySpawn, VeryVerbose, TEXT("Spawned %s at %s"), *Type.ToString(), *SpawnLocation.ToCompactString());
-            }
+            SpawnTransforms.Emplace(FQuat::Identity, SpawnLocation);
         }
         else
         {
-            UE_LOG(LogEnemySpawn, Warning, TEXT("Failed to find circular spawn point for %s"), *Type.ToString());
+            LOG_ENEMIES(Warn, TEXT("Failed to find circular spawn point for %s"), *Type.ToString());
         }
+    }
+
+    if (SpawnTransforms.Num() > 0)
+    {
+        MassSpawner->SpawnEnemiesAtTransforms(Type, SpawnTransforms, Mods);
     }
 }
 
 AEnemyBase* UEnemySpawnerSubsystem::SpawnOne(FName Type, const FTransform& Transform, const FEnemyInstanceModifiers& Mods)
 {
+    if (ShouldUseMassSpawning())
+    {
+        LOG_ENEMIES(Info, TEXT("Routing SpawnOne request to Mass system for %s"), *Type.ToString());
+
+        TArray<FTransform> SingleSpawn;
+        SingleSpawn.Add(Transform);
+        MassSpawner->SpawnEnemiesAtTransforms(Type, SingleSpawn, Mods);
+        return nullptr;
+    }
+
+#if !UE_BUILD_SHIPPING
+    LOG_ENEMIES(Error, TEXT("Legacy actor SpawnOne used for %s when Mass implementation should be used"), *Type.ToString());
+#endif
+
+#if 0 // DEPRECATED: Legacy actor-based enemy implementation
+    LOG_ENEMIES(Trace, TEXT("TODO(DEPRECATE): Using legacy actor SpawnOne for %s"), *Type.ToString());
+
     if (!CurrentEnemyConfig)
     {
-        UE_LOG(LogEnemySpawn, Error, TEXT("No EnemyConfig set for spawner subsystem"));
+        LOG_ENEMIES(Error, TEXT("No EnemyConfig set for spawner subsystem"));
         return nullptr;
     }
 
     const FEnemyArchetype* Archetype = CurrentEnemyConfig->GetArchetype(Type);
     if (!Archetype)
     {
-        UE_LOG(LogEnemySpawn, Error, TEXT("No archetype found for enemy type: %s"), *Type.ToString());
+        LOG_ENEMIES(Error, TEXT("No archetype found for enemy type: %s"), *Type.ToString());
         return nullptr;
     }
 
     AEnemyBase* NewEnemy = CreateEnemyActor(Type, Transform);
     if (!NewEnemy)
     {
-        UE_LOG(LogEnemySpawn, Error, TEXT("Failed to create actor for enemy type: %s"), *Type.ToString());
+        LOG_ENEMIES(Error, TEXT("Failed to create actor for enemy type: %s"), *Type.ToString());
         return nullptr;
     }
 
@@ -214,12 +293,25 @@ AEnemyBase* UEnemySpawnerSubsystem::SpawnOne(FName Type, const FTransform& Trans
     }
 
     return NewEnemy;
+#else
+    return nullptr;
+#endif
 }
 
 void UEnemySpawnerSubsystem::SetEnemyConfig(UEnemyConfig* Config)
 {
     CurrentEnemyConfig = Config;
-    UE_LOG(LogEnemySpawn, Log, TEXT("EnemyConfig set with %d archetypes"), Config ? Config->Archetypes.Num() : 0);
+    LOG_ENEMIES(Info, TEXT("EnemyConfig set with %d archetypes"), Config ? Config->Archetypes.Num() : 0);
+
+    if (MassSpawner.IsValid())
+    {
+        MassSpawner->SetEnemyConfig(Config);
+    }
+}
+
+bool UEnemySpawnerSubsystem::ShouldUseMassSpawning() const
+{
+    return MassSpawner.IsValid() && GetEnemyImpl() == 1;
 }
 
 void UEnemySpawnerSubsystem::ScheduleEvent(const FSpawnEvent& Event)
@@ -251,7 +343,7 @@ void UEnemySpawnerSubsystem::ExecuteSpawnEvent(const FSpawnEvent& Event)
     if ((bBossEncounterActive || bRegularSpawnsPaused) && !Event.bAllowDuringBossEncounter)
     {
         DeferredEvents.Add(Event);
-        UE_LOG(LogEnemySpawn, Log, TEXT("Deferred spawn event at %.2fs due to active boss"), Event.TimeSeconds);
+        LOG_ENEMIES(Info, TEXT("Deferred spawn event at %.2fs due to active boss"), Event.TimeSeconds);
         return;
     }
 
@@ -275,7 +367,7 @@ void UEnemySpawnerSubsystem::ScheduleBossEvent(const FBossSpawnEntry& BossEvent)
 
     if (BossEvent.BossType.IsNone())
     {
-        UE_LOG(LogBoss, Warning, TEXT("Ignoring boss event with empty type"));
+        LOG_ENEMIES(Warn, TEXT("Ignoring boss event with empty type"));
         return;
     }
 
@@ -303,7 +395,7 @@ void UEnemySpawnerSubsystem::TriggerBossWarning(FBossSpawnEntry BossEvent)
         return;
     }
 
-    UE_LOG(LogBoss, Log, TEXT("Boss warning: %s incoming in %.1fs"), *BossEvent.BossType.ToString(), BossEvent.WarningLeadTime);
+    LOG_ENEMIES(Info, TEXT("Boss warning: %s incoming in %.1fs"), *BossEvent.BossType.ToString(), BossEvent.WarningLeadTime);
 
     OnBossWarning.Broadcast(BossEvent);
 
@@ -320,9 +412,56 @@ void UEnemySpawnerSubsystem::BeginBossEncounter(FBossSpawnEntry BossEvent)
         return;
     }
 
+    if (ShouldUseMassSpawning())
+    {
+        if (!MassSpawner.IsValid())
+        {
+            LOG_ENEMIES(Error, TEXT("Mass spawning selected but Mass spawner unavailable for boss %s"), *BossEvent.BossType.ToString());
+            return;
+        }
+
+        if (bBossEncounterActive)
+        {
+            LOG_ENEMIES(Warn, TEXT("Attempted to start boss %s while another boss is active"), *BossEvent.BossType.ToString());
+            return;
+        }
+
+        LOG_ENEMIES(Info, TEXT("Spawning boss %s using Mass system"), *BossEvent.BossType.ToString());
+
+        const FTransform BossTransform = BuildBossSpawnTransform(BossEvent);
+        TArray<FTransform> BossTransforms;
+        BossTransforms.Add(BossTransform);
+
+        ClearBossDelegates();
+        ActiveBoss = nullptr;
+        ActiveBossEntry = BossEvent;
+        bMassBossEncounter = true;
+        ActiveMassBossHandle = FBossMassHandle();
+
+        const FBossMassHandle SpawnedHandle = MassSpawner->SpawnBossAtTransforms(BossEvent.BossType, BossTransforms, BossEvent.BossModifiers);
+        if (!SpawnedHandle.IsValid())
+        {
+            LOG_ENEMIES(Error, TEXT("Failed to spawn boss %s using Mass system"), *BossEvent.BossType.ToString());
+            ActiveBossEntry = FBossSpawnEntry();
+            bMassBossEncounter = false;
+            return;
+        }
+
+        ActiveMassBossHandle = SpawnedHandle;
+        bBossEncounterActive = true;
+
+        if (BossEvent.bPauseRegularSpawns)
+        {
+            PauseRegularSpawns();
+        }
+
+        return;
+    }
+
+#if 0 // DEPRECATED: Legacy actor-based boss implementation
     if (bBossEncounterActive)
     {
-        UE_LOG(LogBoss, Warning, TEXT("Attempted to start boss %s while another boss is active"), *BossEvent.BossType.ToString());
+        LOG_ENEMIES(Warn, TEXT("Attempted to start boss %s while another boss is active"), *BossEvent.BossType.ToString());
         return;
     }
 
@@ -331,16 +470,15 @@ void UEnemySpawnerSubsystem::BeginBossEncounter(FBossSpawnEntry BossEvent)
 
     if (!SpawnedBoss)
     {
-        UE_LOG(LogBoss, Error, TEXT("Failed to spawn boss %s"), *BossEvent.BossType.ToString());
+        LOG_ENEMIES(Error, TEXT("Failed to spawn boss %s"), *BossEvent.BossType.ToString());
         return;
     }
 
-    // Log da posição do boss recém-criado
     const FVector BossLocation = SpawnedBoss->GetActorLocation();
-    UE_LOG(LogBoss, Warning, TEXT("[BossSpawn] Boss %s spawned at location: X=%.2f, Y=%.2f, Z=%.2f"), 
+    LOG_ENEMIES(Warn, TEXT("[BossSpawn] Boss %s spawned at location: X=%.2f, Y=%.2f, Z=%.2f"), 
            *BossEvent.BossType.ToString(), BossLocation.X, BossLocation.Y, BossLocation.Z);
 
-    UE_LOG(LogBoss, Log, TEXT("Boss %s has entered the battlefield"), *BossEvent.BossType.ToString());
+    LOG_ENEMIES(Info, TEXT("Boss %s has entered the battlefield"), *BossEvent.BossType.ToString());
 
     ClearBossDelegates();
 
@@ -361,11 +499,15 @@ void UEnemySpawnerSubsystem::BeginBossEncounter(FBossSpawnEntry BossEvent)
 
     OnBossSpawned.Broadcast(SpawnedBoss, BossEvent);
     OnBossHealthChanged.Broadcast(SpawnedBoss->GetHealthFraction(), SpawnedBoss);
+#else
+    LOG_ENEMIES(Error, TEXT("Legacy actor-based boss spawning is disabled; boss %s will not spawn."), *BossEvent.BossType.ToString());
+    return;
+#endif
 }
 
 void UEnemySpawnerSubsystem::HandleActiveBossDefeated(ABossEnemy* Boss)
 {
-    UE_LOG(LogBoss, Log, TEXT("Boss encounter finished"));
+    LOG_ENEMIES(Info, TEXT("Boss encounter finished"));
 
     OnBossHealthChanged.Broadcast(0.f, Boss);
     OnBossEnded.Broadcast();
@@ -377,6 +519,8 @@ void UEnemySpawnerSubsystem::HandleActiveBossDefeated(ABossEnemy* Boss)
 
     const float ResumeDelay = ActiveBossEntry.bPauseRegularSpawns ? (ActiveBossEntry.ResumeDelay + BossResumeDelayBuffer) : 0.f;
     ActiveBossEntry = FBossSpawnEntry();
+    bMassBossEncounter = false;
+    ActiveMassBossHandle = FBossMassHandle();
 
     ResumeRegularSpawns(ResumeDelay);
 }
@@ -400,6 +544,71 @@ void UEnemySpawnerSubsystem::HandleActiveBossTelegraph(const FBossAttackPattern&
 void UEnemySpawnerSubsystem::HandleActiveBossAttack(const FBossAttackPattern& Pattern)
 {
     OnBossAttackExecuted.Broadcast(Pattern);
+}
+
+void UEnemySpawnerSubsystem::HandleMassBossSpawned(const FBossMassHandle& BossHandle, const FTransform& SpawnTransform)
+{
+    if (!bMassBossEncounter)
+    {
+        return;
+    }
+
+    if (!ActiveBossEntry.BossType.IsNone() && BossHandle.BossType != ActiveBossEntry.BossType)
+    {
+        return;
+    }
+
+    ActiveMassBossHandle = BossHandle;
+    bBossEncounterActive = true;
+
+    LOG_ENEMIES(Info, TEXT("Boss %s has entered the battlefield (Mass)"), *BossHandle.BossType.ToString());
+
+    OnBossSpawned.Broadcast(nullptr, ActiveBossEntry);
+    OnBossHealthChanged.Broadcast(1.f, nullptr);
+}
+
+void UEnemySpawnerSubsystem::HandleMassBossHealthChanged(const FBossMassHandle& BossHandle, float NormalizedHealth)
+{
+    if (!bMassBossEncounter || !ActiveMassBossHandle.IsValid())
+    {
+        return;
+    }
+
+    if (BossHandle.Entity != ActiveMassBossHandle.Entity)
+    {
+        return;
+    }
+
+    OnBossHealthChanged.Broadcast(NormalizedHealth, nullptr);
+}
+
+void UEnemySpawnerSubsystem::HandleMassBossDefeated(const FBossMassHandle& BossHandle)
+{
+    if (!bMassBossEncounter || !ActiveMassBossHandle.IsValid())
+    {
+        return;
+    }
+
+    if (BossHandle.Entity != ActiveMassBossHandle.Entity)
+    {
+        return;
+    }
+
+    LOG_ENEMIES(Info, TEXT("Boss encounter finished (Mass)"));
+
+    OnBossHealthChanged.Broadcast(0.f, nullptr);
+    OnBossEnded.Broadcast();
+
+    ClearBossDelegates();
+    ActiveBoss = nullptr;
+    bBossEncounterActive = false;
+
+    const float ResumeDelay = ActiveBossEntry.bPauseRegularSpawns ? (ActiveBossEntry.ResumeDelay + BossResumeDelayBuffer) : 0.f;
+    ActiveBossEntry = FBossSpawnEntry();
+    ActiveMassBossHandle = FBossMassHandle();
+    bMassBossEncounter = false;
+
+    ResumeRegularSpawns(ResumeDelay);
 }
 
 void UEnemySpawnerSubsystem::PauseRegularSpawns()
@@ -465,11 +674,11 @@ FTransform UEnemySpawnerSubsystem::BuildBossSpawnTransform(const FBossSpawnEntry
         SpawnLocation.Z = PlayerLocation.Z + BossSpawnHeightOffset;
 
         SpawnRotation = (PlayerLocation - SpawnLocation).Rotation();
-        
+
         // Log da posição calculada para spawn
-        UE_LOG(LogBoss, Warning, TEXT("[BossSpawnCalc] Calculated spawn position for boss: X=%.2f, Y=%.2f, Z=%.2f (Player at: X=%.2f, Y=%.2f, Z=%.2f, Distance: %.2f)"), 
-               SpawnLocation.X, SpawnLocation.Y, SpawnLocation.Z, 
-               PlayerLocation.X, PlayerLocation.Y, PlayerLocation.Z, Distance);
+        LOG_ENEMIES(Warn, TEXT("[BossSpawnCalc] Calculated spawn position for boss: X=%.2f, Y=%.2f, Z=%.2f (Player at: X=%.2f, Y=%.2f, Z=%.2f, Distance: %.2f)"),
+            SpawnLocation.X, SpawnLocation.Y, SpawnLocation.Z,
+            PlayerLocation.X, PlayerLocation.Y, PlayerLocation.Z, Distance);
     }
 
     return FTransform(SpawnRotation, SpawnLocation);
@@ -504,8 +713,21 @@ bool UEnemySpawnerSubsystem::FindSpawnPointCircle(float Radius, int32 Index, int
     const FVector Offset = FVector(FMath::Cos(Angle), FMath::Sin(Angle), 0.f) * Radius;
     const FVector CandidatePoint = PlayerLocation + Offset;
 
-    // TODO: SwarmSpawn namespace was removed - implement navmesh projection
-    // For now, use candidate point directly with Z adjustment
+    // Project point onto navigation mesh if available
+    if (UWorld* World = GetWorld())
+    {
+        if (UNavigationSystemV1* NavSys = FNavigationSystem::GetCurrent<UNavigationSystemV1>(World))
+        {
+            FNavLocation ProjectedLocation;
+            if (NavSys->ProjectPointToNavigation(CandidatePoint, ProjectedLocation))
+            {
+                OutLocation = ProjectedLocation.Location;
+                return true;
+            }
+        }
+    }
+
+    // Fallback to direct point if nav projection fails
     OutLocation = CandidatePoint;
     OutLocation.Z = PlayerLocation.Z; // Keep same Z as player
     return true;
@@ -516,7 +738,7 @@ AEnemyBase* UEnemySpawnerSubsystem::CreateEnemyActor(FName Type, const FTransfor
     TSubclassOf<AEnemyBase>* EnemyClass = EnemyClasses.Find(Type);
     if (!EnemyClass || !*EnemyClass)
     {
-        UE_LOG(LogEnemySpawn, Error, TEXT("No class registered for enemy type: %s"), *Type.ToString());
+        LOG_ENEMIES(Error, TEXT("No class registered for enemy type: %s"), *Type.ToString());
         return nullptr;
     }
 
@@ -528,12 +750,12 @@ AEnemyBase* UEnemySpawnerSubsystem::CreateEnemyActor(FName Type, const FTransfor
     if (SpawnedActor)
     {
         const FVector ActualSpawnLocation = SpawnedActor->GetActorLocation();
-        UE_LOG(LogBoss, Warning, TEXT("[ActorSpawn] %s spawned successfully at actual location: X=%.2f, Y=%.2f, Z=%.2f"), 
-               *Type.ToString(), ActualSpawnLocation.X, ActualSpawnLocation.Y, ActualSpawnLocation.Z);
+        LOG_ENEMIES(Warn, TEXT("[ActorSpawn] %s spawned successfully at actual location: X=%.2f, Y=%.2f, Z=%.2f"),
+            *Type.ToString(), ActualSpawnLocation.X, ActualSpawnLocation.Y, ActualSpawnLocation.Z);
     }
     else
     {
-        UE_LOG(LogBoss, Error, TEXT("[ActorSpawn] Failed to spawn %s"), *Type.ToString());
+        LOG_ENEMIES(Error, TEXT("[ActorSpawn] Failed to spawn %s"), *Type.ToString());
     }
     
     return SpawnedActor;
@@ -549,6 +771,9 @@ void UEnemySpawnerSubsystem::ClearBossDelegates()
         Boss->OnBossTelegraph.RemoveDynamic(this, &UEnemySpawnerSubsystem::HandleActiveBossTelegraph);
         Boss->OnBossAttackExecuted.RemoveDynamic(this, &UEnemySpawnerSubsystem::HandleActiveBossAttack);
     }
+
+    ActiveMassBossHandle = FBossMassHandle();
+    bMassBossEncounter = false;
 }
 
 void UEnemySpawnerSubsystem::InitializeEnemyClasses()
@@ -567,7 +792,7 @@ void UEnemySpawnerSubsystem::InitializeEnemyClasses()
     EnemyClasses.Add(TEXT("BurrowerBoss"), ABurrowerBoss::StaticClass());
     EnemyClasses.Add(TEXT("HybridDemonBoss"), AHybridDemonBoss::StaticClass());
 
-    UE_LOG(LogEnemySpawn, Log, TEXT("Registered %d enemy classes"), EnemyClasses.Num());
+    LOG_ENEMIES(Info, TEXT("Registered %d enemy classes"), EnemyClasses.Num());
 }
 
 APawn* UEnemySpawnerSubsystem::GetPlayerPawn() const
@@ -579,13 +804,13 @@ void UEnemySpawnerSubsystem::SpawnTestBoss(FName BossType)
 {
     if (BossType.IsNone())
     {
-        UE_LOG(LogBoss, Warning, TEXT("SpawnTestBoss: BossType is None"));
+        LOG_ENEMIES(Warn, TEXT("SpawnTestBoss: BossType is None"));
         return;
     }
 
     if (bBossEncounterActive)
     {
-        UE_LOG(LogBoss, Warning, TEXT("SpawnTestBoss: Boss encounter already active"));
+        LOG_ENEMIES(Warn, TEXT("SpawnTestBoss: Boss encounter already active"));
         return;
     }
 
@@ -599,7 +824,7 @@ void UEnemySpawnerSubsystem::SpawnTestBoss(FName BossType)
     TestBossEntry.ResumeDelay = 2.f;
     TestBossEntry.Announcement = FText::FromString(FString::Printf(TEXT("Teste: %s spawnou!"), *BossType.ToString()));
 
-    UE_LOG(LogBoss, Log, TEXT("Spawning test boss: %s"), *BossType.ToString());
+    LOG_ENEMIES(Info, TEXT("Spawning test boss: %s"), *BossType.ToString());
     BeginBossEncounter(TestBossEntry);
 }
 
@@ -607,11 +832,11 @@ void UEnemySpawnerSubsystem::SpawnAllBossesForTesting()
 {
     if (bBossEncounterActive)
     {
-        UE_LOG(LogBoss, Warning, TEXT("SpawnAllBossesForTesting: Boss encounter already active"));
+        LOG_ENEMIES(Warn, TEXT("SpawnAllBossesForTesting: Boss encounter already active"));
         return;
     }
 
-    UE_LOG(LogBoss, Log, TEXT("Starting boss testing sequence"));
+    LOG_ENEMIES(Info, TEXT("Starting boss testing sequence"));
 
     // Limpar timers antigos
     UWorld* World = GetWorld();
@@ -654,5 +879,5 @@ void UEnemySpawnerSubsystem::SpawnAllBossesForTesting()
         SpawnDelay += 35.f; // 35 segundos entre cada boss
     }
 
-    UE_LOG(LogBoss, Log, TEXT("Scheduled %d bosses for testing"), BossesToTest.Num());
+    LOG_ENEMIES(Info, TEXT("Scheduled %d bosses for testing"), BossesToTest.Num());
 }

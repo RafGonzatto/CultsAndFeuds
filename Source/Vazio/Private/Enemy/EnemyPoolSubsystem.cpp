@@ -2,14 +2,15 @@
 #include "Enemy/EnemyBase.h"
 #include "Engine/World.h"
 #include "Enemy/EnemyTypes.h"
+#include "Logging/VazioLogFacade.h"
 
 void UEnemyPoolSubsystem::Initialize(FSubsystemCollectionBase& Collection)
 {
     Super::Initialize(Collection);
     
     PrepoolEnemies();
-    
-    UE_LOG(LogEnemySpawn, Log, TEXT("EnemyPoolSubsystem initialized"));
+
+    LOG_ENEMIES(Info, TEXT("EnemyPoolSubsystem initialized"));
 }
 
 void UEnemyPoolSubsystem::Deinitialize()
@@ -22,7 +23,7 @@ AEnemyBase* UEnemyPoolSubsystem::GetFromPool(FName EnemyType, TSubclassOf<AEnemy
 {
     if (!EnemyClass)
     {
-        UE_LOG(LogEnemySpawn, Error, TEXT("GetFromPool: Invalid enemy class for type %s"), *EnemyType.ToString());
+        LOG_ENEMIES(Error, TEXT("GetFromPool invalid class for %s"), *EnemyType.ToString());
         return nullptr;
     }
     
@@ -43,8 +44,8 @@ AEnemyBase* UEnemyPoolSubsystem::GetFromPool(FName EnemyType, TSubclassOf<AEnemy
             // Track as active
             ActiveEnemies.Add(PooledEnemy, EnemyType);
             
-            UE_LOG(LogEnemySpawn, VeryVerbose, TEXT("Retrieved %s from pool (pool size now: %d)"), 
-                   *EnemyType.ToString(), TypePool->Num());
+            LOG_ENEMIES(Debug, TEXT("Retrieved %s from pool size=%d"),
+                *EnemyType.ToString(), TypePool->Num());
             
             return PooledEnemy;
         }
@@ -63,7 +64,7 @@ AEnemyBase* UEnemyPoolSubsystem::GetFromPool(FName EnemyType, TSubclassOf<AEnemy
     if (NewEnemy)
     {
         ActiveEnemies.Add(NewEnemy, EnemyType);
-        UE_LOG(LogEnemySpawn, VeryVerbose, TEXT("Created new %s (pool was empty)"), *EnemyType.ToString());
+        LOG_ENEMIES(Info, TEXT("Created new pooled %s"), *EnemyType.ToString());
     }
     
     return NewEnemy;
@@ -79,7 +80,7 @@ void UEnemyPoolSubsystem::ReturnToPool(AEnemyBase* Enemy)
     FName* EnemyType = ActiveEnemies.Find(Enemy);
     if (!EnemyType)
     {
-        UE_LOG(LogEnemySpawn, Warning, TEXT("Attempted to return untracked enemy to pool: %s"), *Enemy->GetName());
+        LOG_ENEMIES(Warn, TEXT("Attempted to return untracked enemy %s to pool"), *Enemy->GetName());
         Enemy->Destroy();
         return;
     }
@@ -94,7 +95,7 @@ void UEnemyPoolSubsystem::ReturnToPool(AEnemyBase* Enemy)
     {
         // Pool is full, destroy the enemy
         Enemy->Destroy();
-        UE_LOG(LogEnemySpawn, VeryVerbose, TEXT("Pool full for %s, destroying enemy"), *TypeName.ToString());
+        LOG_ENEMIES(Debug, TEXT("Pool full for %s destroying enemy"), *TypeName.ToString());
         return;
     }
     
@@ -111,8 +112,8 @@ void UEnemyPoolSubsystem::ReturnToPool(AEnemyBase* Enemy)
     // Add to pool
     TypePool.Add(Enemy);
     
-    UE_LOG(LogEnemySpawn, VeryVerbose, TEXT("Returned %s to pool (pool size now: %d)"), 
-           *TypeName.ToString(), TypePool.Num());
+    LOG_ENEMIES(Debug, TEXT("Returned %s to pool size=%d"),
+        *TypeName.ToString(), TypePool.Num());
 }
 
 void UEnemyPoolSubsystem::ClearPool()
@@ -140,7 +141,7 @@ void UEnemyPoolSubsystem::ClearPool()
     }
     ActiveEnemies.Empty();
     
-    UE_LOG(LogEnemySpawn, Log, TEXT("Cleared enemy pool"));
+    LOG_ENEMIES(Info, TEXT("Cleared enemy pool"));
 }
 
 void UEnemyPoolSubsystem::PrepoolEnemies()
@@ -163,5 +164,5 @@ void UEnemyPoolSubsystem::PrepoolEnemies()
         PooledEnemies.Add(Type, TArray<AEnemyBase*>());
     }
     
-    UE_LOG(LogEnemySpawn, Log, TEXT("Initialized pools for %d enemy types"), EnemyTypes.Num());
+    LOG_ENEMIES(Info, TEXT("Initialized pools for %d enemy types"), EnemyTypes.Num());
 }

@@ -1,11 +1,12 @@
 #include "Core/Flow/FlowSubsystem.h"
+#include "Logging/VazioLogFacade.h"
 #include "Kismet/GameplayStatics.h"
 #include "Engine/Engine.h"
 
 void UFlowSubsystem::Initialize(FSubsystemCollectionBase& Collection)
 {
 	Super::Initialize(Collection);
-	UE_LOG(LogTemp, Log, TEXT("[Flow] Inicializado"));
+	LOG_SYSTEMS(Info, TEXT("[Flow] Inicializado"));
 	LogMap(TEXT("MainMenu"), MainMenuMap);
 	LogMap(TEXT("City"),     CityMap);
 	LogMap(TEXT("Battle"),   BattleMap);
@@ -14,20 +15,20 @@ void UFlowSubsystem::Initialize(FSubsystemCollectionBase& Collection)
 void UFlowSubsystem::LogMap(const TCHAR* Label, const TSoftObjectPtr<UWorld>& MapRef) const
 {
 	const FString Path = MapRef.IsNull() ? TEXT("<vazio>") : MapRef.ToSoftObjectPath().ToString();
-	UE_LOG(LogTemp, Log, TEXT("  - %s: %s"), Label, *Path);
+	LOG_SYSTEMS(Info, TEXT("  - %s: %s"), Label, *Path);
 }
 
 bool UFlowSubsystem::ResolveLevelName(const TSoftObjectPtr<UWorld>& MapRef, FName& OutLevelName) const
 {
 	if (MapRef.IsNull())
 	{
-		UE_LOG(LogTemp, Error, TEXT("[Flow] Mapa não configurado (soft reference vazia)."));
+		LOG_SYSTEMS(Error, TEXT("[Flow] Mapa não configurado (soft reference vazia)."));
 		return false;
 	}
 	const FString LongName = MapRef.GetLongPackageName(); // ex: /Game/Levels/City_Main
 	if (LongName.IsEmpty())
 	{
-		UE_LOG(LogTemp, Error, TEXT("[Flow] Soft reference inválida: %s"), *MapRef.ToString());
+		LOG_SYSTEMS(Error, TEXT("[Flow] Soft reference inválida: %s"), *MapRef.ToString());
 		return false;
 	}
 	OutLevelName = FName(*LongName);
@@ -48,7 +49,7 @@ bool UFlowSubsystem::OpenLevelByRef(const TSoftObjectPtr<UWorld>& MapRef)
 {
 	if (!GetWorld())
 	{
-		UE_LOG(LogTemp, Error, TEXT("[Flow] World nulo."));
+		LOG_SYSTEMS(Error, TEXT("[Flow] World nulo."));
 		return false;
 	}
 
@@ -57,11 +58,11 @@ bool UFlowSubsystem::OpenLevelByRef(const TSoftObjectPtr<UWorld>& MapRef)
 
 	if (IsCurrentLevel(LevelName))
 	{
-		UE_LOG(LogTemp, Verbose, TEXT("[Flow] Já estamos no mapa: %s (ignorando)"), *LevelName.ToString());
+		LOG_SYSTEMS(Debug, TEXT("[Flow] Já estamos no mapa: %s (ignorando)"), *LevelName.ToString());
 		return true;
 	}
 
-	UE_LOG(LogTemp, Log, TEXT("[Flow] Abrindo mapa: %s"), *LevelName.ToString());
+	LOG_SYSTEMS(Info, TEXT("[Flow] Abrindo mapa: %s"), *LevelName.ToString());
 	// Nota: OpenLevel inicia a viagem; sucesso real só é certo após carregar.
 	UGameplayStatics::OpenLevel(this, LevelName);
 	// OpenLevel returns void, assume success
@@ -78,7 +79,7 @@ bool UFlowSubsystem::Open(EVazioMode Mode)
 		case EVazioMode::City:     return OpenLevelByRef(CityMap);
 		case EVazioMode::Battle:   return OpenLevelByRef(BattleMap);
 		default:
-			UE_LOG(LogTemp, Error, TEXT("[Flow] Mode inválido."));
+			LOG_SYSTEMS(Error, TEXT("[Flow] Mode inválido."));
 			return false;
 	}
 }

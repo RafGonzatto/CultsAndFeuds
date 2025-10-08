@@ -3,6 +3,7 @@
 #include "Serialization/JsonReader.h"
 #include "Serialization/JsonSerializer.h"
 #include "Engine/Engine.h"
+#include "Logging/VazioLogFacade.h"
 
 bool USpawnTimeline::ParseFromJSON(const FString& JSONString)
 {
@@ -11,7 +12,7 @@ bool USpawnTimeline::ParseFromJSON(const FString& JSONString)
 
     if (!FJsonSerializer::Deserialize(Reader, RootObject) || !RootObject.IsValid())
     {
-        UE_LOG(LogTemp, Error, TEXT("Failed to parse JSON for SpawnTimeline"));
+        LOG_ENEMIES(Error, TEXT("Failed to parse JSON for SpawnTimeline"));
         return false;
     }
 
@@ -40,8 +41,8 @@ bool USpawnTimeline::ParseFromJSON(const FString& JSONString)
                     if (NewEvent.Linear.Num() > 0 || NewEvent.Circles.Num() > 0)
                     {
                         Events.Add(NewEvent);
-                        UE_LOG(LogEnemySpawn, Log, TEXT("Added spawn event at time %.2f with %d linear and %d circle spawns"), 
-                               NewEvent.TimeSeconds, NewEvent.Linear.Num(), NewEvent.Circles.Num());
+                        LOG_ENEMIES(Info, TEXT("Spawn timeline event %.2fs linear=%d circle=%d"),
+                            NewEvent.TimeSeconds, NewEvent.Linear.Num(), NewEvent.Circles.Num());
                     }
                 }
             }
@@ -51,8 +52,8 @@ bool USpawnTimeline::ParseFromJSON(const FString& JSONString)
     // Parse boss events
     ParseBossEvents(RootObject);
 
-    UE_LOG(LogTemp, Log, TEXT("Successfully parsed SpawnTimeline with %d regular events and %d boss events"), 
-           Events.Num(), BossEvents.Num());
+    LOG_ENEMIES(Info, TEXT("Parsed SpawnTimeline with %d regular events and %d boss events"),
+        Events.Num(), BossEvents.Num());
 
     return true;
 }
@@ -226,6 +227,6 @@ void USpawnTimeline::ParseSpawnObjectIntoEvent(const TSharedPtr<FJsonObject>& Sp
         // Add to Linear array (which ExecuteSpawnEvent expects)
         OutEvent.Linear.Add(TypeCount);
         
-        UE_LOG(LogEnemySpawn, Verbose, TEXT("Added Linear spawn: %s x%d"), *TypeCount.Type.ToString(), TypeCount.Count);
+        LOG_ENEMIES(Debug, TEXT("Added linear spawn %s x%d"), *TypeCount.Type.ToString(), TypeCount.Count);
     }
 }

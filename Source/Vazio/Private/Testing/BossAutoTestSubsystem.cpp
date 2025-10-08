@@ -6,8 +6,7 @@
 #include "Input/Events.h"
 #include "GameFramework/PlayerController.h"
 #include "GameFramework/InputSettings.h"
-
-DEFINE_LOG_CATEGORY_STATIC(LogBossAutoTest, Log, All);
+#include "Logging/VazioLogFacade.h"
 
 void UBossAutoTestSubsystem::Initialize(FSubsystemCollectionBase& Collection)
 {
@@ -19,25 +18,25 @@ void UBossAutoTestSubsystem::Initialize(FSubsystemCollectionBase& Collection)
         FString MapName = World->GetMapName();
         if (!MapName.Contains(TEXT("Battle_Main")))
         {
-            UE_LOG(LogBossAutoTest, Verbose, TEXT("BossAutoTestSubsystem skipping initialization (not in Battle_Main level: %s)"), *MapName);
+            LOG_ENEMIES(Verbose, TEXT("BossAutoTestSubsystem skipping initialization (not in Battle_Main level: %s)"), *MapName);
             return;
         }
     }
     else
     {
-        UE_LOG(LogBossAutoTest, Verbose, TEXT("BossAutoTestSubsystem skipping initialization (no world)"));
+        LOG_ENEMIES(Verbose, TEXT("BossAutoTestSubsystem skipping initialization (no world)"));
         return;
     }
     
-    UE_LOG(LogBossAutoTest, Log, TEXT("BossAutoTestSubsystem initialized"));
-    UE_LOG(LogBossAutoTest, Log, TEXT("Console Commands available:"));
-    UE_LOG(LogBossAutoTest, Log, TEXT("  SpawnBurrower - Spawna Burrower Boss"));
-    UE_LOG(LogBossAutoTest, Log, TEXT("  SpawnVoidQueen - Spawna Void Queen Boss"));
-    UE_LOG(LogBossAutoTest, Log, TEXT("  SpawnFallenWarlord - Spawna Fallen Warlord Boss"));
-    UE_LOG(LogBossAutoTest, Log, TEXT("  SpawnHybridDemon - Spawna Hybrid Demon Boss"));
-    UE_LOG(LogBossAutoTest, Log, TEXT("  SpawnAllBosses - Spawna todos em sequencia"));
-    UE_LOG(LogBossAutoTest, Log, TEXT("  StopBoss - Para boss atual"));
-    UE_LOG(LogBossAutoTest, Log, TEXT("  StartAutoTest - Ativa modo teste automatico"));
+    LOG_ENEMIES(Info, TEXT("BossAutoTestSubsystem initialized"));
+    LOG_ENEMIES(Info, TEXT("Console Commands available:"));
+    LOG_ENEMIES(Info, TEXT("  SpawnBurrower - Spawna Burrower Boss"));
+    LOG_ENEMIES(Info, TEXT("  SpawnVoidQueen - Spawna Void Queen Boss"));
+    LOG_ENEMIES(Info, TEXT("  SpawnFallenWarlord - Spawna Fallen Warlord Boss"));
+    LOG_ENEMIES(Info, TEXT("  SpawnHybridDemon - Spawna Hybrid Demon Boss"));
+    LOG_ENEMIES(Info, TEXT("  SpawnAllBosses - Spawna todos em sequencia"));
+    LOG_ENEMIES(Info, TEXT("  StopBoss - Para boss atual"));
+    LOG_ENEMIES(Info, TEXT("  StartAutoTest - Ativa modo teste automatico"));
     
     // Aguardar um frame para garantir que outros subsistemas estão prontos
     if (UWorld* World = GetWorld())
@@ -48,14 +47,14 @@ void UBossAutoTestSubsystem::Initialize(FSubsystemCollectionBase& Collection)
             GetEnemySpawner();
             SetupInputBindings();
             
-            UE_LOG(LogBossAutoTest, Log, TEXT("Boss testing system ready!"));
-            UE_LOG(LogBossAutoTest, Log, TEXT("Keyboard shortcuts:"));
-            UE_LOG(LogBossAutoTest, Log, TEXT("  1 - Burrower Boss"));
-            UE_LOG(LogBossAutoTest, Log, TEXT("  2 - Void Queen Boss"));
-            UE_LOG(LogBossAutoTest, Log, TEXT("  3 - Fallen Warlord Boss"));
-            UE_LOG(LogBossAutoTest, Log, TEXT("  4 - Hybrid Demon Boss"));
-            UE_LOG(LogBossAutoTest, Log, TEXT("  5 - All Bosses"));
-            UE_LOG(LogBossAutoTest, Log, TEXT("  0 - Stop Boss"));
+            LOG_ENEMIES(Info, TEXT("Boss testing system ready!"));
+            LOG_ENEMIES(Info, TEXT("Keyboard shortcuts:"));
+            LOG_ENEMIES(Info, TEXT("  1 - Burrower Boss"));
+            LOG_ENEMIES(Info, TEXT("  2 - Void Queen Boss"));
+            LOG_ENEMIES(Info, TEXT("  3 - Fallen Warlord Boss"));
+            LOG_ENEMIES(Info, TEXT("  4 - Hybrid Demon Boss"));
+            LOG_ENEMIES(Info, TEXT("  5 - All Bosses"));
+            LOG_ENEMIES(Info, TEXT("  0 - Stop Boss"));
         }, 0.1f, false);
     }
 }
@@ -219,14 +218,14 @@ void UBossAutoTestSubsystem::GetEnemySpawner()
         EnemySpawner = GetWorld()->GetSubsystem<UEnemySpawnerSubsystem>();
         if (!EnemySpawner)
         {
-            UE_LOG(LogBossAutoTest, Error, TEXT("Could not find EnemySpawnerSubsystem"));
+            LOG_ENEMIES(Error, TEXT("Could not find EnemySpawnerSubsystem"));
         }
     }
 }
 
 void UBossAutoTestSubsystem::LogBossTest(const FString& Message)
 {
-    UE_LOG(LogBossAutoTest, Log, TEXT("%s"), *Message);
+    LOG_ENEMIES(Info, TEXT("%s"), *Message);
     
     // Também mostrar na tela se possível
     if (GEngine)

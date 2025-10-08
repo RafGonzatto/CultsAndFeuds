@@ -14,6 +14,7 @@
 // #include "Swarm/SwarmGameFlow.h" // Removed - Swarm system deleted
 #include "Multiplayer/SteamMultiplayerSubsystem.h"
 #include "Net/MatchFlowController.h"
+#include "Logging/VazioLogFacade.h"
 
 UHUDSelectMapWidget::UHUDSelectMapWidget(const FObjectInitializer& ObjectInitializer)
     : Super(ObjectInitializer)
@@ -507,17 +508,17 @@ void UHUDSelectMapWidget::OnConfirmSelection()
 {
     if (SelectedMap.MapName.IsEmpty())
     {
-        UE_LOG(LogTemp, Warning, TEXT("[HUDSelectMap] No map selected"));
+        LOG_UI(Warn, TEXT("[HUDSelectMap] No map selected"));
         return;
     }
 
-    UE_LOG(LogTemp, Warning, TEXT("[HUDSelectMap] Starting multiplayer session with map: %s"), *SelectedMap.MapName);
+    LOG_UI(Info, TEXT("[HUDSelectMap] Starting multiplayer session with map: %s"), *SelectedMap.MapName);
 
     // Use new networking system
     if (UGameInstance* GI = GetGameInstance())
     {
         // TODO: SwarmGameFlow removed - implement generic return point system if needed
-        UE_LOG(LogTemp, Warning, TEXT("[HUDSelectMapWidget] SwarmGameFlow removed - skipping return point setup"));
+        LOG_UI(Warn, TEXT("[HUDSelectMapWidget] SwarmGameFlow removed - skipping return point setup"));
 
         // Start hosting session using new system
         if (UMatchFlowController* MatchFlow = GI->GetSubsystem<UMatchFlowController>())
@@ -535,19 +536,19 @@ void UHUDSelectMapWidget::OnConfirmSelection()
 
 void UHUDSelectMapWidget::OnSettingsClicked()
 {
-    UE_LOG(LogTemp, Warning, TEXT("[HUDSelectMap] Settings clicked - placeholder"));
+    LOG_UI(Debug, TEXT("[HUDSelectMap] Settings clicked - placeholder"));
     // TODO: Open settings modal
 }
 
 void UHUDSelectMapWidget::OnHelpClicked()
 {
-    UE_LOG(LogTemp, Warning, TEXT("[HUDSelectMap] Help clicked - placeholder"));
+    LOG_UI(Debug, TEXT("[HUDSelectMap] Help clicked - placeholder"));
     // TODO: Open help modal
 }
 
 void UHUDSelectMapWidget::InitializeSteamAuth()
 {
-    UE_LOG(LogTemp, Warning, TEXT("[HUDSelectMap] InitializeSteamAuth"));
+    LOG_UI(Info, TEXT("[HUDSelectMap] InitializeSteamAuth"));
     
     if (UGameInstance* GI = GetGameInstance())
     {
@@ -591,7 +592,7 @@ TArray<FString> UHUDSelectMapWidget::GetSteamFriends()
 
 void UHUDSelectMapWidget::InviteFriend(const FString& FriendName)
 {
-    UE_LOG(LogTemp, Warning, TEXT("[HUDSelectMap] Inviting friend: %s"), *FriendName);
+    LOG_UI(Info, TEXT("[HUDSelectMap] Inviting friend: %s"), *FriendName);
     
     if (UGameInstance* GI = GetGameInstance())
     {
@@ -613,7 +614,7 @@ void UHUDSelectMapWidget::InviteFriend(const FString& FriendName)
 
 void UHUDSelectMapWidget::OnSteamAuthCompleted(bool bSuccess)
 {
-    UE_LOG(LogTemp, Warning, TEXT("[HUDSelectMap] Steam auth completed: %s"), bSuccess ? TEXT("Success") : TEXT("Failed"));
+    LOG_UI(Info, TEXT("[HUDSelectMap] Steam auth completed: %s"), bSuccess ? TEXT("Success") : TEXT("Failed"));
     
     if (SteamStatusText.IsValid())
     {
@@ -639,7 +640,7 @@ void UHUDSelectMapWidget::OnSteamAuthCompleted(bool bSuccess)
 
 void UHUDSelectMapWidget::OnSteamFriendsUpdated(const TArray<FSteamFriend>& Friends)
 {
-    UE_LOG(LogTemp, Warning, TEXT("[HUDSelectMap] Steam friends list updated: %d friends"), Friends.Num());
+    LOG_UI(Debug, TEXT("[HUDSelectMap] Steam friends list updated: %d friends"), Friends.Num());
     
     // Update local friends cache for easier access
     SteamFriends.Empty();
@@ -654,7 +655,7 @@ void UHUDSelectMapWidget::OnSteamFriendsUpdated(const TArray<FSteamFriend>& Frie
     // Update the friends list UI
     UpdateFriendsListUI();
     
-    UE_LOG(LogTemp, Warning, TEXT("[HUDSelectMap] %d online friends cached"), SteamFriends.Num());
+    LOG_UI(Debug, TEXT("[HUDSelectMap] %d online friends cached"), SteamFriends.Num());
 }
 
 void UHUDSelectMapWidget::UpdateFriendsListUI()
